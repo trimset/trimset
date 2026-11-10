@@ -1,0 +1,75 @@
+# The source of truth for tests (docs/05-testing.md). Runs on every push and pull request.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in step with [tool.uv] exclude-newer in pyproject.toml (7-day supply-chain hold).
+  UV_EXCLUDE_NEWER: "2026-11-03T00:00:00Z"
+
+jobs:
+  lint:
+    name: lint and types
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv sync --locked
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
+      - run: uv run --frozen mypy
+
+  test:
+    name: test ${{ matrix.package }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { package: sdk/python, module: trimset, coverage: 90 }
+          - { package: stats, module: trimset_stats, coverage: 95 }
+          - { package: server, module: trimset_server, coverage: 85 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv sync --locked
+      - run: >-
+          uv run --frozen pytest ${{ matrix.package }}/tests
+          --cov=${{ matrix.module }} --cov-report=term-missing
+          --cov-fail-under=${{ matrix.coverage }}
+
+  sdk-oldest-python:
+    name: SDK on Python 3.11
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv run --no-project --python 3.11 --with ./sdk/python --with pytest pytest sdk/python/tests
+
+  contracts:
+    name: API contracts and test vectors
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: docs/03-api
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uvx --from openapi-spec-validator==0.7.2 openapi-spec-validator openapi.yaml
+      - run: |
+          for s in question record outcome fit policy drift_report bundle; do
+            uvx --from check-jsonschema==0.33.0 check-jsonschema \
+              --schemafile schemas/$s.schema.json examples/$s.json
+          done
+      - run: uv run --no-project --with rfc8785==0.1.4 python vectors/generate.py --check
