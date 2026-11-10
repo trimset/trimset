@@ -1,6 +1,6 @@
 # Phase 1: Requirements
 
-**Status:** awaiting approval · 2026-11-10 · Inputs: [kickoff.md](kickoff.md), [00-discovery.md](00-discovery.md)
+**Status:** approved 2026-11-10, with the Phase 2 refinements noted on FR-01, FR-07, FR-09 and FR-52 · Inputs: [kickoff.md](kickoff.md), [00-discovery.md](00-discovery.md)
 
 ## 1. Vision
 
@@ -403,7 +403,7 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
   - `question_id`, type, options or levels
   - `model_requested`, `model_served`
   - the raw probabilities, `latency_ms`, `cost_usd`
-  - `policy_version`, `action_taken`, `tags`, `external_ref`, `state_sha256`
+  - `policy_version`, `action_taken`, `tags`, `external_ref`, `state_hash` (the brief's `state_sha256`, now keyed: [ADR 0009](adr/0009-privacy-model.md))
 
   Writes are idempotent by `decision_id`: sending the same record again stores it once. The reply gives a status for each record.
 - **FR-02 Validation** (v0.1, M1). Probabilities must lie in [0, 1]. Choice and score probabilities must sum to 1 within 1e-6. Their count must match the question's options or levels. Valid records in a batch are stored; invalid ones come back with reasons.
@@ -424,13 +424,13 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
   - From the request and response: `model_requested`, `model_served` and `latency_ms`.
   - `cost_usd`, from token usage and a per-model price table in the configuration. Prices are configuration, never code; an unknown model gives an empty cost.
   - `state_sha256`.
-  - Optional request headers set `X-Trimset-External-Ref` and `X-Trimset-Tags`. The response gains an `X-Trimset-Decision-Id` header.
+  - Optional request headers set `X-Trimset-External-Ref` and `X-Trimset-Tags`. The response gains an `X-Trimset-Decision-Id` header, with one id per question, comma-separated in question order ([ADR 0011](adr/0011-proxy-design.md)).
 - **FR-08 One-base-URL adoption** (v0.1, M1). In proxy mode, trimset must know the project without the app adding headers or changing its body. Phase 2 picks the mechanism; it weighs that a key inside a URL can end up in logs.
 - **FR-09 Private by default** (v0.1, M1).
   - Raw `state` is never stored unless the project switches on "store raw state" (an audited setting, with its own shorter retention).
   - Only hashes and tags are kept.
   - Tags have size limits and an optional per-project allow-list of keys, so personal data can't slip in through tags.
-  - Whether `state_sha256` is a plain hash or a keyed one is decided in Phase 2 (see §14).
+  - `state_hash` is a keyed hash (HMAC-SHA-256, with the key derived from a server secret held outside the database): [ADR 0009](adr/0009-privacy-model.md).
 
 ### B. Outcomes
 
@@ -588,7 +588,7 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
 
 - **FR-51 Projects** (v0.1, M1). Every record, key, policy and setting belongs to one project. There are no reads across projects.
 - **FR-52 API keys** (v0.1, M1).
-  - An ingest-only key can log, send outcomes, use the proxy and read active policies. An admin key can do all of that, plus approvals and settings.
+  - A proxy key can only call the proxy endpoints; it is the key that sits in a base URL ([ADR 0011](adr/0011-proxy-design.md)). An ingest key can log, send outcomes, use the proxy and read active policies. An admin key can do all of that, plus approvals and settings.
   - Keys are stored as hashes, shown once, and revocable, and their last use is recorded.
   - A revocation takes effect within 60 seconds.
 - **FR-53 Bootstrap** (v0.1, M1). The first admin key is created with a CLI command on the server. There are no default credentials.

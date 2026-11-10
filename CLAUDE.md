@@ -8,9 +8,10 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
 
 ## Current phase
 
-**Phase 1, Requirements: written, awaiting approval** ([docs/01-requirements.md](docs/01-requirements.md)).
-Phase 0 was approved on 2026-11-10. Next: Phase 2, Architecture, ADRs and
-`docs/research.md`. Phases and their docs are in the brief.
+**Phase 2, Architecture: written, awaiting approval** ([docs/02-architecture.md](docs/02-architecture.md),
+[docs/adr/](docs/adr/), [docs/research.md](docs/research.md)). Phases 0 and 1 were approved
+on 2026-11-10. Next: Phase 3, Contracts (`docs/03-api/`). Phases and their docs are in
+the brief.
 
 ## Decisions so far
 
@@ -23,7 +24,19 @@ Phase 0 was approved on 2026-11-10. Next: Phase 2, Architecture, ADRs and
   never blocks the app when the database is down; no telemetry. Requirement IDs
   (FR-xx, NFR-xx) are stable: cite them in ADRs, tests and commits.
 
-ADRs come in Phase 2. Phase 1 §14 lists the questions they must settle.
+- **Phase 2** (ADRs 0001–0013 in `docs/adr/`):
+  - Runtime: Python 3.14, FastAPI, asyncpg with plain SQL, no ORM. One image runs two
+    processes, `server` and `worker`, with jobs queued in Postgres 18. No Redis.
+  - Policies: Learn-then-Test with exact binomial tests; pulled by the SDK with an ETag;
+    SHA-256 fingerprints over RFC 8785 JSON.
+  - Privacy and access: the state hash is a keyed HMAC; the proxy key sits in the URL
+    path, with a `proxy` key scope.
+  - SDK: when nothing is configured it falls back to ESCALATE, and never raises.
+  - The SDK stays pure Python for 3.11 and newer, with no numpy or scipy.
+- An algorithm change needs its source added to `docs/research.md`, verified through the
+  arXiv or Crossref API, never from memory.
+- Mermaid diagrams are checked by rendering them with mermaid 11.4.1 in a browser before
+  committing. All 17 passed in Phase 2.
 
 ## Rules
 
@@ -46,11 +59,13 @@ ADRs come in Phase 2. Phase 1 §14 lists the questions they must settle.
 `site/index.html`. Keep its look: dark theme, Space Grotesk / Inter / JetBrains Mono,
 the `--accent` variable. Fill the `[X]%` cells only with numbers from our own demo data.
 Before it goes live (GitHub Pages, Phase 7) its claims must match what is built. Today
-nothing is built, and it also promises a TypeScript SDK, which is planned for v0.2.
+nothing is built. It also promises a TypeScript SDK (planned for v0.2), and its adoption
+snippet lacks the `/p/<proxy key>` path that ADR 0011 requires.
 
 ## Layout
 
-- `docs/`: the brief and one doc per phase.
+- `docs/`: the brief and one doc per phase; `docs/adr/` holds the decision records;
+  `docs/research.md` holds the verified sources.
 - `docs/design/`: prompts for Claude Design (the full site, and the v2 dashboard). When a
   Phase 1 change adds, drops or renames a screen, update `dashboard-prompt.md` too.
 - `site/`: the homepage.
