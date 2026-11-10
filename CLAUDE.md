@@ -10,9 +10,14 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
 
 **Phase 5, Implementation: M1 Capture in progress** ([docs/04-plan.md](docs/04-plan.md)).
 - Phases 0 to 4 were approved on 2026-11-10.
-- Done: T1.1 (scaffold) and T1.2 (CI, [docs/05-testing.md](docs/05-testing.md)).
-- Next: T1.3 (image and compose), then T1.4 (schema), T1.6 (wire module) and the rest of
-  M1.
+- Done:
+  - T1.1, the scaffold;
+  - T1.2, CI and [docs/05-testing.md](docs/05-testing.md);
+  - T1.3, the image, compose (Postgres and server), `/health`, `/ready`, JSON logs and
+    OpenTelemetry.
+- Next: T1.4 (migrations and the first schema). It also adds the `migrate` and `worker`
+  services to compose, which were left out of T1.3 because they had nothing to do yet.
+  Then T1.5, T1.6 and the rest of M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
   every milestone, from actual hours.
 - Repository: `github.com/trimset/trimset` (public).
@@ -96,7 +101,19 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
   - `design/`, the prompts for Claude Design.
 - `site/`: the homepage.
 - `.github/workflows/ci.yml`: lint, types, tests per package with coverage gates, SDK on
-  Python 3.11, contract checks.
+  Python 3.11, contract checks, and an image and compose smoke test.
+- `Dockerfile`: one image for server and worker.
+  - Base images and uv are pinned by digest.
+  - It runs as uid 10001.
+  - Entrypoint `trimset-server`.
+- `compose.yaml`: Postgres 18.6 and the server on :8800. It needs `TRIMSET_DB_PASSWORD` in
+  `.env`; there is no default password.
+- **Server logging and telemetry:**
+  - Logs are JSON on stdout. `logs.redact` strips anything that looks like a trimset key
+    from every log line.
+  - OpenTelemetry is on only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and span
+    attributes pass through the same redaction.
+- **HTTP client:** `httpx2`, not `httpx`, which Starlette deprecated.
 
 ## Commands
 
@@ -106,6 +123,8 @@ uv run --frozen ruff check . && uv run --frozen ruff format --check .
 uv run --frozen mypy
 uv run --frozen pytest stats/tests/test_x.py    # one file at a time locally
 gh run list --repo trimset/trimset              # the real test results
+TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
+# The image is built and smoke-tested in CI (job "image"), not locally.
 
 # Contract checks (also in CI)
 cd docs/03-api

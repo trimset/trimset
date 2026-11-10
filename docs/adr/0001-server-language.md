@@ -24,8 +24,9 @@ maintainer, with 10 hours a week.
 
 Python for the server and the worker:
 - **Runtime:** Python 3.14, falling back to 3.13 if a dependency lacks 3.14 wheels.
-- **Server:** FastAPI on uvicorn, asyncpg with plain SQL (no ORM), and httpx for upstream
-  calls.
+- **Server:** FastAPI on uvicorn, asyncpg with plain SQL (no ORM), and httpx2 for upstream
+  calls. (Phase 5: Starlette deprecated httpx in favour of httpx2, its maintained successor
+  by the same author.)
 - **Packaging:** a uv workspace ([0002](0002-monorepo-layout.md)).
 
 The Python SDK is pure Python, supports CPython 3.11 and newer, and does not depend on
