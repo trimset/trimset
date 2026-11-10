@@ -8,15 +8,22 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
 
 ## Current phase
 
-**Phase 0, Discovery: written, awaiting approval** ([docs/00-discovery.md](docs/00-discovery.md)).
-Next: Phase 1, Requirements (`docs/01-requirements.md`). Phases and their docs are in
-the brief.
+**Phase 1, Requirements: written, awaiting approval** ([docs/01-requirements.md](docs/01-requirements.md)).
+Phase 0 was approved on 2026-11-10. Next: Phase 2, Architecture, ADRs and
+`docs/research.md`. Phases and their docs are in the brief.
 
 ## Decisions so far
 
-Python (FastAPI) server; Postgres only; v0.1 ships the API and a CLI (dashboard in v2);
-Python SDK in v0.1, TypeScript in v0.2; GitHub org `trimset`; 10 h/week assumed. The
-reasons are in the discovery doc. ADRs come in Phase 2.
+- **Phase 0:** a Python (FastAPI) server; Postgres only; v0.1 ships the API and a CLI
+  (dashboard in v2); Python SDK in v0.1, TypeScript in v0.2; GitHub org `trimset`;
+  10 hours a week.
+- **Phase 1:** the proxy supports the `/v1/systemone` format and OpenAI's `/v1/decisions`;
+  outcomes can come from default-by-rule labels; audit sampling; a review link template
+  instead of storing raw state; a policy is bound to its exact `model_served`; the proxy
+  never blocks the app when the database is down; no telemetry. Requirement IDs
+  (FR-xx, NFR-xx) are stable: cite them in ADRs, tests and commits.
+
+ADRs come in Phase 2. Phase 1 §14 lists the questions they must settle.
 
 ## Rules
 

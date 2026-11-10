@@ -1,6 +1,6 @@
 # Phase 0: Discovery
 
-**Status:** awaiting approval · 2026-11-10 · Brief: [kickoff.md](kickoff.md)
+**Status:** approved 2026-11-10 · Brief: [kickoff.md](kickoff.md)
 
 ## Answers
 
@@ -11,7 +11,7 @@
 | 3 | Storage for v1 | **Postgres only** | Claude's recommendation; you said ok |
 | 4 | Dashboard | **v2**; v0.1 ships the API and a CLI | Claude's recommendation; you said ok |
 | 5 | SDKs in v1 | **Python** in v0.1, **TypeScript** in v0.2 | Claude's recommendation; you said ok |
-| 6 | Weekly time budget | **Assumed 10 h/week** | Assumption: confirm before Phase 4 |
+| 6 | Weekly time budget | **10 h/week** | You (confirmed 2026-11-10) |
 | 7 | GitHub org or personal account | **Org `trimset`** | Claude's recommendation (you asked) |
 
 ### 1. Name: trimset
@@ -81,8 +81,7 @@ only a base-URL change.
 
 ### 6. Time budget
 
-Not answered yet. Until you say, the plan assumes 10 hours a week. Phase 4 sizes the
-milestones to the real number.
+10 hours a week, confirmed. Phase 4 sizes the milestones to it.
 
 ### 7. GitHub org
 
@@ -158,5 +157,4 @@ read in Phase 3, before the contracts are written.
 
 ## Open before Phase 1
 
-- Your weekly hours (10 assumed).
-- Anything above you want changed.
+Nothing. Phase 0 was approved on 2026-11-10.
