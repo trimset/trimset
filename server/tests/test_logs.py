@@ -2,6 +2,7 @@ import json
 import logging
 import logging.config
 import sys
+import time
 
 import pytest
 
@@ -38,6 +39,15 @@ def test_keys_hidden_by_neighbours_or_encoding_are_still_redacted(line: str) -> 
     out = redact(line)
     assert KEY[4:] not in out
     assert "tsp_[redacted]" in out
+
+
+@pytest.mark.req("NFR-11")
+def test_deeply_encoded_text_is_hidden_in_bounded_time() -> None:
+    deep = "GET /p/%" + "25" * 5000 + "74sp_" + KEY[4:] + "/v1"  # 5,000 levels deep
+    started = time.perf_counter()
+    out = redact(deep)
+    assert time.perf_counter() - started < 0.5
+    assert out == "[redacted: percent-encoded more than 8 times]"
 
 
 def test_a_lone_percent_sign_does_not_loop() -> None:

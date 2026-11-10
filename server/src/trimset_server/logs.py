@@ -14,14 +14,20 @@ from urllib.parse import unquote
 # No left boundary on purpose: a key right after "_", a letter or "%2F" must still match.
 # Redacting a little too much in a log is fine; leaking a key is not.
 _KEY = re.compile(r"(ts[pira]_)[A-Za-z0-9]{8,}")
+_MAX_DECODES = 8
 
 
 def redact(text: str) -> str:
-    # Percent-decode until nothing changes, so "tsp_%41…" or a prefix encoded any number of
-    # times can't slip past. Ends: every change shortens the text. The log line then shows
-    # the decoded form.
-    while "%" in text and (decoded := unquote(text)) != text:
+    # Percent-decode first, so "tsp_%41…" or a prefix encoded several times can't slip past.
+    # The log line then shows the decoded form. At most _MAX_DECODES passes, so crafted
+    # input can't make every log line cost thousands of passes. Text still encoded after
+    # that is no accident: the whole line is hidden.
+    for _ in range(_MAX_DECODES):
+        if "%" not in text or (decoded := unquote(text)) == text:
+            return _KEY.sub(r"\1[redacted]", text)
         text = decoded
+    if "%" in text and unquote(text) != text:
+        return f"[redacted: percent-encoded more than {_MAX_DECODES} times]"
     return _KEY.sub(r"\1[redacted]", text)
 
 
