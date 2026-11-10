@@ -23,6 +23,22 @@ def test_proxy_key_in_an_access_log_path_is_redacted() -> None:
     assert "/p/tsp_[redacted]/v1/systemone" in redact(line)
 
 
+@pytest.mark.req("NFR-11")
+@pytest.mark.parametrize(
+    "line",
+    [
+        f"x_{KEY}",  # right after an underscore
+        f"GET /p%2F{KEY}/v1/systemone",  # right after an encoded slash
+        "GET /p/tsp_%41" + KEY[5:] + "/v1",  # one character of the key encoded
+        "GET /p/%2574sp_" + KEY[4:] + "/v1",  # the prefix double-encoded
+    ],
+)
+def test_keys_hidden_by_neighbours_or_encoding_are_still_redacted(line: str) -> None:
+    out = redact(line)
+    assert KEY[4:] not in out
+    assert "tsp_[redacted]" in out
+
+
 def test_ordinary_text_is_left_alone() -> None:
     text = "tsp_ alone, the word tsa_short, and /v1/systemone"
     assert redact(text) == text

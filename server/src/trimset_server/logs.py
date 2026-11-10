@@ -5,14 +5,27 @@ import logging
 import re
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import unquote
 
 # A key is its scope prefix plus 32 base62 characters (docs/03-api/README.md). Matching
 # from 8 characters on also catches truncated keys. Proxy keys sit in URL paths, so
 # access logs carry them unless they are redacted here.
-_KEY = re.compile(r"\b(ts[pira]_)[A-Za-z0-9]{8,}")
+#
+# No left boundary on purpose: a key right after "_", a letter or "%2F" must still match.
+# Redacting a little too much in a log is fine; leaking a key is not.
+_KEY = re.compile(r"(ts[pira]_)[A-Za-z0-9]{8,}")
 
 
 def redact(text: str) -> str:
+    # Percent-decode first (repeatedly, for double encoding), so "tsp_%41…" or
+    # "%74sp_…" can't slip past. The log line then shows the decoded form.
+    for _ in range(3):
+        if "%" not in text:
+            break
+        decoded = unquote(text)
+        if decoded == text:
+            break
+        text = decoded
     return _KEY.sub(r"\1[redacted]", text)
 
 
