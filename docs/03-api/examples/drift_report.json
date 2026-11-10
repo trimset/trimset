@@ -1,0 +1,15 @@
+{
+  "schema": "drift_report/1",
+  "report_id": "019a7000-3333-7aaa-8bbb-ccccdddd0042",
+  "question_id": "q_534a3508f2d81f8c35d11ba5cde4fcc3",
+  "model_served": "jev-1.14.0",
+  "created_at": "2026-11-10T10:00:05Z",
+  "kind": "probability_drift",
+  "windows": {
+    "reference": { "from": "2026-04-12T00:00:00Z", "to": "2026-07-11T00:00:00Z", "n": 9840 },
+    "current": { "from": "2026-11-09T10:00:00Z", "to": "2026-11-10T10:00:00Z", "n": 1212 }
+  },
+  "stats": { "psi": 0.27, "js": 0.031, "p_value": 0.001, "permutations": 999 },
+  "thresholds": { "psi": 0.2, "p_value": 0.01, "min_n": 500 },
+  "triggered": true
+}

@@ -1,0 +1,9 @@
+{
+  "schema": "outcome/1",
+  "outcome_id": "019b2c11-8f00-7e2a-b1c3-d4e5f6a7b8c9",
+  "external_ref": "rf-1001",
+  "question": "refund_fraud",
+  "label": true,
+  "source": "downstream",
+  "observed_at": "2026-12-20T14:02:00Z"
+}

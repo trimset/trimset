@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Drift report (drift_report/1)",
+  "description": "One drift or health check for one group (ADR 0007).",
+  "type": "object",
+  "required": ["schema", "report_id", "question_id", "model_served", "kind", "created_at", "triggered"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "drift_report/1" },
+    "report_id": { "$ref": "common.schema.json#/$defs/uuid" },
+    "question_id": { "$ref": "common.schema.json#/$defs/question_id" },
+    "model_served": { "$ref": "common.schema.json#/$defs/model" },
+    "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "kind": {
+      "enum": [
+        "probability_drift",
+        "silent_upgrade",
+        "escalation_rate",
+        "upstream_errors",
+        "latency",
+        "calibration",
+        "policy_violation"
+      ]
+    },
+    "windows": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reference": { "$ref": "common.schema.json#/$defs/window" },
+        "current": { "$ref": "common.schema.json#/$defs/window" }
+      }
+    },
+    "stats": {
+      "description": "Numbers for this kind. probability_drift: psi, js, p_value, permutations. silent_upgrade: model_requested, old_model, new_model. policy_violation: rule, fired, wrong, lower_bound, alpha.",
+      "type": "object",
+      "additionalProperties": { "type": ["number", "string", "null"] }
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    },
+    "triggered": { "type": "boolean" }
+  }
+}

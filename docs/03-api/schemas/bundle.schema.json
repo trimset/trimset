@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Policy bundle (bundle/1)",
+  "description": "What GET /v1/policies returns to an SDK: the project's named questions, its active policies, and the key for state hashes (ADR 0008, ADR 0009).",
+  "type": "object",
+  "required": ["schema", "project_id", "generated_at", "etag", "state_hash_key", "questions", "policies"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "bundle/1" },
+    "project_id": { "$ref": "common.schema.json#/$defs/uuid" },
+    "generated_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "etag": {
+      "description": "Hex SHA-256 of the RFC 8785 canonical bundle without generated_at and etag (hashing.md).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "state_hash_key": {
+      "type": "object",
+      "required": ["alg", "key_b64"],
+      "additionalProperties": false,
+      "properties": {
+        "alg": { "const": "hmac-sha256/1" },
+        "key_b64": { "type": "string", "contentEncoding": "base64", "minLength": 44, "maxLength": 44 }
+      }
+    },
+    "questions": {
+      "description": "Keyed by question name.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["question_id", "definition"],
+        "additionalProperties": false,
+        "properties": {
+          "question_id": { "$ref": "common.schema.json#/$defs/question_id" },
+          "definition": { "$ref": "question.schema.json" }
+        }
+      }
+    },
+    "policies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["policy", "guarantee_status"],
+        "additionalProperties": false,
+        "properties": {
+          "policy": { "$ref": "policy.schema.json" },
+          "guarantee_status": {
+            "description": "Computed when served: suspended once drift or a failing live check follows the tune window.",
+            "enum": ["certified", "suspended", "none"]
+          }
+        }
+      }
+    }
+  }
+}

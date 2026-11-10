@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "trimset shared definitions",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "question_id": { "type": "string", "pattern": "^q_[0-9a-f]{32}$" },
+    "question_name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "question_ref": {
+      "description": "A question name or a question_id.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "type": { "enum": ["noul", "choice", "score"] },
+    "model": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+    "action": {
+      "type": "string",
+      "pattern": "^(ACCEPT|BLOCK|ESCALATE|SELECT:.{1,256})$"
+    },
+    "option_value": {
+      "description": "A choice option's value: a string (systemone criteria key, OpenAI string value) or a boolean (OpenAI only). true and \"true\" are different options.",
+      "type": ["string", "boolean"]
+    },
+    "label": {
+      "description": "noul: boolean. choice: the option's value. score: the level index (0-based).",
+      "type": ["boolean", "string", "integer"]
+    },
+    "tags": {
+      "type": "object",
+      "maxProperties": 20,
+      "propertyNames": { "pattern": "^[A-Za-z0-9_.-]{1,64}$" },
+      "additionalProperties": { "type": "string", "maxLength": 256 }
+    },
+    "external_ref": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "interval": {
+      "type": "array",
+      "prefixItems": [
+        { "$ref": "#/$defs/probability" },
+        { "$ref": "#/$defs/probability" }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "window": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "$ref": "#/$defs/timestamp" },
+        "to": { "$ref": "#/$defs/timestamp" },
+        "n": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decision record (record/1)",
+  "description": "One answered question. The proxy builds these itself; the SDK and the log API send them.",
+  "type": "object",
+  "required": [
+    "schema",
+    "decision_id",
+    "ts",
+    "question_id",
+    "type",
+    "model_requested",
+    "model_served",
+    "probabilities"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "record/1" },
+    "decision_id": {
+      "$ref": "common.schema.json#/$defs/uuid",
+      "description": "UUIDv7 recommended: its timestamp lets the server find the right monthly partition."
+    },
+    "request_id": {
+      "description": "Groups the decisions of one upstream request (shared latency and cost).",
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }]
+    },
+    "ts": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "question_id": { "$ref": "common.schema.json#/$defs/question_id" },
+    "question_name": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/question_name" }, { "type": "null" }]
+    },
+    "type": { "$ref": "common.schema.json#/$defs/type" },
+    "format": {
+      "description": "The wire format the decision came from.",
+      "enum": ["systemone", "openai-decisions", "direct"]
+    },
+    "model_requested": { "$ref": "common.schema.json#/$defs/model" },
+    "model_served": { "$ref": "common.schema.json#/$defs/model" },
+    "probabilities": {
+      "description": "Raw model probabilities. noul: [P(true)]. choice: one per option, in the question's option order. score: one per level, level 0 first. null when the model refused.",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/probability" },
+          "minItems": 1,
+          "maxItems": 255
+        },
+        { "type": "null" }
+      ]
+    },
+    "refusal": { "type": "boolean", "default": false },
+    "latency_ms": { "type": ["number", "null"], "minimum": 0 },
+    "cost_usd": { "type": ["number", "null"], "minimum": 0 },
+    "policy_version": { "type": ["integer", "null"], "minimum": 1 },
+    "policy_fingerprint": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/fingerprint" }, { "type": "null" }]
+    },
+    "action_taken": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/action" }, { "type": "null" }]
+    },
+    "action_source": { "enum": ["policy", "audit", "default", null] },
+    "audit": { "type": "boolean", "default": false },
+    "tags": { "$ref": "common.schema.json#/$defs/tags" },
+    "external_ref": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/external_ref" }, { "type": "null" }]
+    },
+    "state_hash": {
+      "description": "HMAC-SHA-256 of the canonical state; see hashing.md. Never the state itself.",
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "state_hash_alg": { "const": "hmac-sha256/1" },
+    "role": { "enum": ["primary", "shadow"], "default": "primary" },
+    "shadow_of": {
+      "oneOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["refusal"], "properties": { "refusal": { "const": true } } },
+      "then": { "properties": { "probabilities": { "type": "null" } } },
+      "else": { "properties": { "probabilities": { "type": "array" } } }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "noul" }, "probabilities": { "type": "array" } }
+      },
+      "then": { "properties": { "probabilities": { "maxItems": 1 } } }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "score" }, "probabilities": { "type": "array" } }
+      },
+      "then": { "properties": { "probabilities": { "maxItems": 10 } } }
+    },
+    {
+      "if": { "required": ["role"], "properties": { "role": { "const": "shadow" } } },
+      "then": {
+        "required": ["shadow_of"],
+        "properties": { "shadow_of": { "$ref": "common.schema.json#/$defs/uuid" } }
+      }
+    }
+  ]
+}

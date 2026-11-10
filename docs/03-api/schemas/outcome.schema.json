@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Outcome (outcome/1)",
+  "description": "The truth about a decision. Names the decision by decision_id, or by external_ref plus question.",
+  "type": "object",
+  "required": ["schema", "label", "source", "observed_at"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "outcome/1" },
+    "outcome_id": {
+      "$ref": "common.schema.json#/$defs/uuid",
+      "description": "Optional idempotency key: an outcome_id seen before is ignored."
+    },
+    "decision_id": { "$ref": "common.schema.json#/$defs/uuid" },
+    "external_ref": { "$ref": "common.schema.json#/$defs/external_ref" },
+    "question": { "$ref": "common.schema.json#/$defs/question_ref" },
+    "label": { "$ref": "common.schema.json#/$defs/label" },
+    "source": { "enum": ["human_review", "downstream", "rule"] },
+    "observed_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+  },
+  "oneOf": [
+    { "required": ["decision_id"], "not": { "required": ["external_ref"] } },
+    { "required": ["external_ref", "question"], "not": { "required": ["decision_id"] } }
+  ]
+}

@@ -1,0 +1,495 @@
+{
+  "schema": "vectors/1",
+  "question_ids": [
+    {
+      "case": "noul_systemone",
+      "format": "systemone",
+      "name": "fraud",
+      "wire": {
+        "type": "noul",
+        "instructions": "Is this refund request fraudulent?"
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "noul",
+        "instructions": "Is this refund request fraudulent?",
+        "noul": {
+          "true": null,
+          "false": null
+        }
+      },
+      "canonical": "{\"instructions\":\"Is this refund request fraudulent?\",\"noul\":{\"false\":null,\"true\":null},\"schema\":\"question/1\",\"type\":\"noul\"}",
+      "question_id": "q_534a3508f2d81f8c35d11ba5cde4fcc3"
+    },
+    {
+      "case": "noul_openai_same_question",
+      "format": "openai",
+      "name": null,
+      "wire": {
+        "type": "predicate",
+        "name": "fraud",
+        "instructions": "Is this refund request fraudulent?"
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "noul",
+        "instructions": "Is this refund request fraudulent?",
+        "noul": {
+          "true": null,
+          "false": null
+        }
+      },
+      "canonical": "{\"instructions\":\"Is this refund request fraudulent?\",\"noul\":{\"false\":null,\"true\":null},\"schema\":\"question/1\",\"type\":\"noul\"}",
+      "question_id": "q_534a3508f2d81f8c35d11ba5cde4fcc3"
+    },
+    {
+      "case": "noul_with_criteria",
+      "format": "systemone",
+      "name": "fraud",
+      "wire": {
+        "type": "noul",
+        "instructions": "Is this refund request fraudulent?",
+        "criteria": {
+          "true": "Clear signs of fraud",
+          "false": "Looks legitimate"
+        }
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "noul",
+        "instructions": "Is this refund request fraudulent?",
+        "noul": {
+          "true": "Clear signs of fraud",
+          "false": "Looks legitimate"
+        }
+      },
+      "canonical": "{\"instructions\":\"Is this refund request fraudulent?\",\"noul\":{\"false\":\"Looks legitimate\",\"true\":\"Clear signs of fraud\"},\"schema\":\"question/1\",\"type\":\"noul\"}",
+      "question_id": "q_013f51a4dbae91a4f55d9a3f8da41752"
+    },
+    {
+      "case": "noul_trailing_space_is_different",
+      "format": "systemone",
+      "name": "fraud",
+      "wire": {
+        "type": "noul",
+        "instructions": "Is this refund request fraudulent? "
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "noul",
+        "instructions": "Is this refund request fraudulent? ",
+        "noul": {
+          "true": null,
+          "false": null
+        }
+      },
+      "canonical": "{\"instructions\":\"Is this refund request fraudulent? \",\"noul\":{\"false\":null,\"true\":null},\"schema\":\"question/1\",\"type\":\"noul\"}",
+      "question_id": "q_caf5f5cbc6b4b94eec8e693fa26af69a"
+    },
+    {
+      "case": "noul_nfc_composed",
+      "format": "systemone",
+      "name": "cafe",
+      "wire": {
+        "type": "noul",
+        "instructions": "Is this café order fraudulent?"
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "noul",
+        "instructions": "Is this café order fraudulent?",
+        "noul": {
+          "true": null,
+          "false": null
+        }
+      },
+      "canonical": "{\"instructions\":\"Is this café order fraudulent?\",\"noul\":{\"false\":null,\"true\":null},\"schema\":\"question/1\",\"type\":\"noul\"}",
+      "question_id": "q_a379f5ca696049daaaac7347f26f8765"
+    },
+    {
+      "case": "noul_nfc_decomposed_same_id",
+      "format": "systemone",
+      "name": "cafe",
+      "wire": {
+        "type": "noul",
+        "instructions": "Is this café order fraudulent?"
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "noul",
+        "instructions": "Is this café order fraudulent?",
+        "noul": {
+          "true": null,
+          "false": null
+        }
+      },
+      "canonical": "{\"instructions\":\"Is this café order fraudulent?\",\"noul\":{\"false\":null,\"true\":null},\"schema\":\"question/1\",\"type\":\"noul\"}",
+      "question_id": "q_a379f5ca696049daaaac7347f26f8765"
+    },
+    {
+      "case": "noul_no_instructions_uses_name",
+      "format": "systemone",
+      "name": "billing",
+      "wire": {
+        "type": "noul"
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "noul",
+        "instructions": {
+          "$name": "billing"
+        },
+        "noul": {
+          "true": null,
+          "false": null
+        }
+      },
+      "canonical": "{\"instructions\":{\"$name\":\"billing\"},\"noul\":{\"false\":null,\"true\":null},\"schema\":\"question/1\",\"type\":\"noul\"}",
+      "question_id": "q_f71c16ff61fb209f14e28b2ded1ed493"
+    },
+    {
+      "case": "choice_systemone",
+      "format": "systemone",
+      "name": "team",
+      "wire": {
+        "type": "choice",
+        "instructions": "Which team should handle this ticket?",
+        "criteria": {
+          "billing": "Payments and refunds",
+          "shipping": null,
+          "returns": null,
+          "tech": "Software errors"
+        }
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "choice",
+        "instructions": "Which team should handle this ticket?",
+        "options": [
+          {
+            "value": "billing",
+            "description": "Payments and refunds"
+          },
+          {
+            "value": "shipping",
+            "description": null
+          },
+          {
+            "value": "returns",
+            "description": null
+          },
+          {
+            "value": "tech",
+            "description": "Software errors"
+          }
+        ]
+      },
+      "canonical": "{\"instructions\":\"Which team should handle this ticket?\",\"options\":[{\"description\":\"Payments and refunds\",\"value\":\"billing\"},{\"description\":null,\"value\":\"shipping\"},{\"description\":null,\"value\":\"returns\"},{\"description\":\"Software errors\",\"value\":\"tech\"}],\"schema\":\"question/1\",\"type\":\"choice\"}",
+      "question_id": "q_811c98e3cdebfb4bae6aee04cb3ab73f"
+    },
+    {
+      "case": "choice_reordered_is_different",
+      "format": "systemone",
+      "name": "team",
+      "wire": {
+        "type": "choice",
+        "instructions": "Which team should handle this ticket?",
+        "criteria": {
+          "shipping": null,
+          "billing": "Payments and refunds",
+          "returns": null,
+          "tech": "Software errors"
+        }
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "choice",
+        "instructions": "Which team should handle this ticket?",
+        "options": [
+          {
+            "value": "shipping",
+            "description": null
+          },
+          {
+            "value": "billing",
+            "description": "Payments and refunds"
+          },
+          {
+            "value": "returns",
+            "description": null
+          },
+          {
+            "value": "tech",
+            "description": "Software errors"
+          }
+        ]
+      },
+      "canonical": "{\"instructions\":\"Which team should handle this ticket?\",\"options\":[{\"description\":null,\"value\":\"shipping\"},{\"description\":\"Payments and refunds\",\"value\":\"billing\"},{\"description\":null,\"value\":\"returns\"},{\"description\":\"Software errors\",\"value\":\"tech\"}],\"schema\":\"question/1\",\"type\":\"choice\"}",
+      "question_id": "q_c8717eb3f321622064c2721c4f221f35"
+    },
+    {
+      "case": "choice_openai_same_question",
+      "format": "openai",
+      "name": null,
+      "wire": {
+        "type": "choice",
+        "name": "team",
+        "instructions": "Which team should handle this ticket?",
+        "choices": [
+          {
+            "value": "billing",
+            "description": "Payments and refunds"
+          },
+          {
+            "value": "shipping"
+          },
+          {
+            "value": "returns"
+          },
+          {
+            "value": "tech",
+            "description": "Software errors"
+          }
+        ]
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "choice",
+        "instructions": "Which team should handle this ticket?",
+        "options": [
+          {
+            "value": "billing",
+            "description": "Payments and refunds"
+          },
+          {
+            "value": "shipping",
+            "description": null
+          },
+          {
+            "value": "returns",
+            "description": null
+          },
+          {
+            "value": "tech",
+            "description": "Software errors"
+          }
+        ]
+      },
+      "canonical": "{\"instructions\":\"Which team should handle this ticket?\",\"options\":[{\"description\":\"Payments and refunds\",\"value\":\"billing\"},{\"description\":null,\"value\":\"shipping\"},{\"description\":null,\"value\":\"returns\"},{\"description\":\"Software errors\",\"value\":\"tech\"}],\"schema\":\"question/1\",\"type\":\"choice\"}",
+      "question_id": "q_811c98e3cdebfb4bae6aee04cb3ab73f"
+    },
+    {
+      "case": "choice_openai_boolean_value",
+      "format": "openai",
+      "name": null,
+      "wire": {
+        "type": "choice",
+        "name": "ok",
+        "instructions": "Approve?",
+        "choices": [
+          {
+            "value": true
+          },
+          {
+            "value": false
+          }
+        ]
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "choice",
+        "instructions": "Approve?",
+        "options": [
+          {
+            "value": true,
+            "description": null
+          },
+          {
+            "value": false,
+            "description": null
+          }
+        ]
+      },
+      "canonical": "{\"instructions\":\"Approve?\",\"options\":[{\"description\":null,\"value\":true},{\"description\":null,\"value\":false}],\"schema\":\"question/1\",\"type\":\"choice\"}",
+      "question_id": "q_4f9f96190f24a2c9c98c18f6a3048808"
+    },
+    {
+      "case": "choice_openai_string_value_is_different",
+      "format": "openai",
+      "name": null,
+      "wire": {
+        "type": "choice",
+        "name": "ok",
+        "instructions": "Approve?",
+        "choices": [
+          {
+            "value": "true"
+          },
+          {
+            "value": "false"
+          }
+        ]
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "choice",
+        "instructions": "Approve?",
+        "options": [
+          {
+            "value": "true",
+            "description": null
+          },
+          {
+            "value": "false",
+            "description": null
+          }
+        ]
+      },
+      "canonical": "{\"instructions\":\"Approve?\",\"options\":[{\"description\":null,\"value\":\"true\"},{\"description\":null,\"value\":\"false\"}],\"schema\":\"question/1\",\"type\":\"choice\"}",
+      "question_id": "q_363e7298edda52b1b810006a3cef1137"
+    },
+    {
+      "case": "score_systemone",
+      "format": "systemone",
+      "name": "severity",
+      "wire": {
+        "type": "score",
+        "instructions": "How serious is the problem with this listing?",
+        "criteria": [
+          "No problem",
+          "Mild problem",
+          "Serious problem",
+          "Must be removed"
+        ]
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "score",
+        "instructions": "How serious is the problem with this listing?",
+        "levels": [
+          {
+            "label": null,
+            "description": "No problem"
+          },
+          {
+            "label": null,
+            "description": "Mild problem"
+          },
+          {
+            "label": null,
+            "description": "Serious problem"
+          },
+          {
+            "label": null,
+            "description": "Must be removed"
+          }
+        ]
+      },
+      "canonical": "{\"instructions\":\"How serious is the problem with this listing?\",\"levels\":[{\"description\":\"No problem\",\"label\":null},{\"description\":\"Mild problem\",\"label\":null},{\"description\":\"Serious problem\",\"label\":null},{\"description\":\"Must be removed\",\"label\":null}],\"schema\":\"question/1\",\"type\":\"score\"}",
+      "question_id": "q_a857099656a773e1fdd573d34c847b47"
+    },
+    {
+      "case": "score_openai_with_labels_is_different",
+      "format": "openai",
+      "name": null,
+      "wire": {
+        "type": "score",
+        "name": "severity",
+        "instructions": "How serious is the problem with this listing?",
+        "levels": [
+          {
+            "label": "none",
+            "description": "No problem"
+          },
+          {
+            "label": "mild",
+            "description": "Mild problem"
+          },
+          {
+            "label": "serious",
+            "description": "Serious problem"
+          },
+          {
+            "label": "remove",
+            "description": "Must be removed"
+          }
+        ]
+      },
+      "definition": {
+        "schema": "question/1",
+        "type": "score",
+        "instructions": "How serious is the problem with this listing?",
+        "levels": [
+          {
+            "label": "none",
+            "description": "No problem"
+          },
+          {
+            "label": "mild",
+            "description": "Mild problem"
+          },
+          {
+            "label": "serious",
+            "description": "Serious problem"
+          },
+          {
+            "label": "remove",
+            "description": "Must be removed"
+          }
+        ]
+      },
+      "canonical": "{\"instructions\":\"How serious is the problem with this listing?\",\"levels\":[{\"description\":\"No problem\",\"label\":\"none\"},{\"description\":\"Mild problem\",\"label\":\"mild\"},{\"description\":\"Serious problem\",\"label\":\"serious\"},{\"description\":\"Must be removed\",\"label\":\"remove\"}],\"schema\":\"question/1\",\"type\":\"score\"}",
+      "question_id": "q_058d676d2caf1d9bf040bdcbeeaf6d20"
+    }
+  ],
+  "state_hashes": {
+    "server_secret_utf8": "trimset-test-secret-do-not-use",
+    "project_id": "0193f0a2-7c4e-7b1a-9d2e-5f6a7b8c9d0e",
+    "project_key_b64": "lBhyIw+OrsQrfIkq86dr5CJG8Atc9vVevtTkgk0G8rs=",
+    "cases": [
+      {
+        "case": "object_state",
+        "state": {
+          "refund_id": "rf-1001",
+          "amount": 129.5,
+          "reason": "Item never arrived"
+        },
+        "canonical": "{\"amount\":129.5,\"reason\":\"Item never arrived\",\"refund_id\":\"rf-1001\"}",
+        "state_hash": "f4257bdbd8c5584fa33682e87a287739436d2831e7f9d95cea22230ed9586665"
+      },
+      {
+        "case": "same_object_other_key_order",
+        "state": {
+          "reason": "Item never arrived",
+          "amount": 129.5,
+          "refund_id": "rf-1001"
+        },
+        "canonical": "{\"amount\":129.5,\"reason\":\"Item never arrived\",\"refund_id\":\"rf-1001\"}",
+        "state_hash": "f4257bdbd8c5584fa33682e87a287739436d2831e7f9d95cea22230ed9586665"
+      },
+      {
+        "case": "string_state",
+        "state": "Our checkout has returned 500 errors since 9am.",
+        "canonical": "\"Our checkout has returned 500 errors since 9am.\"",
+        "state_hash": "3a5438cfa08fa13b000b396adc183b7da44a2e4e025386ecf4bb529335e24315"
+      },
+      {
+        "case": "array_state",
+        "state": [
+          {
+            "role": "user",
+            "content": "Where is my order?"
+          }
+        ],
+        "canonical": "[{\"content\":\"Where is my order?\",\"role\":\"user\"}]",
+        "state_hash": "3d01b555cf3677a7162eda92ac4fea6a65a8efd0edc27b96db2b85cecb45c053"
+      }
+    ]
+  },
+  "fingerprints": [
+    {
+      "file": "examples/policy.json",
+      "fingerprint": "sha256:32d8f6efeee249f92884e5bf3067e1b38df4ea9ec5bc1f4c088c97220bb0e94c"
+    }
+  ]
+}

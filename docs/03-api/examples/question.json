@@ -1,0 +1,6 @@
+{
+  "schema": "question/1",
+  "type": "noul",
+  "instructions": "Is this refund request fraudulent?",
+  "noul": { "true": null, "false": null }
+}

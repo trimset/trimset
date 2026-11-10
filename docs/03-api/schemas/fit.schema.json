@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Calibration fit (fit/1)",
+  "description": "A calibration map for one group, with the data it came from and its metrics on the eval split (ADR 0005, ADR 0006).",
+  "type": "object",
+  "required": [
+    "schema",
+    "fit_id",
+    "question_id",
+    "model_served",
+    "type",
+    "created_at",
+    "calibration",
+    "selection",
+    "provenance",
+    "metrics",
+    "reliability"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "fit/1" },
+    "fit_id": { "$ref": "common.schema.json#/$defs/uuid" },
+    "question_id": { "$ref": "common.schema.json#/$defs/question_id" },
+    "model_served": { "$ref": "common.schema.json#/$defs/model" },
+    "type": { "$ref": "common.schema.json#/$defs/type" },
+    "created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "calibration": { "$ref": "#/$defs/calibration" },
+    "selection": {
+      "description": "How the method was chosen: cross-validated log loss inside the fit split.",
+      "type": "object",
+      "required": ["cv_folds", "cv_log_loss"],
+      "additionalProperties": false,
+      "properties": {
+        "cv_folds": { "type": "integer", "minimum": 2 },
+        "cv_log_loss": {
+          "type": "object",
+          "propertyNames": { "enum": ["identity", "temperature", "platt", "isotonic"] },
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["window", "seed", "split", "n", "label_horizon_days"],
+      "additionalProperties": false,
+      "properties": {
+        "window": { "$ref": "common.schema.json#/$defs/window" },
+        "seed": { "type": "integer", "minimum": 0 },
+        "split": {
+          "type": "object",
+          "required": ["fit", "tune", "eval"],
+          "additionalProperties": false,
+          "properties": {
+            "fit": { "$ref": "common.schema.json#/$defs/probability" },
+            "tune": { "$ref": "common.schema.json#/$defs/probability" },
+            "eval": { "$ref": "common.schema.json#/$defs/probability" }
+          }
+        },
+        "n": {
+          "type": "object",
+          "required": ["fit", "tune", "eval"],
+          "additionalProperties": false,
+          "properties": {
+            "fit": { "type": "integer", "minimum": 0 },
+            "tune": { "type": "integer", "minimum": 0 },
+            "eval": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "label_horizon_days": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["raw", "calibrated"],
+      "additionalProperties": false,
+      "properties": {
+        "raw": { "$ref": "#/$defs/metrics" },
+        "calibrated": { "$ref": "#/$defs/metrics" }
+      }
+    },
+    "reliability": {
+      "type": "object",
+      "required": ["raw", "calibrated"],
+      "additionalProperties": false,
+      "properties": {
+        "raw": { "$ref": "#/$defs/bins" },
+        "calibrated": { "$ref": "#/$defs/bins" }
+      }
+    }
+  },
+  "$defs": {
+    "calibration": {
+      "description": "How the SDK turns raw probabilities into calibrated ones. See sdk.md, 'Applying a policy'.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["method"],
+          "additionalProperties": false,
+          "properties": { "method": { "const": "identity" } }
+        },
+        {
+          "type": "object",
+          "required": ["method", "temperature"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "const": "temperature" },
+            "temperature": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["method", "a", "b"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "const": "platt" },
+            "a": { "type": "number" },
+            "b": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["method", "x", "y"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "const": "isotonic" },
+            "x": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/probability" },
+              "minItems": 2,
+              "maxItems": 1000
+            },
+            "y": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/probability" },
+              "minItems": 2,
+              "maxItems": 1000
+            }
+          }
+        }
+      ]
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["n", "log_loss", "brier", "ece_equal_width", "ece_equal_mass", "bins"],
+      "additionalProperties": false,
+      "properties": {
+        "n": { "type": "integer", "minimum": 0 },
+        "log_loss": { "type": "number", "minimum": 0 },
+        "brier": { "type": "number", "minimum": 0, "maximum": 2 },
+        "ece_equal_width": { "$ref": "common.schema.json#/$defs/probability" },
+        "ece_equal_mass": { "$ref": "common.schema.json#/$defs/probability" },
+        "bins": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "bins": {
+      "description": "Reliability-diagram data. For choice and score, on the top option's probability.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["lo", "hi", "count", "mean_predicted", "observed", "ci95"],
+        "additionalProperties": false,
+        "properties": {
+          "lo": { "$ref": "common.schema.json#/$defs/probability" },
+          "hi": { "$ref": "common.schema.json#/$defs/probability" },
+          "count": { "type": "integer", "minimum": 0 },
+          "mean_predicted": {
+            "oneOf": [{ "$ref": "common.schema.json#/$defs/probability" }, { "type": "null" }]
+          },
+          "observed": {
+            "oneOf": [{ "$ref": "common.schema.json#/$defs/probability" }, { "type": "null" }]
+          },
+          "ci95": {
+            "oneOf": [{ "$ref": "common.schema.json#/$defs/interval" }, { "type": "null" }]
+          }
+        }
+      }
+    }
+  }
+}

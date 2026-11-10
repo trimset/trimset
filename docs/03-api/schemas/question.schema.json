@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Question definition (question/1)",
+  "description": "The canonical form of everything the model sees for one question, whatever wire format it came in. question_id is a hash of this object; see hashing.md.",
+  "type": "object",
+  "required": ["schema", "type", "instructions"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "question/1" },
+    "type": { "$ref": "common.schema.json#/$defs/type" },
+    "instructions": {
+      "description": "Exactly as sent (any JSON value). When the request had none, {\"$name\": <the question's name>}, because some runtimes show the name instead."
+    },
+    "noul": {
+      "description": "noul only. The descriptions of yes and no; null where none was sent.",
+      "type": "object",
+      "required": ["true", "false"],
+      "additionalProperties": false,
+      "properties": { "true": {}, "false": {} }
+    },
+    "options": {
+      "description": "choice only, in the order sent.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 255,
+      "items": {
+        "type": "object",
+        "required": ["value", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "value": { "$ref": "common.schema.json#/$defs/option_value" },
+          "description": {}
+        }
+      }
+    },
+    "levels": {
+      "description": "score only, level 0 first.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["label", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": ["string", "null"] },
+          "description": {}
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "noul" } } },
+      "then": {
+        "required": ["noul"],
+        "not": { "anyOf": [{ "required": ["options"] }, { "required": ["levels"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "choice" } } },
+      "then": {
+        "required": ["options"],
+        "not": { "anyOf": [{ "required": ["noul"] }, { "required": ["levels"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "score" } } },
+      "then": {
+        "required": ["levels"],
+        "not": { "anyOf": [{ "required": ["noul"] }, { "required": ["options"] }] }
+      }
+    }
+  ]
+}

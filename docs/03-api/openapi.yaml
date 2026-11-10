@@ -1,0 +1,1431 @@
+openapi: 3.1.0
+info:
+  title: trimset API
+  version: 0.1.0-draft
+  summary: Decision ops for decision models.
+  description: |
+    The contract for trimset v0.1. Conventions (keys, errors, paging, limits, versions)
+    are in README.md. The wire formats the proxy forwards are in wire-formats.md, the
+    hashing rules in hashing.md, and the SDK's behaviour in sdk.md.
+
+    Payload schemas live in ./schemas and are referenced from here, so there is one
+    source of truth for each object.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+  - url: http://localhost:8800
+    description: Local docker compose
+tags:
+  - name: proxy
+    description: Forwards decision calls to the project's upstream and logs them (ADR 0011).
+  - name: ingest
+    description: Decision records and action reports from SDKs or any client.
+  - name: outcomes
+  - name: policies
+    description: The policy bundle SDKs poll (ADR 0008).
+  - name: review
+  - name: admin
+    description: The control plane. Every admin key belongs to one project.
+  - name: ops
+
+paths:
+  /health:
+    get:
+      tags: [ops]
+      summary: Liveness. No dependencies are checked.
+      security: []
+      responses:
+        "200": { description: The process is up. }
+  /ready:
+    get:
+      tags: [ops]
+      summary: Readiness. Checks Postgres.
+      security: []
+      responses:
+        "200": { description: Ready. }
+        "503": { description: Postgres unreachable. }
+
+  # ---------------------------------------------------------------- proxy
+  /v1/systemone:
+    post:
+      tags: [proxy]
+      operationId: proxySystemoneHeader
+      summary: Proxy a /v1/systemone call; the project comes from X-Trimset-Key.
+      security: [{ proxyKeyHeader: [] }]
+      requestBody: { $ref: "#/components/requestBodies/UpstreamRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/ProxyOk" }
+        "401": { $ref: "#/components/responses/ProxyUnauthorized" }
+        "4XX": { $ref: "#/components/responses/ProxyUpstreamError" }
+        "502": { $ref: "#/components/responses/ProxyUnreachable" }
+        "504": { $ref: "#/components/responses/ProxyTimeout" }
+  /p/{proxyKey}/v1/systemone:
+    post:
+      tags: [proxy]
+      operationId: proxySystemonePath
+      summary: Proxy a /v1/systemone call; the project comes from the key in the path.
+      security: []
+      parameters: [{ $ref: "#/components/parameters/ProxyKey" }]
+      requestBody: { $ref: "#/components/requestBodies/UpstreamRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/ProxyOk" }
+        "401": { $ref: "#/components/responses/ProxyUnauthorized" }
+        "4XX": { $ref: "#/components/responses/ProxyUpstreamError" }
+        "502": { $ref: "#/components/responses/ProxyUnreachable" }
+        "504": { $ref: "#/components/responses/ProxyTimeout" }
+  /v1/decisions:
+    post:
+      tags: [proxy]
+      operationId: proxyDecisionsHeader
+      summary: Proxy a /v1/decisions call. Its format is the upstream's (OpenAI, or Ollaya's alias of systemone).
+      security: [{ proxyKeyHeader: [] }]
+      requestBody: { $ref: "#/components/requestBodies/UpstreamRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/ProxyOk" }
+        "401": { $ref: "#/components/responses/ProxyUnauthorized" }
+        "4XX": { $ref: "#/components/responses/ProxyUpstreamError" }
+        "502": { $ref: "#/components/responses/ProxyUnreachable" }
+        "504": { $ref: "#/components/responses/ProxyTimeout" }
+  /p/{proxyKey}/v1/decisions:
+    post:
+      tags: [proxy]
+      operationId: proxyDecisionsPath
+      summary: As above, with the key in the path.
+      security: []
+      parameters: [{ $ref: "#/components/parameters/ProxyKey" }]
+      requestBody: { $ref: "#/components/requestBodies/UpstreamRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/ProxyOk" }
+        "401": { $ref: "#/components/responses/ProxyUnauthorized" }
+        "4XX": { $ref: "#/components/responses/ProxyUpstreamError" }
+        "502": { $ref: "#/components/responses/ProxyUnreachable" }
+        "504": { $ref: "#/components/responses/ProxyTimeout" }
+  /v1/models:
+    get:
+      tags: [proxy]
+      operationId: proxyModelsHeader
+      summary: Passed through to the upstream unchanged and not logged.
+      security: [{ proxyKeyHeader: [] }]
+      responses:
+        "200": { description: "The upstream's model list, unchanged." }
+  /p/{proxyKey}/v1/models:
+    get:
+      tags: [proxy]
+      operationId: proxyModelsPath
+      summary: Passed through to the upstream unchanged and not logged.
+      security: []
+      parameters: [{ $ref: "#/components/parameters/ProxyKey" }]
+      responses:
+        "200": { description: "The upstream's model list, unchanged." }
+
+  # ---------------------------------------------------------------- ingest
+  /v1/decisions:log:
+    post:
+      tags: [ingest]
+      operationId: logDecisions
+      summary: Store decision records (FR-01). Idempotent by (decision_id, ts).
+      security: [{ bearerKey: [ingest] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LogBatch" }
+      responses:
+        "200":
+          description: Every record was stored or was a duplicate.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchResult" }
+        "207":
+          description: Some records were rejected; the valid ones were stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+  /v1/decisions:actions:
+    post:
+      tags: [ingest]
+      operationId: reportActions
+      summary: Attach the action an app took to decisions logged earlier (FR-33), for example by the proxy.
+      security: [{ bearerKey: [ingest] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actions]
+              additionalProperties: false
+              properties:
+                actions:
+                  type: array
+                  minItems: 1
+                  maxItems: 1000
+                  items: { $ref: "#/components/schemas/ActionReport" }
+      responses:
+        "200":
+          description: Applied.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchResult" }
+        "207":
+          description: Some reports named unknown decisions.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchResult" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+
+  # ---------------------------------------------------------------- outcomes
+  /v1/outcomes:
+    post:
+      tags: [outcomes]
+      operationId: postOutcomes
+      summary: Attach outcomes to decisions, now or when the decision arrives (FR-10, FR-11).
+      security: [{ bearerKey: [ingest] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcomes]
+              additionalProperties: false
+              properties:
+                outcomes:
+                  type: array
+                  minItems: 1
+                  maxItems: 1000
+                  items: { $ref: "./schemas/outcome.schema.json" }
+      responses:
+        "200":
+          description: Every outcome was matched or held.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OutcomeResult" }
+        "207":
+          description: Some outcomes were rejected.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OutcomeResult" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+
+  # ---------------------------------------------------------------- policies
+  /v1/policies:
+    get:
+      tags: [policies]
+      operationId: getPolicyBundle
+      summary: The project's policy bundle, for SDKs to poll (FR-32).
+      security: [{ bearerKey: [ingest] }]
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema: { type: string }
+      responses:
+        "200":
+          description: The current bundle.
+          headers:
+            ETag: { schema: { type: string }, description: 'The bundle''s etag, quoted.' }
+          content:
+            application/json:
+              schema: { $ref: "./schemas/bundle.schema.json" }
+        "304": { description: Unchanged since the given ETag. }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  # ---------------------------------------------------------------- review
+  /v1/review/items:
+    get:
+      tags: [review]
+      operationId: listReviewItems
+      security: [{ bearerKey: [review] }]
+      parameters:
+        - { name: question, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { enum: [queued, claimed, labeled, closed] } }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: A page of review items.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewItemPage" }
+  /v1/review/claim:
+    post:
+      tags: [review]
+      operationId: claimReviewItems
+      summary: Claim the next items, highest priority first, with a lease (FR-48).
+      security: [{ bearerKey: [review] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                question: { type: string }
+                count: { type: integer, minimum: 1, maximum: 50, default: 1 }
+      responses:
+        "200":
+          description: Claimed items; empty when the queue is empty.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/ReviewItem" } }
+  /v1/review/items/{item_id}/label:
+    post:
+      tags: [review]
+      operationId: labelReviewItem
+      summary: Label a claimed item. The label becomes an outcome with source human_review (FR-49).
+      security: [{ bearerKey: [review] }]
+      parameters: [{ $ref: "#/components/parameters/ItemId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              additionalProperties: false
+              properties:
+                label: { $ref: "./schemas/common.schema.json#/$defs/label" }
+      responses:
+        "200": { description: Labeled. }
+        "409": { $ref: "#/components/responses/Problem" }
+  /v1/review/items/{item_id}/skip:
+    post:
+      tags: [review]
+      operationId: skipReviewItem
+      security: [{ bearerKey: [review] }]
+      parameters: [{ $ref: "#/components/parameters/ItemId" }]
+      responses:
+        "200": { description: Returned to the queue with a lower priority. }
+  /v1/review/items/{item_id}/release:
+    post:
+      tags: [review]
+      operationId: releaseReviewItem
+      security: [{ bearerKey: [review] }]
+      parameters: [{ $ref: "#/components/parameters/ItemId" }]
+      responses:
+        "200": { description: Returned to the queue unchanged. }
+
+  # ---------------------------------------------------------------- admin
+  /v1/admin/project:
+    get:
+      tags: [admin]
+      operationId: getProject
+      security: [{ bearerKey: [admin] }]
+      responses:
+        "200":
+          description: The key's project.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+    patch:
+      tags: [admin]
+      operationId: updateProject
+      summary: Merge-patch the project settings. Every change is audited (FR-54).
+      security: [{ bearerKey: [admin] }]
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/ProjectSettings" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "422": { $ref: "#/components/responses/Problem" }
+  /v1/admin/keys:
+    get:
+      tags: [admin]
+      operationId: listKeys
+      security: [{ bearerKey: [admin] }]
+      responses:
+        "200":
+          description: Keys, without secrets.
+          content:
+            application/json:
+              schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "#/components/schemas/Key" } } } }
+    post:
+      tags: [admin]
+      operationId: createKey
+      security: [{ bearerKey: [admin] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope, label]
+              additionalProperties: false
+              properties:
+                scope: { enum: [proxy, ingest, review, admin] }
+                label: { type: string, minLength: 1, maxLength: 100, description: Who or what uses it. One key per person or source. }
+      responses:
+        "201":
+          description: Created. The secret is shown only here, once.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Key" }
+                  - type: object
+                    required: [secret]
+                    properties: { secret: { type: string } }
+  /v1/admin/keys/{key_id}:
+    delete:
+      tags: [admin]
+      operationId: revokeKey
+      summary: Revoke. Refused everywhere within 60 seconds (FR-52).
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ name: key_id, in: path, required: true, schema: { $ref: "./schemas/common.schema.json#/$defs/uuid" } }]
+      responses:
+        "204": { description: Revoked. }
+  /v1/admin/questions:
+    get:
+      tags: [admin]
+      operationId: listQuestions
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200":
+          description: Questions seen in this project.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Question" } }
+                  next_cursor: { type: [string, "null"] }
+  /v1/admin/questions/{question}:
+    get:
+      tags: [admin]
+      operationId: getQuestion
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/QuestionRef" }]
+      responses:
+        "200":
+          description: The question.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Question" }
+        "404": { $ref: "#/components/responses/Problem" }
+    patch:
+      tags: [admin]
+      operationId: updateQuestion
+      summary: Set the question's name and settings (merge patch). Audited.
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/QuestionRef" }]
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: { $ref: "./schemas/common.schema.json#/$defs/question_name" }
+                settings: { $ref: "#/components/schemas/QuestionSettings" }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Question" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /v1/admin/questions/{question}/coverage:
+    get:
+      tags: [admin]
+      operationId: getCoverage
+      summary: Share of decisions with a label, per model and action path (FR-14).
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/QuestionRef" }, { $ref: "#/components/parameters/ModelServed" }]
+      responses:
+        "200":
+          description: Coverage.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Coverage" }
+  /v1/admin/questions/{question}/fits:
+    get:
+      tags: [admin]
+      operationId: listFits
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/QuestionRef" }, { $ref: "#/components/parameters/ModelServed" }]
+      responses:
+        "200":
+          description: Fits, newest first.
+          content:
+            application/json:
+              schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "./schemas/fit.schema.json" } } } }
+    post:
+      tags: [admin]
+      operationId: createFit
+      summary: Fit calibration now (FR-16). Runs as a job.
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/QuestionRef" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model_served]
+              additionalProperties: false
+              properties:
+                model_served: { $ref: "./schemas/common.schema.json#/$defs/model" }
+                window_days: { type: integer, minimum: 1, maximum: 400, default: 90 }
+      responses:
+        "202": { $ref: "#/components/responses/JobAccepted" }
+  /v1/admin/fits/{fit_id}:
+    get:
+      tags: [admin]
+      operationId: getFit
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ name: fit_id, in: path, required: true, schema: { $ref: "./schemas/common.schema.json#/$defs/uuid" } }]
+      responses:
+        "200":
+          description: The fit.
+          content:
+            application/json:
+              schema: { $ref: "./schemas/fit.schema.json" }
+  /v1/admin/questions/{question}/simulate:
+    post:
+      tags: [admin]
+      operationId: simulate
+      summary: Metrics of candidate thresholds on a fit's eval split (FR-26). Synchronous.
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/QuestionRef" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SimulateRequest" }
+      responses:
+        "200":
+          description: One row per candidate.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulateResult" }
+  /v1/admin/questions/{question}/compile:
+    post:
+      tags: [admin]
+      operationId: compilePolicy
+      summary: Compile a draft policy from a fit and a target (FR-20 to FR-25). Runs as a job; the result is a policy_id or an infeasible / not-enough-labels report.
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/QuestionRef" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model_served, target]
+              additionalProperties: false
+              properties:
+                model_served: { $ref: "./schemas/common.schema.json#/$defs/model" }
+                fit_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+                target: { $ref: "./schemas/policy.schema.json#/$defs/target" }
+                audit_fraction: { type: number, minimum: 0, maximum: 0.5 }
+      responses:
+        "202": { $ref: "#/components/responses/JobAccepted" }
+  /v1/admin/questions/{question}/rollback:
+    post:
+      tags: [admin]
+      operationId: rollbackPolicy
+      summary: Re-activate the previous approved version for a model (FR-29).
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/QuestionRef" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model_served, reason]
+              additionalProperties: false
+              properties:
+                model_served: { $ref: "./schemas/common.schema.json#/$defs/model" }
+                reason: { type: string, minLength: 1, maxLength: 1000 }
+      responses:
+        "200":
+          description: The policy now active.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyView" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /v1/admin/policies:
+    get:
+      tags: [admin]
+      operationId: listPolicies
+      security: [{ bearerKey: [admin] }]
+      parameters:
+        - { name: question, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/ModelServed" }
+        - { name: state, in: query, schema: { $ref: "#/components/schemas/PolicyState" } }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Policies, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/PolicyView" } }
+                  next_cursor: { type: [string, "null"] }
+  /v1/admin/policies/{policy_id}:
+    get:
+      tags: [admin]
+      operationId: getPolicy
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/PolicyId" }]
+      responses:
+        "200":
+          description: The policy, its state, guarantee status and events.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyView" }
+  /v1/admin/policies/{policy_id}/diff:
+    get:
+      tags: [admin]
+      operationId: diffPolicy
+      summary: Thresholds and metrics against another version (the active one by default).
+      security: [{ bearerKey: [admin] }]
+      parameters:
+        - { $ref: "#/components/parameters/PolicyId" }
+        - { name: against, in: query, schema: { $ref: "./schemas/common.schema.json#/$defs/uuid" } }
+      responses:
+        "200":
+          description: The diff.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyDiff" }
+  /v1/admin/policies/{policy_id}/transitions:
+    post:
+      tags: [admin]
+      operationId: transitionPolicy
+      summary: Move a policy through its lifecycle (FR-27, FR-28). Activating retires the active version.
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/PolicyId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              additionalProperties: false
+              properties:
+                action: { enum: [submit, approve, reject, activate, retire] }
+                reason: { type: string, maxLength: 1000, description: Required for reject and retire. }
+      responses:
+        "200":
+          description: The policy after the transition.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyView" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
+  /v1/admin/decisions:
+    get:
+      tags: [admin]
+      operationId: listDecisions
+      security: [{ bearerKey: [admin] }]
+      parameters:
+        - { name: question, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/ModelServed" }
+        - { name: action, in: query, schema: { enum: [ACCEPT, BLOCK, SELECT, ESCALATE] } }
+        - { name: outcome, in: query, schema: { enum: [pending, right, wrong] } }
+        - { name: external_ref, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/From" }
+        - { $ref: "#/components/parameters/To" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "./schemas/record.schema.json" } }
+                  next_cursor: { type: [string, "null"] }
+  /v1/admin/decisions/{decision_id}:
+    get:
+      tags: [admin]
+      operationId: getDecision
+      summary: One decision with its outcome history. Raw state only if the project stores it; that read is audited.
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ name: decision_id, in: path, required: true, schema: { $ref: "./schemas/common.schema.json#/$defs/uuid" } }]
+      responses:
+        "200":
+          description: The decision.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DecisionView" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /v1/admin/drift-reports:
+    get:
+      tags: [admin]
+      operationId: listDriftReports
+      security: [{ bearerKey: [admin] }]
+      parameters:
+        - { name: question, in: query, schema: { type: string } }
+        - { name: kind, in: query, schema: { type: string } }
+        - { name: triggered, in: query, schema: { type: boolean } }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { $ref: "#/components/parameters/Limit" }
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "./schemas/drift_report.schema.json" } }
+                  next_cursor: { type: [string, "null"] }
+  /v1/admin/alerts:
+    get:
+      tags: [admin]
+      operationId: listAlerts
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ name: status, in: query, schema: { enum: [open, acknowledged, resolved] } }]
+      responses:
+        "200":
+          description: Alerts.
+          content:
+            application/json:
+              schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "#/components/schemas/Alert" } } } }
+  /v1/admin/alerts/{alert_id}/acknowledge:
+    post:
+      tags: [admin]
+      operationId: acknowledgeAlert
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ name: alert_id, in: path, required: true, schema: { $ref: "./schemas/common.schema.json#/$defs/uuid" } }]
+      responses:
+        "200": { description: Acknowledged. }
+  /v1/admin/alert-rules:
+    get:
+      tags: [admin]
+      operationId: listAlertRules
+      security: [{ bearerKey: [admin] }]
+      responses:
+        "200":
+          description: Rules.
+          content:
+            application/json:
+              schema: { type: object, required: [items], properties: { items: { type: array, items: { $ref: "#/components/schemas/AlertRule" } } } }
+    post:
+      tags: [admin]
+      operationId: createAlertRule
+      security: [{ bearerKey: [admin] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlertRule" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertRule" }
+  /v1/admin/alert-rules/{rule_id}:
+    patch:
+      tags: [admin]
+      operationId: updateAlertRule
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ name: rule_id, in: path, required: true, schema: { $ref: "./schemas/common.schema.json#/$defs/uuid" } }]
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: "#/components/schemas/AlertRule" }
+      responses:
+        "200": { description: Updated. }
+    delete:
+      tags: [admin]
+      operationId: deleteAlertRule
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ name: rule_id, in: path, required: true, schema: { $ref: "./schemas/common.schema.json#/$defs/uuid" } }]
+      responses:
+        "204": { description: Deleted. }
+  /v1/admin/questions/{question}/shadow:
+    get:
+      tags: [admin]
+      operationId: getShadowReport
+      summary: Primary against candidate on paired decisions (FR-46).
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/QuestionRef" }, { $ref: "#/components/parameters/From" }, { $ref: "#/components/parameters/To" }]
+      responses:
+        "200":
+          description: The comparison.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShadowReport" }
+  /v1/admin/exports/decisions:
+    get:
+      tags: [admin]
+      operationId: exportDecisions
+      summary: Decisions with their current outcomes, streamed as JSON lines (FR-58).
+      security: [{ bearerKey: [admin] }]
+      parameters:
+        - { name: question, in: query, required: true, schema: { type: string } }
+        - { $ref: "#/components/parameters/ModelServed" }
+        - { $ref: "#/components/parameters/From" }
+        - { $ref: "#/components/parameters/To" }
+      responses:
+        "200":
+          description: One JSON object per line, {record, outcome}.
+          content:
+            application/x-ndjson:
+              schema: { type: string }
+  /v1/admin/deletions:
+    post:
+      tags: [admin]
+      operationId: deleteData
+      summary: Delete by external_ref, by time range, or the whole project's data (FR-57). Runs as a job.
+      security: [{ bearerKey: [admin] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [external_ref]
+                  additionalProperties: false
+                  properties: { external_ref: { $ref: "./schemas/common.schema.json#/$defs/external_ref" } }
+                - type: object
+                  required: [from, to]
+                  additionalProperties: false
+                  properties:
+                    from: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+                    to: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+                - type: object
+                  required: [all_project_data]
+                  additionalProperties: false
+                  properties: { all_project_data: { const: true } }
+      responses:
+        "202": { $ref: "#/components/responses/JobAccepted" }
+  /v1/admin/jobs/{job_id}:
+    get:
+      tags: [admin]
+      operationId: getJob
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ name: job_id, in: path, required: true, schema: { type: integer } }]
+      responses:
+        "200":
+          description: The job.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+  /v1/admin/audit-log:
+    get:
+      tags: [admin]
+      operationId: getAuditLog
+      security: [{ bearerKey: [admin] }]
+      parameters: [{ $ref: "#/components/parameters/From" }, { $ref: "#/components/parameters/To" }, { $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/AuditEntry" } }
+                  next_cursor: { type: [string, "null"] }
+
+components:
+  securitySchemes:
+    bearerKey:
+      type: http
+      scheme: bearer
+      description: |
+        A trimset key: `tsi_` ingest, `tsr_` review, `tsa_` admin. An admin key can also do
+        what ingest and review keys do. Scopes in the security requirements name the
+        least scope that is enough.
+    proxyKeyHeader:
+      type: apiKey
+      in: header
+      name: X-Trimset-Key
+      description: A proxy (`tsp_`), ingest or admin key. Used when the app can set headers; its Authorization header is then free for the upstream key.
+
+  parameters:
+    ProxyKey:
+      name: proxyKey
+      in: path
+      required: true
+      description: A proxy key. Redacted from trimset's own logs.
+      schema: { type: string, pattern: "^tsp_[A-Za-z0-9]{32}$" }
+    QuestionRef:
+      name: question
+      in: path
+      required: true
+      description: A question name or question_id.
+      schema: { $ref: "./schemas/common.schema.json#/$defs/question_ref" }
+    PolicyId:
+      name: policy_id
+      in: path
+      required: true
+      schema: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+    ItemId:
+      name: item_id
+      in: path
+      required: true
+      schema: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+    ModelServed:
+      name: model_served
+      in: query
+      schema: { $ref: "./schemas/common.schema.json#/$defs/model" }
+    From:
+      name: from
+      in: query
+      schema: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+    To:
+      name: to
+      in: query
+      schema: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque; from the previous page's next_cursor.
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+
+  requestBodies:
+    UpstreamRequest:
+      required: true
+      description: The upstream's own request, unchanged (wire-formats.md). Body limit 8 MiB by default (proxy_max_body_mb).
+      content:
+        application/json:
+          schema: { type: object }
+        multipart/form-data:
+          schema: { type: object, description: "systemone images: a `request` JSON part plus image parts." }
+
+  responses:
+    Problem:
+      description: An error (RFC 9457).
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    JobAccepted:
+      description: Queued. Poll the job.
+      headers:
+        Location: { schema: { type: string }, description: "/v1/admin/jobs/{job_id}" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Job" }
+
+    ProxyOk:
+      description: The upstream's response, unchanged, plus X-Trimset-Decision-Id.
+      headers:
+        X-Trimset-Decision-Id:
+          description: One decision id per question, comma-separated, in question order.
+          schema: { type: string }
+      content:
+        application/json:
+          schema: { type: object }
+    ProxyUnauthorized:
+      description: Missing or wrong trimset key. The body uses the upstream's error format (wire-formats.md).
+    ProxyUpstreamError:
+      description: The upstream's own error, unchanged.
+    ProxyUnreachable:
+      description: The upstream could not be reached. Upstream error format.
+    ProxyTimeout:
+      description: The upstream timed out. Upstream error format.
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri-reference, description: "https://trimset.dev/problems/<slug>, listed in README.md" }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [message]
+            properties:
+              index: { type: integer, description: Position in a batch. }
+              pointer: { type: string, description: JSON Pointer into the item. }
+              message: { type: string }
+
+    LogBatch:
+      type: object
+      required: [records]
+      additionalProperties: false
+      properties:
+        questions:
+          description: Definitions keyed by question_id. Required for any question_id the server has not seen; the server checks each hash.
+          type: object
+          propertyNames: { $ref: "./schemas/common.schema.json#/$defs/question_id" }
+          additionalProperties: { $ref: "./schemas/question.schema.json" }
+        records:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items: { $ref: "./schemas/record.schema.json" }
+        client:
+          description: SDK health, reported with each batch (FR-36).
+          type: object
+          additionalProperties: false
+          properties:
+            sdk: { type: string, maxLength: 64 }
+            version: { type: string, maxLength: 32 }
+            dropped_since_last: { type: integer, minimum: 0 }
+
+    BatchResult:
+      type: object
+      required: [stored, duplicates, rejected]
+      properties:
+        stored: { type: integer, minimum: 0 }
+        duplicates: { type: integer, minimum: 0 }
+        rejected: { type: integer, minimum: 0 }
+        errors:
+          description: One entry per rejected item.
+          type: array
+          items:
+            type: object
+            required: [index, message]
+            properties:
+              index: { type: integer }
+              pointer: { type: string }
+              message: { type: string }
+
+    ActionReport:
+      type: object
+      required: [decision_id, action_taken, action_source]
+      additionalProperties: false
+      properties:
+        decision_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        action_taken: { $ref: "./schemas/common.schema.json#/$defs/action" }
+        action_source: { enum: [policy, audit, default] }
+        reason: { enum: [no_policy, model_mismatch, model_unknown, question_changed, invalid_probabilities, fingerprint_mismatch, stale_policy, refusal, null] }
+        policy_version: { type: [integer, "null"], minimum: 1 }
+        policy_fingerprint:
+          oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/fingerprint" }, { type: "null" }]
+        audit: { type: boolean, default: false }
+
+    OutcomeResult:
+      type: object
+      required: [matched, held, rejected]
+      properties:
+        matched: { type: integer, minimum: 0 }
+        held: { type: integer, minimum: 0, description: Waiting for their decision (30 days by default). }
+        rejected: { type: integer, minimum: 0 }
+        results:
+          type: array
+          items:
+            type: object
+            required: [index, status]
+            properties:
+              index: { type: integer }
+              status: { enum: [matched, held, duplicate, rejected] }
+              decision_ids: { type: array, items: { $ref: "./schemas/common.schema.json#/$defs/uuid" } }
+              message: { type: string }
+
+    ReviewItem:
+      type: object
+      required: [item_id, decision_id, question_id, model_served, probabilities, state, priority]
+      properties:
+        item_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        decision_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        question_id: { $ref: "./schemas/common.schema.json#/$defs/question_id" }
+        question_name: { type: [string, "null"] }
+        definition: { $ref: "./schemas/question.schema.json" }
+        model_served: { $ref: "./schemas/common.schema.json#/$defs/model" }
+        probabilities: { type: array, items: { $ref: "./schemas/common.schema.json#/$defs/probability" } }
+        tags: { $ref: "./schemas/common.schema.json#/$defs/tags" }
+        external_ref: { type: [string, "null"] }
+        link: { type: [string, "null"], description: The question's link template filled with the URL-encoded external_ref (FR-50). }
+        state: { enum: [queued, claimed, labeled, closed] }
+        audit: { type: boolean }
+        priority: { type: number }
+        lease_until: { oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/timestamp" }, { type: "null" }] }
+        raw_state: { description: Present only when the project stores raw state. Reading it is audited. }
+    ReviewItemPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ReviewItem" } }
+        next_cursor: { type: [string, "null"] }
+
+    Key:
+      type: object
+      required: [key_id, scope, label, prefix, created_at]
+      properties:
+        key_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        scope: { enum: [proxy, ingest, review, admin] }
+        label: { type: string }
+        prefix: { type: string, description: "The first 8 characters, to recognise a key in logs." }
+        created_at: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+        last_used_at: { oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/timestamp" }, { type: "null" }] }
+        revoked_at: { oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/timestamp" }, { type: "null" }] }
+
+    Project:
+      type: object
+      required: [project_id, name, settings]
+      properties:
+        project_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        name: { type: string }
+        settings: { $ref: "#/components/schemas/ProjectSettings" }
+
+    EnvRef:
+      description: The name of an environment variable on the server. Secrets are never stored (ADR 0009).
+      type: object
+      required: [env]
+      additionalProperties: false
+      properties:
+        env: { type: string, pattern: "^[A-Z][A-Z0-9_]{0,63}$" }
+
+    ProjectSettings:
+      type: object
+      additionalProperties: false
+      properties:
+        upstream:
+          type: object
+          additionalProperties: false
+          properties:
+            format: { enum: [systemone, openai-decisions] }
+            base_url: { type: string, format: uri }
+            timeout_ms: { type: integer, minimum: 100, maximum: 120000, default: 10000 }
+            credentials:
+              description: passthrough forwards the app's own Authorization header; server uses an env var (ADR 0011).
+              oneOf:
+                - { type: object, required: [mode], additionalProperties: false, properties: { mode: { const: passthrough } } }
+                - type: object
+                  required: [mode, header, value]
+                  additionalProperties: false
+                  properties:
+                    mode: { const: server }
+                    header: { type: string, default: Authorization }
+                    value: { $ref: "#/components/schemas/EnvRef" }
+        prices:
+          description: USD per million tokens, per model_served. Prices are settings, never code (FR-07).
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: false
+            properties:
+              input: { type: number, minimum: 0 }
+              cached_input: { type: number, minimum: 0 }
+              output: { type: number, minimum: 0 }
+        proxy_max_body_mb: { type: integer, minimum: 1, maximum: 32, default: 8 }
+        retention_days: { type: integer, minimum: 1, maximum: 3650, default: 400 }
+        privacy:
+          type: object
+          additionalProperties: false
+          properties:
+            store_raw_state: { type: boolean, default: false }
+            raw_state_retention_days: { type: integer, minimum: 1, maximum: 400, default: 30 }
+            tag_allowlist: { type: [array, "null"], items: { type: string }, default: null }
+        refit_schedule: { type: string, default: "0 3 * * *", description: "Cron expression, in UTC." }
+        alert_channels:
+          description: Named channels that alert rules refer to.
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: object
+                required: [kind, url]
+                additionalProperties: false
+                properties:
+                  kind: { const: webhook }
+                  url: { $ref: "#/components/schemas/EnvRef" }
+                  signing_secret: { $ref: "#/components/schemas/EnvRef" }
+              - type: object
+                required: [kind, url]
+                additionalProperties: false
+                properties:
+                  kind: { const: slack }
+                  url: { $ref: "#/components/schemas/EnvRef" }
+              - type: object
+                required: [kind, to]
+                additionalProperties: false
+                properties:
+                  kind: { const: email }
+                  to: { type: array, items: { type: string, format: email }, minItems: 1 }
+
+    QuestionSettings:
+      type: object
+      additionalProperties: false
+      properties:
+        actions:
+          description: How probabilities map to actions (FR-20, ADR 0006).
+          type: object
+          additionalProperties: false
+          properties:
+            high_means: { enum: [block, accept], description: noul only. }
+            block_options: { type: array, items: { $ref: "./schemas/common.schema.json#/$defs/option_value" }, description: choice only. }
+            block_from_level: { type: integer, minimum: 1, maximum: 9, description: score only. }
+            accept_below_level: { type: integer, minimum: 1, maximum: 9, description: score only. }
+        target: { $ref: "./schemas/policy.schema.json#/$defs/target" }
+        label_horizon_days: { type: integer, minimum: 0, maximum: 400 }
+        default_rule:
+          description: Record a label with source rule when no outcome arrives in time (FR-13).
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [after_days, label]
+              additionalProperties: false
+              properties:
+                after_days: { type: integer, minimum: 1, maximum: 400 }
+                label: { $ref: "./schemas/common.schema.json#/$defs/label" }
+        audit_fraction: { type: number, minimum: 0, maximum: 0.5, default: 0 }
+        review:
+          type: object
+          additionalProperties: false
+          properties:
+            queue_escalated: { type: boolean, default: false }
+            queue_audit: { type: boolean, default: true }
+            capacity_per_day: { type: [integer, "null"], minimum: 1 }
+            link_template: { type: [string, "null"], description: "For example https://shop.example/admin/refunds/{external_ref}" }
+        shadow:
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [model, share, daily_cap]
+              additionalProperties: false
+              properties:
+                model: { $ref: "./schemas/common.schema.json#/$defs/model" }
+                base_url: { type: string, format: uri, description: Defaults to the project's upstream. }
+                share: { type: number, exclusiveMinimum: 0, maximum: 1, default: 0.1 }
+                daily_cap: { type: integer, minimum: 1 }
+        drift:
+          type: object
+          additionalProperties: false
+          properties:
+            psi: { type: number, default: 0.2 }
+            p_value: { type: number, default: 0.01 }
+            min_n: { type: integer, default: 500 }
+
+    Question:
+      type: object
+      required: [question_id, type, definition, first_seen, models, settings]
+      properties:
+        question_id: { $ref: "./schemas/common.schema.json#/$defs/question_id" }
+        name: { type: [string, "null"] }
+        type: { $ref: "./schemas/common.schema.json#/$defs/type" }
+        definition: { $ref: "./schemas/question.schema.json" }
+        first_seen: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+        models:
+          type: array
+          items:
+            type: object
+            required: [model_requested, model_served, first_seen]
+            properties:
+              model_requested: { type: string }
+              model_served: { type: string }
+              first_seen: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+        previous_question_id:
+          description: The id this name pointed to before, when the wording changed (ADR 0010).
+          oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/question_id" }, { type: "null" }]
+        settings: { $ref: "#/components/schemas/QuestionSettings" }
+
+    Coverage:
+      type: object
+      required: [question_id, paths]
+      properties:
+        question_id: { $ref: "./schemas/common.schema.json#/$defs/question_id" }
+        paths:
+          type: array
+          items:
+            type: object
+            required: [model_served, action, decisions, labeled, matured]
+            properties:
+              model_served: { type: string }
+              action: { enum: [ACCEPT, BLOCK, SELECT, ESCALATE, none] }
+              decisions: { type: integer }
+              matured: { type: integer, description: Older than the label horizon. }
+              labeled: { type: integer }
+              audited_labeled: { type: integer }
+              median_delay_hours: { type: [number, "null"] }
+
+    SimulateRequest:
+      type: object
+      required: [model_served]
+      additionalProperties: false
+      properties:
+        model_served: { $ref: "./schemas/common.schema.json#/$defs/model" }
+        fit_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        candidates:
+          description: Rule sets to evaluate. Omit to get a grid of 50 thresholds per rule.
+          type: array
+          maxItems: 500
+          items:
+            type: array
+            maxItems: 2
+            items: { $ref: "./schemas/policy.schema.json#/$defs/rule" }
+        costs: { $ref: "./schemas/policy.schema.json#/$defs/target/properties/costs" }
+    SimulateResult:
+      type: object
+      required: [fit_id, rows]
+      properties:
+        fit_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        rows:
+          type: array
+          items:
+            type: object
+            required: [rules, metrics]
+            properties:
+              rules: { type: array, items: { $ref: "./schemas/policy.schema.json#/$defs/rule" } }
+              metrics: { $ref: "./schemas/policy.schema.json#/$defs/policy_metrics" }
+
+    PolicyState: { enum: [draft, proposed, approved, active, retired, rejected] }
+    PolicyView:
+      type: object
+      required: [policy, state, guarantee_status, events]
+      properties:
+        policy: { $ref: "./schemas/policy.schema.json" }
+        state: { $ref: "#/components/schemas/PolicyState" }
+        guarantee_status: { enum: [certified, suspended, none] }
+        suspended_by:
+          description: The drift report or live check that suspended the guarantee.
+          oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/uuid" }, { type: "null" }]
+        events:
+          type: array
+          items:
+            type: object
+            required: [from_state, to_state, key_id, at]
+            properties:
+              from_state: { oneOf: [{ $ref: "#/components/schemas/PolicyState" }, { type: "null" }] }
+              to_state: { $ref: "#/components/schemas/PolicyState" }
+              key_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+              reason: { type: [string, "null"] }
+              at: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+    PolicyDiff:
+      type: object
+      required: [policy_id, against, rules, metrics]
+      properties:
+        policy_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        against: { oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/uuid" }, { type: "null" }] }
+        rules:
+          type: array
+          items:
+            type: object
+            required: [id, before, after]
+            properties:
+              id: { type: string }
+              before: { type: [number, "null"] }
+              after: { type: [number, "null"] }
+        metrics:
+          type: object
+          description: Eval-split metrics before and after.
+          properties:
+            before: { oneOf: [{ $ref: "./schemas/policy.schema.json#/$defs/policy_metrics" }, { type: "null" }] }
+            after: { $ref: "./schemas/policy.schema.json#/$defs/policy_metrics" }
+        label_sources:
+          description: Share of tuning labels from each source and key, to spot poisoned outcomes (threat T1).
+          type: array
+          items:
+            type: object
+            properties:
+              source: { type: string }
+              key_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+              share: { type: number }
+
+    DecisionView:
+      type: object
+      required: [record, outcome_history]
+      properties:
+        record: { $ref: "./schemas/record.schema.json" }
+        outcome: { oneOf: [{ $ref: "./schemas/outcome.schema.json" }, { type: "null" }] }
+        outcome_history: { type: array, items: { $ref: "./schemas/outcome.schema.json" } }
+        review_state: { type: [string, "null"] }
+        raw_state: { description: Only if the project stores raw state. This read is audited. }
+
+    Alert:
+      type: object
+      required: [alert_id, kind, status, opened_at]
+      properties:
+        alert_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        rule_id: { oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/uuid" }, { type: "null" }] }
+        kind: { type: string }
+        severity: { enum: [info, warning, critical] }
+        status: { enum: [open, acknowledged, resolved] }
+        question_id: { oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/question_id" }, { type: "null" }] }
+        report_id: { oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/uuid" }, { type: "null" }] }
+        summary: { type: string, description: "Names and numbers only, never state or tag values." }
+        opened_at: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+        resolved_at: { oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/timestamp" }, { type: "null" }] }
+    AlertRule:
+      type: object
+      required: [kind, channels]
+      properties:
+        rule_id: { $ref: "./schemas/common.schema.json#/$defs/uuid", readOnly: true }
+        kind:
+          enum: [probability_drift, silent_upgrade, escalation_rate, upstream_errors, latency, calibration, policy_violation, proposal_ready, policy_changed, records_dropped, join_backlog, review_capacity]
+        question: { type: [string, "null"], description: Null for every question. }
+        params: { type: object }
+        channels: { type: array, minItems: 1, items: { type: string }, description: Names from project settings alert_channels. }
+        cooldown_minutes: { type: integer, minimum: 0, default: 60 }
+
+    ShadowReport:
+      type: object
+      required: [question_id, primary_model, candidate_model, pairs]
+      properties:
+        question_id: { $ref: "./schemas/common.schema.json#/$defs/question_id" }
+        primary_model: { type: string }
+        candidate_model: { type: string }
+        pairs: { type: integer }
+        labeled_pairs: { type: integer }
+        agreement: { type: [number, "null"] }
+        flip_rate: { type: [number, "null"], description: Share of pairs whose action differs under the active policy. }
+        mcnemar: { type: [object, "null"], properties: { b: { type: integer }, c: { type: integer }, p_value: { type: number } } }
+        accuracy: { type: [object, "null"], properties: { primary: { type: number }, candidate: { type: number } } }
+        log_loss: { type: [object, "null"], properties: { primary: { type: number }, candidate: { type: number } } }
+        latency_ms_p50_delta: { type: [number, "null"] }
+        cost_per_1000_delta: { type: [number, "null"] }
+
+    Job:
+      type: object
+      required: [job_id, kind, status]
+      properties:
+        job_id: { type: integer }
+        kind: { enum: [fit, compile, deletion, refit] }
+        status: { enum: [queued, running, succeeded, failed] }
+        result:
+          description: fit → {fit_id}; compile → {policy_id} or {infeasible} or {not_enough_labels}; deletion → {deleted}.
+          type: [object, "null"]
+        error: { type: [string, "null"] }
+        created_at: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
+        finished_at: { oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/timestamp" }, { type: "null" }] }
+
+    AuditEntry:
+      type: object
+      required: [id, key_id, action, at]
+      properties:
+        id: { type: integer }
+        key_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        action: { type: string }
+        target: { type: string }
+        before: {}
+        after: {}
+        at: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }

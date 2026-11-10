@@ -1,0 +1,149 @@
+{
+  "schema": "bundle/1",
+  "project_id": "0193f0a2-7c4e-7b1a-9d2e-5f6a7b8c9d0e",
+  "generated_at": "2026-11-10T09:40:00Z",
+  "etag": "39d7883db4473bfbc1d7a3f04769a43d2b29446467a40a8b83f90d08dde17493",
+  "state_hash_key": {
+    "alg": "hmac-sha256/1",
+    "key_b64": "lBhyIw+OrsQrfIkq86dr5CJG8Atc9vVevtTkgk0G8rs="
+  },
+  "questions": {
+    "refund_fraud": {
+      "question_id": "q_534a3508f2d81f8c35d11ba5cde4fcc3",
+      "definition": {
+        "schema": "question/1",
+        "type": "noul",
+        "instructions": "Is this refund request fraudulent?",
+        "noul": {
+          "true": null,
+          "false": null
+        }
+      }
+    }
+  },
+  "policies": [
+    {
+      "policy": {
+        "schema": "policy/1",
+        "policy_id": "019a5c00-2222-7aaa-8bbb-ccccdddd0007",
+        "question_id": "q_534a3508f2d81f8c35d11ba5cde4fcc3",
+        "question_name": "refund_fraud",
+        "model_served": "jev-1.14.0",
+        "type": "noul",
+        "version": 7,
+        "created_at": "2026-11-08T03:00:14Z",
+        "fit_id": "019a5c00-1111-7aaa-8bbb-ccccdddd0001",
+        "calibration": {
+          "method": "platt",
+          "a": -0.71,
+          "b": 0.42
+        },
+        "rules": [
+          {
+            "id": "accept",
+            "action": "ACCEPT",
+            "scalar": "p",
+            "op": "lt",
+            "threshold": 0.3
+          },
+          {
+            "id": "block",
+            "action": "BLOCK",
+            "scalar": "p",
+            "op": "ge",
+            "threshold": 0.85
+          }
+        ],
+        "fallback_action": "ESCALATE",
+        "audit_fraction": 0.01,
+        "target": {
+          "kind": "risk",
+          "metric": "false_pass",
+          "alpha": 0.02,
+          "delta": 0.05,
+          "max_escalation": 0.15
+        },
+        "guarantee": {
+          "status": "certified",
+          "method": "ltt-binomial/1",
+          "statement": "With 95% confidence over the tuning data, at most 2% of ACCEPTed refund requests are fraudulent, for future traffic like the tuning window.",
+          "alpha": 0.02,
+          "delta": 0.05,
+          "assumptions": [
+            "Future traffic is exchangeable with the tuning window (no drift since 2026-07-11).",
+            "Only decisions older than the 120-day label horizon were used.",
+            "A refund with no chargeback after 120 days counts as not fraudulent (default-by-rule)."
+          ],
+          "n": {
+            "accept": 7180
+          },
+          "window": {
+            "from": "2026-04-12T00:00:00Z",
+            "to": "2026-07-11T00:00:00Z",
+            "n": 25000
+          }
+        },
+        "metrics": {
+          "tune": {
+            "n": 10000,
+            "automated": 0.857,
+            "escalated": 0.143,
+            "rules": {
+              "accept": {
+                "fired": 7180,
+                "wrong": 108,
+                "unlabeled": 0,
+                "rate": 0.015,
+                "ci95": [
+                  0.0124,
+                  0.0181
+                ]
+              },
+              "block": {
+                "fired": 1390,
+                "wrong": 22,
+                "unlabeled": 0,
+                "rate": 0.0158,
+                "ci95": [
+                  0.0099,
+                  0.0239
+                ]
+              }
+            },
+            "expected_cost_per_1000": null
+          },
+          "eval": {
+            "n": 5000,
+            "automated": 0.856,
+            "escalated": 0.144,
+            "rules": {
+              "accept": {
+                "fired": 3600,
+                "wrong": 55,
+                "unlabeled": 0,
+                "rate": 0.0153,
+                "ci95": [
+                  0.0115,
+                  0.0198
+                ]
+              },
+              "block": {
+                "fired": 680,
+                "wrong": 11,
+                "unlabeled": 0,
+                "rate": 0.0162,
+                "ci95": [
+                  0.0081,
+                  0.0288
+                ]
+              }
+            },
+            "expected_cost_per_1000": null
+          }
+        },
+        "fingerprint": "sha256:32d8f6efeee249f92884e5bf3067e1b38df4ea9ec5bc1f4c088c97220bb0e94c"
+      },
+      "guarantee_status": "certified"
+    }
+  ]
+}
