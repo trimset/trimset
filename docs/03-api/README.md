@@ -92,6 +92,14 @@ The official vendor docs, read for this phase, changed these:
 | No refusals | `refusal: true` with `probabilities: null`; gate returns the default with reason `refusal` | OpenAI answers can be refusals |
 | Policy transitions as one URL each | `POST /v1/admin/policies/{id}/transitions` with `{action}` | Avoids clashing with `/{id}/diff` |
 
+After a security review of this phase:
+- **Upstream and shadow URLs** must be on the operator's `TRIMSET_UPSTREAM_HOSTS` allowlist.
+- **Secret names:** only `TRIMSET_UPSTREAM_*` and `TRIMSET_ALERT_*` resolve, and
+  server-held credentials go only to the project's own upstream host.
+- **Link templates** must be http(s).
+
+These close threats E2, E3 and the new E4 in the architecture doc.
+
 ADR 0006 also gained a rule: with a false-pass target, the block threshold is the highest
 one that keeps escalation within the cap.
 

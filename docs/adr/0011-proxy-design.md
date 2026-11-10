@@ -35,6 +35,19 @@ adds no header.
 - Credentials held by the server (an environment-variable reference) are allowed. The
   docs warn that a leaked proxy key would then spend your upstream quota.
 
+**Operator allowlists** (added after the Phase 3 security review):
+- Upstream and shadow URLs must be on `TRIMSET_UPSTREAM_HOSTS`, which only the operator
+  sets, in the server environment.
+- https is required unless the operator lists a host with `http://`, for local Ollaya or
+  Ollama.
+- Redirects are never followed.
+- Server-held credentials:
+  - can only name variables starting with `TRIMSET_UPSTREAM_`;
+  - go only in the `Authorization` header;
+  - go only to the project's own upstream host, never to a shadow host that differs.
+- An admin key can therefore never point the server at an internal address, or make it
+  send a secret.
+
 **What comes back:**
 - The upstream's status, body and end-to-end headers, unchanged.
 - One added header, `X-Trimset-Decision-Id`, listing the decision ids in question order,

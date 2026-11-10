@@ -608,8 +608,9 @@ flowchart LR
 | D2 | Denial of service | A slow upstream. | Timeout per project; logging is separate from the response path. | — |
 | D3 | Denial of service | Shadow traffic running up costs. | Sampling share and a daily cap per question. | — |
 | E1 | Elevation of privilege | An ingest or proxy key used for admin actions. | Scope checked on every route, denied by default; tests. | — |
-| E2 | Elevation of privilege | Server-side request forgery through admin-set URLs (alert webhooks, upstreams). | Admin-only settings; alert webhooks refuse link-local and cloud metadata addresses. Upstreams may be localhost by design, for Ollaya. | A stolen admin key can still point the upstream inside the network. |
-| E3 | Elevation of privilege | Injection through the review link template. | Only admins set it; `external_ref` is URL-encoded; the v0.1 CLI prints plain text. | The v2 dashboard must escape it. |
+| E2 | Elevation of privilege | Server-side request forgery through admin-set URLs (upstreams, shadows, alert webhooks). | Upstream and shadow hosts must be on the operator's `TRIMSET_UPSTREAM_HOSTS` allowlist; https unless the operator lists an http host; no redirects. Alert destinations are operator-set environment variables. | An operator who allowlists an internal host. |
+| E4 | Elevation of privilege | **Confused deputy:** an admin key names a server secret (`TRIMSET_SECRET`, a database URL) as an upstream credential and points the upstream at its own server. | Only `TRIMSET_UPSTREAM_*` and `TRIMSET_ALERT_*` names resolve; credentials go only in `Authorization`, only to the project's own upstream host. | — |
+| E3 | Elevation of privilege | Injection through the review link template, for example a `javascript:` URL. | Only admins set it; it must be an absolute http(s) URL; `external_ref` is URL-encoded; a filled link that isn't http(s) is dropped; the v0.1 CLI prints plain text. | The v2 dashboard must still escape it. |
 
 ## 11. Changes to Phase 1 that come from this phase
 

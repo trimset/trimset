@@ -1065,7 +1065,7 @@ components:
         probabilities: { type: array, items: { $ref: "./schemas/common.schema.json#/$defs/probability" } }
         tags: { $ref: "./schemas/common.schema.json#/$defs/tags" }
         external_ref: { type: [string, "null"] }
-        link: { type: [string, "null"], description: The question's link template filled with the URL-encoded external_ref (FR-50). }
+        link: { type: [string, "null"], pattern: "^https?://", description: "The question's link template filled with the URL-encoded external_ref (FR-50). Always http(s); anything else is dropped." }
         state: { enum: [queued, claimed, labeled, closed] }
         audit: { type: boolean }
         priority: { type: number }
@@ -1098,13 +1098,32 @@ components:
         name: { type: string }
         settings: { $ref: "#/components/schemas/ProjectSettings" }
 
-    EnvRef:
-      description: The name of an environment variable on the server. Secrets are never stored (ADR 0009).
+    UpstreamSecretRef:
+      description: |
+        The name of a server environment variable holding an upstream credential. Only names
+        starting TRIMSET_UPSTREAM_ are accepted, so an admin key can never make the server send
+        TRIMSET_SECRET, a database URL or any other variable anywhere (ADR 0009, ADR 0011).
       type: object
       required: [env]
       additionalProperties: false
       properties:
-        env: { type: string, pattern: "^[A-Z][A-Z0-9_]{0,63}$" }
+        env: { type: string, pattern: "^TRIMSET_UPSTREAM_[A-Z0-9_]{1,48}$" }
+    AlertSecretRef:
+      description: The name of a server environment variable holding an alert destination or signing secret. Only names starting TRIMSET_ALERT_ are accepted; the operator sets the values, so admin keys can't choose where alerts go.
+      type: object
+      required: [env]
+      additionalProperties: false
+      properties:
+        env: { type: string, pattern: "^TRIMSET_ALERT_[A-Z0-9_]{1,48}$" }
+    UpstreamUrl:
+      description: |
+        Must be on the operator's allowlist, TRIMSET_UPSTREAM_HOSTS in the server environment
+        (for example "api.typesafe.ai,api.openai.com,http://host.docker.internal:11435").
+        https unless the operator lists the host with http:// (local Ollaya or Ollama).
+        Redirects are never followed.
+      type: string
+      format: uri
+      pattern: "^https?://"
 
     ProjectSettings:
       type: object
@@ -1115,10 +1134,10 @@ components:
           additionalProperties: false
           properties:
             format: { enum: [systemone, openai-decisions] }
-            base_url: { type: string, format: uri }
+            base_url: { $ref: "#/components/schemas/UpstreamUrl" }
             timeout_ms: { type: integer, minimum: 100, maximum: 120000, default: 10000 }
             credentials:
-              description: passthrough forwards the app's own Authorization header; server uses an env var (ADR 0011).
+              description: passthrough forwards the app's own Authorization header. server sends an operator-set secret, only to this upstream's host, never to a shadow host that differs (ADR 0011).
               oneOf:
                 - { type: object, required: [mode], additionalProperties: false, properties: { mode: { const: passthrough } } }
                 - type: object
@@ -1126,8 +1145,8 @@ components:
                   additionalProperties: false
                   properties:
                     mode: { const: server }
-                    header: { type: string, default: Authorization }
-                    value: { $ref: "#/components/schemas/EnvRef" }
+                    header: { enum: [Authorization], default: Authorization }
+                    value: { $ref: "#/components/schemas/UpstreamSecretRef" }
         prices:
           description: USD per million tokens, per model_served. Prices are settings, never code (FR-07).
           type: object
@@ -1158,14 +1177,14 @@ components:
                 additionalProperties: false
                 properties:
                   kind: { const: webhook }
-                  url: { $ref: "#/components/schemas/EnvRef" }
-                  signing_secret: { $ref: "#/components/schemas/EnvRef" }
+                  url: { $ref: "#/components/schemas/AlertSecretRef" }
+                  signing_secret: { $ref: "#/components/schemas/AlertSecretRef" }
               - type: object
                 required: [kind, url]
                 additionalProperties: false
                 properties:
                   kind: { const: slack }
-                  url: { $ref: "#/components/schemas/EnvRef" }
+                  url: { $ref: "#/components/schemas/AlertSecretRef" }
               - type: object
                 required: [kind, to]
                 additionalProperties: false
@@ -1206,7 +1225,9 @@ components:
             queue_escalated: { type: boolean, default: false }
             queue_audit: { type: boolean, default: true }
             capacity_per_day: { type: [integer, "null"], minimum: 1 }
-            link_template: { type: [string, "null"], description: "For example https://shop.example/admin/refunds/{external_ref}" }
+            link_template:
+              description: "An absolute http(s) URL with {external_ref}, for example https://shop.example/admin/refunds/{external_ref}. The value is URL-encoded when filled."
+              oneOf: [{ type: "null" }, { type: string, maxLength: 2048, pattern: "^https?://[^\\s]*\\{external_ref\\}[^\\s]*$" }]
         shadow:
           oneOf:
             - type: "null"
@@ -1215,7 +1236,7 @@ components:
               additionalProperties: false
               properties:
                 model: { $ref: "./schemas/common.schema.json#/$defs/model" }
-                base_url: { type: string, format: uri, description: Defaults to the project's upstream. }
+                base_url: { $ref: "#/components/schemas/UpstreamUrl" }
                 share: { type: number, exclusiveMinimum: 0, maximum: 1, default: 0.1 }
                 daily_cap: { type: integer, minimum: 1 }
         drift:

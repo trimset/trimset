@@ -41,8 +41,10 @@ number) can be reversed by hashing guesses.
 - The docs say to put no personal data in tags or in `external_ref`.
 
 **Secrets are never in the database.** Upstream credentials and alert-channel secrets are
-stored as the *name* of an environment variable (`{"env": "JEV_API_KEY"}`) and resolved
-when used.
+stored as the *name* of an environment variable and resolved when used. Only names
+starting with `TRIMSET_UPSTREAM_` or `TRIMSET_ALERT_` are accepted, so an admin key can
+never make the server send `TRIMSET_SECRET` or any other variable (Phase 3 security
+review).
 
 **Deletion and telemetry:**
 - Deletion (FR-57) reaches decisions, outcomes, review items and raw state.
