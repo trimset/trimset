@@ -31,12 +31,17 @@ def test_proxy_key_in_an_access_log_path_is_redacted() -> None:
         f"GET /p%2F{KEY}/v1/systemone",  # right after an encoded slash
         "GET /p/tsp_%41" + KEY[5:] + "/v1",  # one character of the key encoded
         "GET /p/%2574sp_" + KEY[4:] + "/v1",  # the prefix double-encoded
+        "GET /p/%2525252574sp_" + KEY[4:] + "/v1",  # ... and five times over
     ],
 )
 def test_keys_hidden_by_neighbours_or_encoding_are_still_redacted(line: str) -> None:
     out = redact(line)
     assert KEY[4:] not in out
     assert "tsp_[redacted]" in out
+
+
+def test_a_lone_percent_sign_does_not_loop() -> None:
+    assert redact("50% done, 100%") == "50% done, 100%"
 
 
 def test_ordinary_text_is_left_alone() -> None:

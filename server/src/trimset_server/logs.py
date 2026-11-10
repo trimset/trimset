@@ -17,14 +17,10 @@ _KEY = re.compile(r"(ts[pira]_)[A-Za-z0-9]{8,}")
 
 
 def redact(text: str) -> str:
-    # Percent-decode first (repeatedly, for double encoding), so "tsp_%41…" or
-    # "%74sp_…" can't slip past. The log line then shows the decoded form.
-    for _ in range(3):
-        if "%" not in text:
-            break
-        decoded = unquote(text)
-        if decoded == text:
-            break
+    # Percent-decode until nothing changes, so "tsp_%41…" or a prefix encoded any number of
+    # times can't slip past. Ends: every change shortens the text. The log line then shows
+    # the decoded form.
+    while "%" in text and (decoded := unquote(text)) != text:
         text = decoded
     return _KEY.sub(r"\1[redacted]", text)
 
