@@ -406,16 +406,16 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
   - `policy_version`, `action_taken`, `tags`, `external_ref`, `state_hash` (the brief's `state_sha256`, now keyed: [ADR 0009](adr/0009-privacy-model.md))
 
   Writes are idempotent by `decision_id`: sending the same record again stores it once. The reply gives a status for each record.
-- **FR-02 Validation** (v0.1, M1). Probabilities must lie in [0, 1]. Choice and score probabilities must sum to 1 within 1e-6. Their count must match the question's options or levels. Valid records in a batch are stored; invalid ones come back with reasons.
+- **FR-02 Validation** (v0.1, M1). Probabilities must lie in [0, 1]. Choice and score probabilities must sum to 1 within 1e-3, then are renormalised before use (Phase 3: vendors round to 4 decimals). Their count must match the question's options or levels. Valid records in a batch are stored; invalid ones come back with reasons.
 - **FR-03 Questions** (v0.1, M1).
   - The server computes `question_id` from the type, the exact wording, and the options or levels in order (canonical form and test vectors in Phase 3).
   - A client-sent id must match it, or the record is rejected.
   - A question is registered the first time it is seen.
 - **FR-04 Proxy for `/v1/systemone`** (v0.1, M1).
-  - Forwards to the project's upstream: TypeSafe's Jev, Ollaya, or Ollama 0.40 and later.
+  - Forwards to the project's upstream: TypeSafe's Jev, Ollaya, or Ollama 0.35.0 and later (0.40.5 for cloud models; corrected in Phase 3).
   - Returns the upstream's status and body unchanged.
   - Logs one decision record per question asynchronously. A logging failure never fails the request.
-- **FR-05 Proxy for `/v1/decisions`** (v0.1, M1). The same behaviour for OpenAI's decisions format.
+- **FR-05 Proxy for `/v1/decisions`** (v0.1, M1). The same behaviour for OpenAI's decisions format. The format follows the project's upstream setting, not the path: Ollaya serves the systemone format at `/v1/decisions` too (Phase 3).
 - **FR-06 Upstream settings** (v0.1, M1).
   - Each project sets its upstream base URL and timeout.
   - Upstream credentials are either passed through from the app's request (never stored) or held server-side.
@@ -522,7 +522,7 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
 - **FR-33 `gate()`** (v0.1, M3).
   - It takes the question, the probabilities, `model_served` and, optionally, a `decision_id`.
   - It returns the action, the label (for `SELECT`), the policy version, the source (`policy`, `default` or `audit`) and the reason.
-  - It runs purely locally.
+  - It runs purely locally. Given a `decision_id` (in proxy mode, from the proxy's header), it reports the action it took through `POST /v1/decisions:actions` (Phase 3).
 - **FR-34 Fingerprint check** (v0.1, M3). Before using a policy, the SDK recomputes its fingerprint. On a mismatch it rejects that policy, keeps the last good one, and logs and counts an error.
 - **FR-35 Fail open** (v0.1, M3).
   - When no policy applies (server unreachable, nothing cached, model mismatch), `gate()` returns the default action configured for that question.
@@ -540,6 +540,7 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
 - **FR-39 Silent upgrades** (v0.1, M4).
   - A new `model_served` for the same `model_requested` creates an event and an alert within 5 minutes.
   - The alert names both versions and says the active policy no longer applies (FR-31).
+  - Only possible where the upstream names the version that answered: fully on TypeSafe, partly on Ollaya, not on Ollama or OpenAI, which echo the requested name ([wire-formats.md](03-api/wire-formats.md); Phase 3).
 - **FR-40 Health signals** (v0.1, M4):
   - the escalation rate moving away from what the policy expected;
   - jumps in upstream errors (proxy);
@@ -588,7 +589,7 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
 
 - **FR-51 Projects** (v0.1, M1). Every record, key, policy and setting belongs to one project. There are no reads across projects.
 - **FR-52 API keys** (v0.1, M1).
-  - A proxy key can only call the proxy endpoints; it is the key that sits in a base URL ([ADR 0011](adr/0011-proxy-design.md)). An ingest key can log, send outcomes, use the proxy and read active policies. An admin key can do all of that, plus approvals and settings.
+  - A proxy key can only call the proxy endpoints; it is the key that sits in a base URL ([ADR 0011](adr/0011-proxy-design.md)). A review key can only work the review queue (added in Phase 3). An ingest key can log, send outcomes, use the proxy and read active policies. An admin key can do all of that, plus approvals and settings.
   - Keys are stored as hashes, shown once, and revocable, and their last use is recorded.
   - A revocation takes effect within 60 seconds.
 - **FR-53 Bootstrap** (v0.1, M1). The first admin key is created with a CLI command on the server. There are no default credentials.

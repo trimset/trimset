@@ -8,10 +8,9 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
 
 ## Current phase
 
-**Phase 2, Architecture: written, awaiting approval** ([docs/02-architecture.md](docs/02-architecture.md),
-[docs/adr/](docs/adr/), [docs/research.md](docs/research.md)). Phases 0 and 1 were approved
-on 2026-11-10. Next: Phase 3, Contracts (`docs/03-api/`). Phases and their docs are in
-the brief.
+**Phase 3, Contracts: written, awaiting approval** ([docs/03-api/](docs/03-api/README.md)).
+Phases 0, 1 and 2 were approved on 2026-11-10. Next: Phase 4, Plan (`docs/04-plan.md`):
+milestones sized to 10 hours a week. Phases and their docs are in the brief.
 
 ## Decisions so far
 
@@ -37,6 +36,17 @@ the brief.
   arXiv or Crossref API, never from memory.
 - Mermaid diagrams are checked by rendering them with mermaid 11.4.1 in a browser before
   committing. All 17 passed in Phase 2.
+- **Phase 3** (`docs/03-api/`):
+  - Wire formats: two formats, `systemone` and `openai-decisions`, chosen by the
+    upstream's settings, not the path.
+  - Hashing: `question_id` hashes one canonical `question/1` form, whatever the format.
+  - Keys: four scopes (`tsp_`, `tsi_`, `tsr_`, `tsa_`). In proxy mode, actions are
+    reported through `POST /v1/decisions:actions`.
+  - Probability sums: 1e-3 tolerance, then renormalised.
+  - Vendor facts, read from the vendors' own docs: Ollama ≥ 0.35.0; only TypeSafe names
+    the version that answered.
+  - Every hash and id must reproduce `docs/03-api/vectors/vectors.json`. Change the
+    vectors only through `generate.py`.
 
 ## Rules
 
@@ -74,4 +84,12 @@ Code arrives in Phase 5.
 
 ## Commands
 
-None yet.
+Contract checks. These are light and run locally; there are no product tests yet.
+
+```bash
+cd docs/03-api
+uvx --from openapi-spec-validator==0.7.2 openapi-spec-validator openapi.yaml
+for s in question record outcome fit policy drift_report bundle; do
+  uvx --from check-jsonschema==0.33.0 check-jsonschema --schemafile schemas/$s.schema.json examples/$s.json; done
+uv run --no-project --with rfc8785==0.1.4 python vectors/generate.py --check
+```

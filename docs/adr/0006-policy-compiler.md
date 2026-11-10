@@ -77,6 +77,10 @@ against the thresholds.
 5. **Error budget over all automatic decisions:** each rule must meet α. The overall rate
    is a weighted average of the rule rates, so it is then ≤ α. This is conservative, and
    simple.
+6. **A false-pass target certifies only the accept rule.** The block rule gets the highest
+   threshold that keeps escalation within the cap, so it blocks as little as the cap
+   allows. Its error rate is reported with an interval, not guaranteed. (Phase 3: the
+   example policy needed this spelled out.)
 
 ### Missing labels (FR-14)
 

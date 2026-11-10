@@ -52,7 +52,7 @@ adds no header.
 
 **Limits:**
 - Upstream timeout: 10 s per project by default.
-- Request body: up to 1 MB.
+- Request body: up to 8 MiB, configurable (raised from 1 MB in Phase 3, so image requests aren't refused).
 - Upstream errors are passed back unchanged and counted (FR-40).
 
 **Shadow traffic (FR-45):**

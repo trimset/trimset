@@ -1,6 +1,6 @@
 # Phase 2: Architecture
 
-**Status:** awaiting approval · 2026-11-10 · Inputs: [01-requirements.md](01-requirements.md), [research.md](research.md), [ADRs](adr/)
+**Status:** approved 2026-11-10; Phase 3 corrections noted in [03-api/README.md](03-api/README.md) · Inputs: [01-requirements.md](01-requirements.md), [research.md](research.md), [ADRs](adr/)
 
 ## 1. Summary
 
@@ -334,7 +334,7 @@ erDiagram
   api_keys {
     uuid key_id PK
     uuid project_id FK
-    text scope "proxy, ingest or admin"
+    text scope "proxy, ingest, review or admin"
     text key_hash
     timestamptz revoked_at
     timestamptz last_used_at
@@ -592,7 +592,7 @@ flowchart LR
 
 | ID | Kind | Threat | Mitigation in v0.1 | Left over, or later |
 |---|---|---|---|---|
-| S1 | Spoofing | **API key leakage.** A stolen key is used to log decisions or send outcomes. | Keys stored as hashes; three narrow scopes (proxy, ingest, admin); one key per source recommended; revocation within 60 s; last use shown. | A stolen ingest key can poison data until someone notices. |
+| S1 | Spoofing | **API key leakage.** A stolen key is used to log decisions or send outcomes. | Keys stored as hashes; four narrow scopes (proxy, ingest, review, admin; review added in Phase 3); one key per source recommended; revocation within 60 s; last use shown. | A stolen ingest key can poison data until someone notices. |
 | S2 | Spoofing | **Proxy key read from a URL** in access logs. | The `proxy` scope can only call the proxy; trimset's logs redact it; docs for nginx and Caddy; header mode recommended. | Logs outside trimset's control. |
 | S3 | Spoofing | Outcome sources that can only sign webhooks and can't send headers. | They need a small relay that adds the ingest key. | Native signature checks for common senders in v0.2. |
 | T1 | Tampering | **Poisoned outcomes:** an attacker or a buggy integration sends wrong labels. | Every label records its source and key; proposals show the label mix by source and the change from the previous policy; a human must approve; audit sampling cross-checks. | Subtle poisoning could get past an approver. Label anomaly alerts in v0.2. |
