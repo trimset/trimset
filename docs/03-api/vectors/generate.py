@@ -3,8 +3,9 @@
 This is spec tooling: it defines the expected values the server and every SDK must
 reproduce (docs/03-api/hashing.md). It is not the product implementation.
 
-    uv run --with rfc8785==0.1.4 python docs/03-api/vectors/generate.py          # rewrite vectors.json
-    uv run --with rfc8785==0.1.4 python docs/03-api/vectors/generate.py --check  # verify, change nothing
+    cd docs/03-api
+    uv run --no-project --with rfc8785==0.1.4 python vectors/generate.py          # rewrite
+    uv run --no-project --with rfc8785==0.1.4 python vectors/generate.py --check  # verify
 """
 
 import base64
@@ -65,9 +66,13 @@ def question_from_openai(q: dict) -> dict:
     if kind == "noul":
         d["noul"] = {"true": None, "false": None}
     elif kind == "choice":
-        d["options"] = [{"value": c["value"], "description": c.get("description")} for c in q["choices"]]
+        d["options"] = [
+            {"value": c["value"], "description": c.get("description")} for c in q["choices"]
+        ]
     else:
-        d["levels"] = [{"label": lv["label"], "description": lv.get("description")} for lv in q["levels"]]
+        d["levels"] = [
+            {"label": lv["label"], "description": lv.get("description")} for lv in q["levels"]
+        ]
     return d
 
 
@@ -94,44 +99,145 @@ def bundle_etag(bundle: dict) -> str:
 
 
 FRAUD = "Is this refund request fraudulent?"
-TRIAGE = {"billing": "Payments and refunds", "shipping": None, "returns": None, "tech": "Software errors"}
+TRIAGE = {
+    "billing": "Payments and refunds",
+    "shipping": None,
+    "returns": None,
+    "tech": "Software errors",
+}
 SEVERITY = ["No problem", "Mild problem", "Serious problem", "Must be removed"]
 
 QUESTION_CASES = [
     ("noul_systemone", "systemone", "fraud", {"type": "noul", "instructions": FRAUD}),
-    ("noul_openai_same_question", "openai", None, {"type": "predicate", "name": "fraud", "instructions": FRAUD}),
-    ("noul_with_criteria", "systemone", "fraud",
-     {"type": "noul", "instructions": FRAUD, "criteria": {"true": "Clear signs of fraud", "false": "Looks legitimate"}}),
-    ("noul_trailing_space_is_different", "systemone", "fraud", {"type": "noul", "instructions": FRAUD + " "}),
-    ("noul_nfc_composed", "systemone", "cafe", {"type": "noul", "instructions": "Is this café order fraudulent?"}),
-    ("noul_nfc_decomposed_same_id", "systemone", "cafe", {"type": "noul", "instructions": "Is this café order fraudulent?"}),
+    (
+        "noul_openai_same_question",
+        "openai",
+        None,
+        {"type": "predicate", "name": "fraud", "instructions": FRAUD},
+    ),
+    (
+        "noul_with_criteria",
+        "systemone",
+        "fraud",
+        {
+            "type": "noul",
+            "instructions": FRAUD,
+            "criteria": {"true": "Clear signs of fraud", "false": "Looks legitimate"},
+        },
+    ),
+    (
+        "noul_trailing_space_is_different",
+        "systemone",
+        "fraud",
+        {"type": "noul", "instructions": FRAUD + " "},
+    ),
+    (
+        "noul_nfc_composed",
+        "systemone",
+        "cafe",
+        {"type": "noul", "instructions": "Is this café order fraudulent?"},
+    ),
+    (
+        "noul_nfc_decomposed_same_id",
+        "systemone",
+        "cafe",
+        {"type": "noul", "instructions": "Is this café order fraudulent?"},
+    ),
     ("noul_no_instructions_uses_name", "systemone", "billing", {"type": "noul"}),
-    ("choice_systemone", "systemone", "team",
-     {"type": "choice", "instructions": "Which team should handle this ticket?", "criteria": TRIAGE}),
-    ("choice_reordered_is_different", "systemone", "team",
-     {"type": "choice", "instructions": "Which team should handle this ticket?",
-      "criteria": {k: TRIAGE[k] for k in ["shipping", "billing", "returns", "tech"]}}),
-    ("choice_openai_same_question", "openai", None,
-     {"type": "choice", "name": "team", "instructions": "Which team should handle this ticket?",
-      "choices": [{"value": "billing", "description": "Payments and refunds"}, {"value": "shipping"},
-                  {"value": "returns"}, {"value": "tech", "description": "Software errors"}]}),
-    ("choice_openai_boolean_value", "openai", None,
-     {"type": "choice", "name": "ok", "instructions": "Approve?", "choices": [{"value": True}, {"value": False}]}),
-    ("choice_openai_string_value_is_different", "openai", None,
-     {"type": "choice", "name": "ok", "instructions": "Approve?", "choices": [{"value": "true"}, {"value": "false"}]}),
-    ("score_systemone", "systemone", "severity",
-     {"type": "score", "instructions": "How serious is the problem with this listing?", "criteria": SEVERITY}),
-    ("score_openai_with_labels_is_different", "openai", None,
-     {"type": "score", "name": "severity", "instructions": "How serious is the problem with this listing?",
-      "levels": [{"label": "none", "description": SEVERITY[0]}, {"label": "mild", "description": SEVERITY[1]},
-                 {"label": "serious", "description": SEVERITY[2]}, {"label": "remove", "description": SEVERITY[3]}]}),
+    (
+        "choice_systemone",
+        "systemone",
+        "team",
+        {
+            "type": "choice",
+            "instructions": "Which team should handle this ticket?",
+            "criteria": TRIAGE,
+        },
+    ),
+    (
+        "choice_reordered_is_different",
+        "systemone",
+        "team",
+        {
+            "type": "choice",
+            "instructions": "Which team should handle this ticket?",
+            "criteria": {k: TRIAGE[k] for k in ["shipping", "billing", "returns", "tech"]},
+        },
+    ),
+    (
+        "choice_openai_same_question",
+        "openai",
+        None,
+        {
+            "type": "choice",
+            "name": "team",
+            "instructions": "Which team should handle this ticket?",
+            "choices": [
+                {"value": "billing", "description": "Payments and refunds"},
+                {"value": "shipping"},
+                {"value": "returns"},
+                {"value": "tech", "description": "Software errors"},
+            ],
+        },
+    ),
+    (
+        "choice_openai_boolean_value",
+        "openai",
+        None,
+        {
+            "type": "choice",
+            "name": "ok",
+            "instructions": "Approve?",
+            "choices": [{"value": True}, {"value": False}],
+        },
+    ),
+    (
+        "choice_openai_string_value_is_different",
+        "openai",
+        None,
+        {
+            "type": "choice",
+            "name": "ok",
+            "instructions": "Approve?",
+            "choices": [{"value": "true"}, {"value": "false"}],
+        },
+    ),
+    (
+        "score_systemone",
+        "systemone",
+        "severity",
+        {
+            "type": "score",
+            "instructions": "How serious is the problem with this listing?",
+            "criteria": SEVERITY,
+        },
+    ),
+    (
+        "score_openai_with_labels_is_different",
+        "openai",
+        None,
+        {
+            "type": "score",
+            "name": "severity",
+            "instructions": "How serious is the problem with this listing?",
+            "levels": [
+                {"label": "none", "description": SEVERITY[0]},
+                {"label": "mild", "description": SEVERITY[1]},
+                {"label": "serious", "description": SEVERITY[2]},
+                {"label": "remove", "description": SEVERITY[3]},
+            ],
+        },
+    ),
 ]
 
 TEST_SECRET = b"trimset-test-secret-do-not-use"
 TEST_PROJECT = "0193f0a2-7c4e-7b1a-9d2e-5f6a7b8c9d0e"
 STATE_CASES = [
     ("object_state", {"refund_id": "rf-1001", "amount": 129.5, "reason": "Item never arrived"}),
-    ("same_object_other_key_order", {"reason": "Item never arrived", "amount": 129.5, "refund_id": "rf-1001"}),
+    (
+        "same_object_other_key_order",
+        {"reason": "Item never arrived", "amount": 129.5, "refund_id": "rf-1001"},
+    ),
     ("string_state", "Our checkout has returned 500 errors since 9am."),
     ("array_state", [{"role": "user", "content": "Where is my order?"}]),
 ]
@@ -140,23 +246,41 @@ STATE_CASES = [
 def build_vectors() -> dict:
     questions = []
     for case, fmt, name, wire in QUESTION_CASES:
-        definition = question_from_systemone(name, wire) if fmt == "systemone" else question_from_openai(wire)
-        questions.append({
-            "case": case, "format": fmt, "name": name, "wire": wire, "definition": definition,
-            "canonical": canonical(definition).decode("utf-8"), "question_id": question_id(definition),
-        })
+        definition = (
+            question_from_systemone(name, wire)
+            if fmt == "systemone"
+            else question_from_openai(wire)
+        )
+        questions.append(
+            {
+                "case": case,
+                "format": fmt,
+                "name": name,
+                "wire": wire,
+                "definition": definition,
+                "canonical": canonical(definition).decode("utf-8"),
+                "question_id": question_id(definition),
+            }
+        )
     key = project_state_key(TEST_SECRET, TEST_PROJECT)
-    states = [{
-        "case": case, "state": state, "canonical": canonical(state).decode("utf-8"),
-        "state_hash": state_hash(key, state),
-    } for case, state in STATE_CASES]
+    states = [
+        {
+            "case": case,
+            "state": state,
+            "canonical": canonical(state).decode("utf-8"),
+            "state_hash": state_hash(key, state),
+        }
+        for case, state in STATE_CASES
+    ]
     policy = json.loads((API / "examples" / "policy.json").read_text(encoding="utf-8"))
     return {
         "schema": "vectors/1",
         "question_ids": questions,
         "state_hashes": {
-            "server_secret_utf8": TEST_SECRET.decode("utf-8"), "project_id": TEST_PROJECT,
-            "project_key_b64": base64.b64encode(key).decode("ascii"), "cases": states,
+            "server_secret_utf8": TEST_SECRET.decode("utf-8"),
+            "project_id": TEST_PROJECT,
+            "project_key_b64": base64.b64encode(key).decode("ascii"),
+            "cases": states,
         },
         "fingerprints": [{"file": "examples/policy.json", "fingerprint": fingerprint(policy)}],
     }
@@ -168,12 +292,18 @@ def check(vectors: dict) -> list[str]:
     if stored != vectors:
         problems.append("vectors.json is out of date: run generate.py")
     ids = {v["case"]: v["question_id"] for v in vectors["question_ids"]}
-    same = [("noul_systemone", "noul_openai_same_question"), ("noul_nfc_composed", "noul_nfc_decomposed_same_id"),
-            ("choice_systemone", "choice_openai_same_question")]
-    differ = [("noul_systemone", "noul_with_criteria"), ("noul_systemone", "noul_trailing_space_is_different"),
-              ("choice_systemone", "choice_reordered_is_different"),
-              ("choice_openai_boolean_value", "choice_openai_string_value_is_different"),
-              ("score_systemone", "score_openai_with_labels_is_different")]
+    same = [
+        ("noul_systemone", "noul_openai_same_question"),
+        ("noul_nfc_composed", "noul_nfc_decomposed_same_id"),
+        ("choice_systemone", "choice_openai_same_question"),
+    ]
+    differ = [
+        ("noul_systemone", "noul_with_criteria"),
+        ("noul_systemone", "noul_trailing_space_is_different"),
+        ("choice_systemone", "choice_reordered_is_different"),
+        ("choice_openai_boolean_value", "choice_openai_string_value_is_different"),
+        ("score_systemone", "score_openai_with_labels_is_different"),
+    ]
     problems += [f"{a} and {b} should share an id" for a, b in same if ids[a] != ids[b]]
     problems += [f"{a} and {b} should differ" for a, b in differ if ids[a] == ids[b]]
     hashes = {c["case"]: c["state_hash"] for c in vectors["state_hashes"]["cases"]}
@@ -198,7 +328,9 @@ if __name__ == "__main__":
         problems = check(vectors)
         print("\n".join(problems) or "all vectors and examples check out")
         sys.exit(1 if problems else 0)
-    (HERE / "vectors.json").write_text(json.dumps(vectors, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (HERE / "vectors.json").write_text(
+        json.dumps(vectors, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     for v in vectors["question_ids"]:
         print(f"{v['question_id']}  {v['case']}")
     print("fingerprint", vectors["fingerprints"][0]["fingerprint"])

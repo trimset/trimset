@@ -1,0 +1,59 @@
+# Workspace root (ADR 0002). Not a package itself: `uv sync` installs every member
+# plus the dev tools, so the whole repo works from one virtual environment.
+[project]
+name = "trimset-workspace"
+version = "0"
+requires-python = ">=3.12"
+dependencies = ["trimset", "trimset-stats", "trimset-server"]
+
+[dependency-groups]
+dev = [
+  "hypothesis>=6.140",
+  "mypy>=2.3",
+  "pre-commit>=4.3",
+  "pytest>=9.1",
+  "pytest-cov>=7.0",
+  "ruff>=0.16",
+]
+
+[tool.uv]
+package = false
+# Supply-chain hold: only resolve releases at least 7 days old. Bump it when you bump
+# dependencies, together with UV_EXCLUDE_NEWER in .github/workflows/ci.yml.
+exclude-newer = "2026-11-03T00:00:00Z"
+
+[tool.uv.workspace]
+members = ["sdk/python", "stats", "server"]
+
+[tool.uv.sources]
+trimset = { workspace = true }
+trimset-stats = { workspace = true }
+trimset-server = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py311" # the SDK's oldest Python (NFR-16)
+extend-exclude = ["*.md"] # docs keep their examples compact on purpose
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "S", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101"] # assert is how pytest checks
+
+[tool.mypy]
+strict = true
+packages = ["trimset", "trimset_stats", "trimset_server"]
+
+[tool.pytest.ini_options]
+addopts = ["-ra", "--strict-markers", "--import-mode=importlib"]
+xfail_strict = true
+markers = [
+  "req(id): the FR or NFR the test verifies, e.g. @pytest.mark.req('FR-12')",
+  "integration: needs Postgres and the mock upstream",
+  "golden: compares against scipy, scikit-learn or a published result",
+  "slow: longer than a few seconds",
+]
+
+[tool.coverage.run]
+branch = true

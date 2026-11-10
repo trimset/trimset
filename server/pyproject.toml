@@ -1,0 +1,13 @@
+[project]
+name = "trimset-server"
+version = "0.0.0"
+description = "trimset server and worker: proxy, ingest, outcomes, policies, drift and alerts."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = ["trimset", "trimset-stats"]
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14"]
+build-backend = "uv_build"

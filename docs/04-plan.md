@@ -284,12 +284,11 @@ gantt
 - the homepage claims match what shipped;
 - upgrade notes and known limitations are written.
 
-## 7. Before Phase 5 starts
+## 7. Decided before Phase 5 (2026-11-10)
 
-1. **Where tests run.** Your rule for your other repos is "tests on GitHub, never on
-   this machine". Should trimset follow it too? This plan assumes CI is the main test run
-   and local runs stay small (one file at a time).
-2. **The repository.** Phase 5 needs `trimset/trimset` on GitHub for CI. Should I create
-   it, and push the existing history?
+1. **Tests run in CI.** GitHub Actions runs the full suite on every push. Locally, run
+   only lint and single test files: the maintainer's machine is short on memory. Load
+   tests and the nightly experiments never run locally.
+2. **The repository is public:** `github.com/trimset/trimset`.
 3. **API keys for T1.14,** in M1: a TypeSafe key and an OpenAI key, for a few cents of
-   real calls. Not needed until then.
+   real calls. They are kept out of the repo, in CI secrets.
