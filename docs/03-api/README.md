@@ -83,7 +83,7 @@ The official vendor docs, read for this phase, changed these:
 | Was | Now | Why |
 |---|---|---|
 | Ollama "0.40 and later" (brief, FR-04) | Ollama **0.35.0** and later for local models; 0.40.5 for cloud | Ollama's own docs |
-| Format chosen by path (FR-05) | Chosen by `upstream.format` | Ollaya serves the systemone format at `/v1/decisions` too |
+| Format chosen by path (FR-05) | Chosen by the upstream's format, which the operator sets | Ollaya serves the systemone format at `/v1/decisions` too |
 | Silent upgrades detected for every upstream (FR-39) | Only where the response names the version: fully on TypeSafe, partly on Ollaya, not on Ollama or OpenAI | They echo the requested name |
 | Probabilities must sum to 1 within 1e-6 (FR-02) | Within **1e-3**, then renormalised | Vendors round to 4 decimals; Ollama's own example sums to 0.9999 |
 | Proxy body limit 1 MB (ADR 0011) | **8 MiB**, configurable | Image requests; matches Ollaya |
@@ -92,10 +92,10 @@ The official vendor docs, read for this phase, changed these:
 | No refusals | `refusal: true` with `probabilities: null`; gate returns the default with reason `refusal` | OpenAI answers can be refusals |
 | Policy transitions as one URL each | `POST /v1/admin/policies/{id}/transitions` with `{action}` | Avoids clashing with `/{id}/diff` |
 
-After a security review of this phase:
-- **Upstream and shadow URLs** must be on the operator's `TRIMSET_UPSTREAM_HOSTS` allowlist.
-- **Secret names:** only `TRIMSET_UPSTREAM_*` and `TRIMSET_ALERT_*` resolve, and
-  server-held credentials go only to the project's own upstream host.
+After two security reviews of this phase:
+- **Upstreams and alert channels** are defined only by the operator, in the server
+  environment, with each key bound to its URL. Projects pick them by name, so the API
+  never carries a URL, a header or the name of a secret ([ADR 0011](../adr/0011-proxy-design.md)).
 - **Link templates** must be http(s).
 
 These close threats E2, E3 and the new E4 in the architecture doc.

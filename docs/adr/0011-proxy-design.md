@@ -35,18 +35,26 @@ adds no header.
 - Credentials held by the server (an environment-variable reference) are allowed. The
   docs warn that a leaked proxy key would then spend your upstream quota.
 
-**Operator allowlists** (added after the Phase 3 security review):
-- Upstream and shadow URLs must be on `TRIMSET_UPSTREAM_HOSTS`, which only the operator
-  sets, in the server environment.
-- https is required unless the operator lists a host with `http://`, for local Ollaya or
-  Ollama.
+**Upstreams and alert channels are defined by the operator** (added after two Phase 3
+security reviews). They exist only in the server environment, and projects pick them by
+name:
+
+```
+TRIMSET_UPSTREAM_<NAME>_URL        https://api.typesafe.ai, or http://host.docker.internal:11435
+TRIMSET_UPSTREAM_<NAME>_FORMAT     systemone | openai-decisions
+TRIMSET_UPSTREAM_<NAME>_KEY        optional; sent as "Authorization: Bearer …" only to this URL
+TRIMSET_UPSTREAM_<NAME>_PROJECTS   optional comma list of project ids; default: every project
+TRIMSET_ALERT_<NAME>_KIND          webhook | slack | email
+TRIMSET_ALERT_<NAME>_URL / _SECRET / _TO / _PROJECTS
+```
+
+- A key is bound to its URL by construction, and the server refuses to start if a key is
+  paired with an `http://` URL. Plain http is only for keyless local runtimes.
 - Redirects are never followed.
-- Server-held credentials:
-  - can only name variables starting with `TRIMSET_UPSTREAM_`;
-  - go only in the `Authorization` header;
-  - go only to the project's own upstream host, never to a shadow host that differs.
-- An admin key can therefore never point the server at an internal address, or make it
-  send a secret.
+- An admin key can choose among the upstreams and channels its project is allowed. It
+  can never supply a URL, a header, or the name of a variable. So it can neither point
+  the server at an internal address nor make it send a secret, its own project's or
+  another's.
 
 **What comes back:**
 - The upstream's status, body and end-to-end headers, unchanged.

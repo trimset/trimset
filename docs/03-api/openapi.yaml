@@ -1097,33 +1097,36 @@ components:
         project_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
         name: { type: string }
         settings: { $ref: "#/components/schemas/ProjectSettings" }
+        available:
+          description: |
+            What the operator lets this project use. Upstreams and alert channels are defined
+            only in the server environment (ADR 0011), so neither URLs nor secrets ever pass
+            through this API.
+          type: object
+          required: [upstreams, alert_channels]
+          properties:
+            upstreams:
+              type: array
+              items:
+                type: object
+                required: [name, format, server_key]
+                properties:
+                  name: { $ref: "#/components/schemas/OperatorName" }
+                  format: { enum: [systemone, openai-decisions] }
+                  server_key: { type: boolean, description: Whether the operator set a key for this upstream. }
+            alert_channels:
+              type: array
+              items:
+                type: object
+                required: [name, kind]
+                properties:
+                  name: { $ref: "#/components/schemas/OperatorName" }
+                  kind: { enum: [webhook, slack, email] }
 
-    UpstreamSecretRef:
-      description: |
-        The name of a server environment variable holding an upstream credential. Only names
-        starting TRIMSET_UPSTREAM_ are accepted, so an admin key can never make the server send
-        TRIMSET_SECRET, a database URL or any other variable anywhere (ADR 0009, ADR 0011).
-      type: object
-      required: [env]
-      additionalProperties: false
-      properties:
-        env: { type: string, pattern: "^TRIMSET_UPSTREAM_[A-Z0-9_]{1,48}$" }
-    AlertSecretRef:
-      description: The name of a server environment variable holding an alert destination or signing secret. Only names starting TRIMSET_ALERT_ are accepted; the operator sets the values, so admin keys can't choose where alerts go.
-      type: object
-      required: [env]
-      additionalProperties: false
-      properties:
-        env: { type: string, pattern: "^TRIMSET_ALERT_[A-Z0-9_]{1,48}$" }
-    UpstreamUrl:
-      description: |
-        Must be on the operator's allowlist, TRIMSET_UPSTREAM_HOSTS in the server environment
-        (for example "api.typesafe.ai,api.openai.com,http://host.docker.internal:11435").
-        https unless the operator lists the host with http:// (local Ollaya or Ollama).
-        Redirects are never followed.
+    OperatorName:
+      description: The name of an upstream or alert channel the operator defined in the server environment (TRIMSET_UPSTREAM_<NAME>_* or TRIMSET_ALERT_<NAME>_*), lowercased.
       type: string
-      format: uri
-      pattern: "^https?://"
+      pattern: "^[a-z0-9_]{1,32}$"
 
     ProjectSettings:
       type: object
@@ -1131,22 +1134,15 @@ components:
       properties:
         upstream:
           type: object
+          required: [name]
           additionalProperties: false
           properties:
-            format: { enum: [systemone, openai-decisions] }
-            base_url: { $ref: "#/components/schemas/UpstreamUrl" }
+            name: { $ref: "#/components/schemas/OperatorName" }
             timeout_ms: { type: integer, minimum: 100, maximum: 120000, default: 10000 }
             credentials:
-              description: passthrough forwards the app's own Authorization header. server sends an operator-set secret, only to this upstream's host, never to a shadow host that differs (ADR 0011).
-              oneOf:
-                - { type: object, required: [mode], additionalProperties: false, properties: { mode: { const: passthrough } } }
-                - type: object
-                  required: [mode, header, value]
-                  additionalProperties: false
-                  properties:
-                    mode: { const: server }
-                    header: { enum: [Authorization], default: Authorization }
-                    value: { $ref: "#/components/schemas/UpstreamSecretRef" }
+              description: passthrough forwards the app's own Authorization header. server uses the key the operator set for this upstream, which only ever goes to that upstream's own URL (ADR 0011).
+              enum: [passthrough, server]
+              default: passthrough
         prices:
           description: USD per million tokens, per model_served. Prices are settings, never code (FR-07).
           type: object
@@ -1167,30 +1163,6 @@ components:
             raw_state_retention_days: { type: integer, minimum: 1, maximum: 400, default: 30 }
             tag_allowlist: { type: [array, "null"], items: { type: string }, default: null }
         refit_schedule: { type: string, default: "0 3 * * *", description: "Cron expression, in UTC." }
-        alert_channels:
-          description: Named channels that alert rules refer to.
-          type: object
-          additionalProperties:
-            oneOf:
-              - type: object
-                required: [kind, url]
-                additionalProperties: false
-                properties:
-                  kind: { const: webhook }
-                  url: { $ref: "#/components/schemas/AlertSecretRef" }
-                  signing_secret: { $ref: "#/components/schemas/AlertSecretRef" }
-              - type: object
-                required: [kind, url]
-                additionalProperties: false
-                properties:
-                  kind: { const: slack }
-                  url: { $ref: "#/components/schemas/AlertSecretRef" }
-              - type: object
-                required: [kind, to]
-                additionalProperties: false
-                properties:
-                  kind: { const: email }
-                  to: { type: array, items: { type: string, format: email }, minItems: 1 }
 
     QuestionSettings:
       type: object
@@ -1236,7 +1208,7 @@ components:
               additionalProperties: false
               properties:
                 model: { $ref: "./schemas/common.schema.json#/$defs/model" }
-                base_url: { $ref: "#/components/schemas/UpstreamUrl" }
+                upstream: { $ref: "#/components/schemas/OperatorName", description: "An operator-defined upstream; defaults to the project's. Server keys stay with their own upstream." }
                 share: { type: number, exclusiveMinimum: 0, maximum: 1, default: 0.1 }
                 daily_cap: { type: integer, minimum: 1 }
         drift:
@@ -1405,7 +1377,7 @@ components:
           enum: [probability_drift, silent_upgrade, escalation_rate, upstream_errors, latency, calibration, policy_violation, proposal_ready, policy_changed, records_dropped, join_backlog, review_capacity]
         question: { type: [string, "null"], description: Null for every question. }
         params: { type: object }
-        channels: { type: array, minItems: 1, items: { type: string }, description: Names from project settings alert_channels. }
+        channels: { type: array, minItems: 1, items: { $ref: "#/components/schemas/OperatorName" }, description: "Operator-defined alert channels this project may use (see Project.available)." }
         cooldown_minutes: { type: integer, minimum: 0, default: 60 }
 
     ShadowReport:

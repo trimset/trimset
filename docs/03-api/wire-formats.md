@@ -24,7 +24,8 @@ Read on 2026-11-10 from each vendor's own documentation:
 | `systemone` | TypeSafe Jev (`api.typesafe.ai`), Ollaya (`:11435`), Ollama 0.35.0+ (`:11434`) | Object keyed by names the caller picks; `instructions` + `criteria` | Object keyed by the same names |
 | `openai-decisions` | OpenAI (`gpt-6-luna`) | Array of 1–400; `name`, `instructions`, `choices` or `levels` | Array in question order |
 
-The project's `upstream.format` setting decides the format, **not the path**. Ollaya
+The upstream's format, set by the operator with the upstream
+([ADR 0011](../adr/0011-proxy-design.md)), decides the format, **not the path**. Ollaya
 serves the systemone format at `/v1/decisions` too. The proxy forwards the path it
 received, unchanged.
 

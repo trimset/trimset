@@ -40,11 +40,9 @@ number) can be reversed by hashing guesses.
 - There is an optional allow-list of keys per project.
 - The docs say to put no personal data in tags or in `external_ref`.
 
-**Secrets are never in the database.** Upstream credentials and alert-channel secrets are
-stored as the *name* of an environment variable and resolved when used. Only names
-starting with `TRIMSET_UPSTREAM_` or `TRIMSET_ALERT_` are accepted, so an admin key can
-never make the server send `TRIMSET_SECRET` or any other variable (Phase 3 security
-review).
+**Secrets are never in the database, and never pass through the API.** Upstream keys and
+alert-channel secrets live only in the server environment, inside operator-defined
+upstreams and channels that projects pick by name ([ADR 0011](0011-proxy-design.md)).
 
 **Deletion and telemetry:**
 - Deletion (FR-57) reaches decisions, outcomes, review items and raw state.
