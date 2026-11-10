@@ -1,6 +1,6 @@
 # Phase 3: Contracts
 
-**Status:** awaiting approval · 2026-11-10 · Inputs: [01-requirements.md](../01-requirements.md), [02-architecture.md](../02-architecture.md)
+**Status:** approved 2026-11-10, with two security follow-ups (below) · Inputs: [01-requirements.md](../01-requirements.md), [02-architecture.md](../02-architecture.md)
 
 | File | What it fixes |
 |---|---|

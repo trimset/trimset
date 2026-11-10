@@ -8,9 +8,14 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
 
 ## Current phase
 
-**Phase 3, Contracts: written, awaiting approval** ([docs/03-api/](docs/03-api/README.md)).
-Phases 0, 1 and 2 were approved on 2026-11-10. Next: Phase 4, Plan (`docs/04-plan.md`):
-milestones sized to 10 hours a week. Phases and their docs are in the brief.
+**Phase 4, Plan: written, awaiting approval** ([docs/04-plan.md](docs/04-plan.md)).
+Phases 0 to 3 were approved on 2026-11-10. Next: Phase 5, Implementation, milestone M1,
+starting with T1.1 (scaffold) and T1.2 (CI plus `docs/05-testing.md`).
+- Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18.
+- Re-plan after every milestone, from actual hours.
+- The GitHub org `trimset` exists, created on 2026-11-10. The repo isn't there yet.
+
+Phases and their docs are in the brief.
 
 ## Decisions so far
 
@@ -40,7 +45,11 @@ milestones sized to 10 hours a week. Phases and their docs are in the brief.
   - Wire formats: two formats, `systemone` and `openai-decisions`, chosen by the
     upstream's settings, not the path.
   - Hashing: `question_id` hashes one canonical `question/1` form, whatever the format.
-  - Keys: four scopes (`tsp_`, `tsi_`, `tsr_`, `tsa_`). In proxy mode, actions are
+  - Keys: four scopes (`tsp_`, `tsi_`, `tsr_`, `tsa_`).
+  - Upstreams and alert channels are operator-defined in the server environment
+    (`TRIMSET_UPSTREAM_<NAME>_*`, `TRIMSET_ALERT_<NAME>_*`), and projects pick them by
+    name. The API never carries URLs, headers or secret names (ADR 0011; two security
+    reviews). In proxy mode, actions are
     reported through `POST /v1/decisions:actions`.
   - Probability sums: 1e-3 tolerance, then renormalised.
   - Vendor facts, read from the vendors' own docs: Ollama ≥ 0.35.0; only TypeSafe names
