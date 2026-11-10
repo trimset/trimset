@@ -44,6 +44,8 @@ nothing is built, and it also promises a TypeScript SDK, which is planned for v0
 ## Layout
 
 - `docs/`: the brief and one doc per phase.
+- `docs/design/`: prompts for Claude Design (the full site, and the v2 dashboard). When a
+  Phase 1 change adds, drops or renames a screen, update `dashboard-prompt.md` too.
 - `site/`: the homepage.
 
 Code arrives in Phase 5.
