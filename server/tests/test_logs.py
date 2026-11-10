@@ -42,12 +42,15 @@ def test_keys_hidden_by_neighbours_or_encoding_are_still_redacted(line: str) -> 
 
 
 @pytest.mark.req("NFR-11")
-def test_deeply_encoded_text_is_hidden_in_bounded_time() -> None:
-    deep = "GET /p/%" + "25" * 5000 + "74sp_" + KEY[4:] + "/v1"  # 5,000 levels deep
+@pytest.mark.req("NFR-13")
+def test_over_encoded_paths_are_hidden_but_the_request_is_still_logged() -> None:
+    path = "/p/%" + "25" * 5000 + "74sp_" + KEY[4:] + "/v1"  # 5,000 levels deep
+    line = f'203.0.113.7:51234 - "POST {path} HTTP/1.1" 401'
     started = time.perf_counter()
-    out = redact(deep)
+    out = redact(line)
     assert time.perf_counter() - started < 0.5
-    assert out == "[redacted: percent-encoded more than 8 times]"
+    assert KEY[4:] not in out
+    assert out == '203.0.113.7:51234 - "POST [redacted: over-encoded] HTTP/1.1" 401'
 
 
 def test_a_lone_percent_sign_does_not_loop() -> None:

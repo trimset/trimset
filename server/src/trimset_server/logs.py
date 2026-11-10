@@ -15,20 +15,22 @@ from urllib.parse import unquote
 # Redacting a little too much in a log is fine; leaking a key is not.
 _KEY = re.compile(r"(ts[pira]_)[A-Za-z0-9]{8,}")
 _MAX_DECODES = 8
+_OVER_ENCODED = "[redacted: over-encoded]"
 
 
 def redact(text: str) -> str:
     # Percent-decode first, so "tsp_%41…" or a prefix encoded several times can't slip past.
     # The log line then shows the decoded form. At most _MAX_DECODES passes, so crafted
-    # input can't make every log line cost thousands of passes. Text still encoded after
-    # that is no accident: the whole line is hidden.
+    # input can't make every log line cost thousands of passes.
     for _ in range(_MAX_DECODES):
         if "%" not in text or (decoded := unquote(text)) == text:
             return _KEY.sub(r"\1[redacted]", text)
         text = decoded
-    if "%" in text and unquote(text) != text:
-        return f"[redacted: percent-encoded more than {_MAX_DECODES} times]"
-    return _KEY.sub(r"\1[redacted]", text)
+    # Still encoded after that is no accident. Hide only the words that are still encoded,
+    # so the rest of the line (client, method, status) stays in the log, and the marker
+    # shows that something was hidden. One linear pass, no regex to backtrack.
+    words = [_OVER_ENCODED if "%" in w and unquote(w) != w else w for w in text.split(" ")]
+    return _KEY.sub(r"\1[redacted]", " ".join(words))
 
 
 class JsonFormatter(logging.Formatter):
