@@ -25,6 +25,8 @@ router = APIRouter(prefix="/v1/admin")
 Admin = Annotated[Principal, Depends(require("admin"))]
 Model = Annotated[str, Field(min_length=1, max_length=256)]
 COVERAGE_DAYS = 90
+# JSON carries a uuid as a string; strict mode on a parsed body would refuse it (422).
+FitId = Annotated[uuid.UUID, Field(strict=False)]
 
 
 class FitRequest(BaseModel):
@@ -36,7 +38,7 @@ class FitRequest(BaseModel):
 class CompileRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     model_served: Model
-    fit_id: uuid.UUID | None = None
+    fit_id: FitId | None = None
     target: dict[str, Any]
     audit_fraction: Annotated[float, Field(ge=0, le=0.5)] | None = None
 
@@ -44,7 +46,7 @@ class CompileRequest(BaseModel):
 class SimulateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     model_served: Model
-    fit_id: uuid.UUID | None = None
+    fit_id: FitId | None = None
     candidates: (
         Annotated[list[Annotated[list[dict[str, Any]], Field(max_length=2)]], Field(max_length=500)]
         | None

@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -37,8 +38,11 @@ class Api:
             data=None if body is None else json.dumps(body).encode(),
             headers={"Authorization": f"Bearer {self.key}", "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=60) as res:  # noqa: S310 - as above
-            return json.load(res)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as res:  # noqa: S310 - as above
+                return json.load(res)
+        except urllib.error.HTTPError as e:  # the problem body says why
+            raise SystemExit(f"{req.get_method()} {path}: {e.code} {e.read().decode()}") from None
 
     def job(self, job: dict[str, Any]) -> dict[str, Any]:
         for _ in range(240):

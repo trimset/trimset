@@ -86,7 +86,9 @@ async def test_fit_then_compile_then_simulate(dsn: str, check: Any, conforms: An
         target = {"kind": "risk", "metric": "error_budget", "alpha": 0.25}
         for _ in range(2):
             r = c.post(
-                "/v1/admin/questions/team/compile", json=model | {"target": target}, headers=auth
+                "/v1/admin/questions/team/compile",
+                json=model | {"fit_id": fit_id, "target": target},
+                headers=auth,
             )
             check(r, "POST", "/v1/admin/questions/{question}/compile")
             await _work(dsn)
@@ -99,9 +101,12 @@ async def test_fit_then_compile_then_simulate(dsn: str, check: Any, conforms: An
         assert sim.json()["fit_id"] == fit_id and len(sim.json()["rows"]) > 1
         one = {"id": "select", "action": "SELECT", "scalar": "top", "op": "ge", "threshold": 0.9}
         sim = c.post(
-            "/v1/admin/questions/team/simulate", json=model | {"candidates": [[one]]}, headers=auth
+            "/v1/admin/questions/team/simulate",
+            json=model | {"fit_id": fit_id, "candidates": [[one]]},  # a uuid as JSON sends it
+            headers=auth,
         )
         check(sim, "POST", "/v1/admin/questions/{question}/simulate")
+        assert sim.json()["fit_id"] == fit_id
         (row,) = sim.json()["rows"]
         assert row["rules"] == [one]
 
