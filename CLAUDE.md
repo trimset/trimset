@@ -122,12 +122,20 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     a new proposal rejects the refits' older one. Never activates. Fits store their
     tuning labels' mix by source and key; `policy diff` shows it (threat T1). The
     "proposal ready" alert waits for T4.1.
+  - T3.4, the SDK's gate (`trimset.Client`, `client.py`; `policy.py` for sdk.md §3 in
+    pure Python): a poller keeps a verified bundle (fingerprints, ETag, 304, backoff,
+    an optional disk cache, restarts after fork); `gate()` never raises or touches
+    the network, and every default names its reason. `test_gate_agreement.py`
+    checks gate() against the compiler on random policies. The compiler now moves
+    thresholds off the tune values (`off_data`), so an ulp can't flip a decision.
+    Sending records, actions and outcomes is T3.5.
 - **M6, the dashboard, started early** (2026-11-11, [ADR 0017](docs/adr/0017-dashboard.md)):
-  `dashboard/` on the API. Real: sign-in, Decisions, each question's Calibration and
-  Thresholds (the simulator), Policies with the lifecycle, Settings, the empty project.
-  Sample data until their endpoints exist: Overview, Outcomes, the Questions list,
-  Drift, Shadow, Review queue, Alerts. Not yet served: the `/ui` mount and the image's
-  Node build stage. A public demo build runs at https://demo.trimset.dev.
+  `dashboard/` on the API. Real: sign-in, Decisions, Questions, each question's
+  Calibration and Thresholds (the simulator, with kept candidates to compare), Policies
+  with the lifecycle, Settings, the empty project. Sample data until their endpoints
+  exist: Overview, Outcomes, Drift, Shadow, Review queue, Alerts. Not yet served: the
+  `/ui` mount and the image's Node build stage. A public demo build runs at
+  https://demo.trimset.dev.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

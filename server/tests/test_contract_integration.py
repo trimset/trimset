@@ -151,6 +151,12 @@ async def test_ingest_outcomes_actions_and_questions_match_the_contract(
             "/v1/decisions:actions",
         )
 
+        listed = c.get("/v1/admin/questions", headers=admin)
+        check(listed, "GET", "/v1/admin/questions")
+        names = {q["question_id"]: q["name"] for q in listed.json()["items"]}
+        assert names[data.question_id] == "refund_fraud"
+        assert c.get("/v1/admin/questions", headers=ingest).status_code == 403
+
         template = "/v1/admin/questions/{question}"
         check(c.get("/v1/admin/questions/refund_fraud", headers=admin), "GET", template)
         check(c.get(f"/v1/admin/questions/{data.question_id}", headers=admin), "GET", template)

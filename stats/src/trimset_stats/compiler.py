@@ -284,11 +284,32 @@ def n_start(alpha: float, delta: float) -> int:
         low += 4096
 
 
+def off_data(candidates: Floats, values: Floats) -> Floats:
+    """Each threshold moved to the middle of the gap between the tune values around it.
+
+    On the tune split it fires on exactly the same items, for `lt` and `ge` alike. But no
+    answer sits on it any more, so an SDK whose float arithmetic differs from numpy's by an
+    ulp still decides the same (sdk.md §3). Answers rounded to 4 decimals repeat, and a
+    quantile often lands exactly on one, where a 1-ulp difference would flip `lt` and `ge`.
+    """
+    u = np.unique(values)
+    if u.size == 0:
+        return candidates
+    k = np.searchsorted(u, candidates, side="left")  # u[k-1] < c <= u[k]
+    lo = np.where(k > 0, u[np.maximum(k - 1, 0)], 0.0)
+    hi = np.where(k < u.size, u[np.minimum(k, u.size - 1)], 1.0)
+    mid = (lo + hi) / 2
+    # Two adjacent floats have no float between them: keep the original there.
+    return np.where((lo < mid) & (mid < hi), mid, candidates)
+
+
 def _candidates(values: Floats, rule: Rule) -> Floats:
-    """Up to GRID + 1 quantiles of the scalar, plus the end that fires on everything."""
+    """Up to GRID + 1 quantiles of the scalar, plus the end that fires on everything, each
+    moved off the data."""
     grid = np.quantile(values, np.linspace(0, 1, GRID + 1)) if values.size else np.empty(0)
     end = np.array([1.0 if rule.op == "lt" else 0.0])
-    return rule.strict_to_loose(np.unique(np.concatenate([grid, end]).clip(0, 1)))
+    points = np.unique(np.concatenate([grid, end]).clip(0, 1))
+    return rule.strict_to_loose(np.unique(off_data(points, values)))
 
 
 @dataclass(frozen=True)
@@ -557,7 +578,8 @@ def _compile_cost(
         values = tune.values[shape.scalar]
         size = GRID if len(shapes) == 1 else COST_GRID
         points = np.quantile(values, np.linspace(0, 1, size + 1)) if values.size else np.empty(0)
-        grids.append(np.unique(np.concatenate([points, [0.0, 1.0]]).clip(0, 1)))
+        points = np.unique(np.concatenate([points, [0.0, 1.0]]).clip(0, 1))
+        grids.append(np.unique(off_data(points, values)))
     best: tuple[float, list[Rule]] | None = None
     lowest_escalation = 1.0
     for combo in np.array(np.meshgrid(*grids, indexing="ij")).reshape(len(shapes), -1).T:
