@@ -69,6 +69,10 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     seed. Every map is non-decreasing (a reversed Platt fit is refused), so thresholds
     carry back to raw p. Golden against scikit-learn; Guo 2017 and Niculescu-Mizil 2005
     reproduced.
+  - T2.3, datasets: `stats/.../dataset.py` (window, maturity, latest per external_ref,
+    40/40/20 split by hash of seed and decision id, minimum and shortfall, coverage per
+    action path) and `server/.../datasets.py` (loads one group, skips refusals and
+    shadows, renormalises probabilities, labels to class indices).
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
