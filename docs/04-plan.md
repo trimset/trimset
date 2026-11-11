@@ -114,7 +114,7 @@ T2.4 covers:
 |---|---|---|---|
 | TA.1 | Release pipeline: multi-arch image on GHCR, PyPI trusted publishing, changelog, semver tags | NFR-16 | 6 |
 | TA.2 | Quickstart and self-hosting pages; README | NFR-20 | 6 |
-| TA.3 | Homepage: claims match the alpha, the proxy-key snippet, `[X]%` from demo data, Pages deploy, `trimset.dev` | — | 4 |
+| TA.3 | Homepage: claims match the alpha, `[X]%` from demo data (the proxy-key snippet and the `trimset.dev` deploy, on Cloudflare, were done early on 2026-11-11) | — | 4 |
 
 ### M4 Watch: drift and alerts
 
@@ -147,7 +147,7 @@ T2.4 covers:
 | T7.2 | Security: dependency audit, secret scan, license check in CI; threat-model review | NFR-11, NFR-18 | 4 |
 | T7.3 | `docs/06-operations.md`: runbooks, SLOs | Brief, Phase 8 | 5 |
 | T7.4 | Community files, issue labels, `ROADMAP.md` | — | 5 |
-| T7.5 | Homepage: use-case pages (site v2 design), final numbers | — | 6 |
+| T7.5 | Homepage: final numbers (the site v2 pages, use cases included, were built early on 2026-11-11) | — | 6 |
 | T7.6 | Fresh-machine quickstart check; upgrade test from the alpha; launch | NFR-15, NFR-20 | 4 |
 
 ### After v0.1.0: agents and the assistant

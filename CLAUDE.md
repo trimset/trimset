@@ -169,11 +169,19 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
 
 ## Homepage
 
-`site/index.html`. Keep its look: dark theme, Space Grotesk / Inter / JetBrains Mono,
-the `--accent` variable. Fill the `[X]%` cells only with numbers from our own demo data.
-Before it goes live (GitHub Pages, task TA.3) its claims must match what is built. Today
-nothing is built. It also promises a TypeScript SDK (v0.2), and its adoption snippet
-lacks the `/p/<proxy key>` path that ADR 0011 requires.
+`site/`: 14 static pages and one `style.css`, no build step and no JavaScript, served at
+https://trimset.dev by Cloudflare (`wrangler.jsonc`, an assets-only Worker; deploy below).
+Built early, on 2026-11-11, from the site v2 design (T7.5's pages, TA.3's deploy).
+- Keep its look: dark theme, Space Grotesk / Inter / JetBrains Mono, the `--accent` variable.
+- The header and footer are copied into every page, so a nav change touches all 14. The
+  six `use-cases/*.html` share one skeleton: change one, change all six.
+- Claims match what is built. Anything not built carries a "Coming soon" badge or names
+  its milestone, and a use case says "Demo available" only when its `examples/` demo
+  exists (today: refund fraud). A PR that builds a feature updates the site with it.
+- `[X]`, `[X]%` and `[N]` stay placeholders until our own demo data fills them.
+- Name no company beyond TypeSafe, OpenAI, Ollama, Ollaya, LangGraph and decision-circuits.
+- `404.html` uses root-absolute links: it is served at any path.
+- Check at 390 px: no sideways scroll; code blocks and tables scroll in their own box.
 
 ## Layout
 
@@ -194,7 +202,7 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
   - `research.md`, the verified sources;
   - `03-api/`, the contracts;
   - `design/`, the prompts for Claude Design.
-- `site/`: the homepage.
+- `site/`: the website (see Homepage); `wrangler.jsonc` deploys it.
 - `.github/workflows/ci.yml`: lint, types, tests per package with coverage gates, SDK on
   Python 3.11, contract checks, and an image and compose smoke test.
 - `Dockerfile`: one image for the proxy, the server and the worker.
@@ -245,6 +253,7 @@ uv run --frozen pytest stats/tests/test_x.py    # one file at a time locally
 gh run list --repo trimset/trimset              # the real test results
 gh workflow run load.yml --repo trimset/trimset # load test, ~20 min; results in the log and summary
 cd proxy && cargo clippy -j 2 --all-targets -- -D warnings && cargo test -j 2  # the Rust proxy
+npx wrangler@4.157.0 deploy                     # the site to trimset.dev (once: npx wrangler@4.157.0 login)
 python3 tools/crate_ages.py 2026-11-04          # crates against the 7-day hold
 TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
 uv run trimset-mock-upstream --port 9000        # the mock upstream, for trying the proxy
