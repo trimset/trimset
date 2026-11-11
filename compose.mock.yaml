@@ -1,0 +1,30 @@
+# The mock upstream (FR-59) beside the stack, for tests and demos. Never in production.
+#   docker compose -f compose.yaml -f compose.mock.yaml up -d
+# The server then sends every project to it. Switch its version (a silent upgrade), add
+# latency or inject errors while it runs:
+#   curl -X PATCH localhost:9000/_mock/config -d '{"version": "1.1.0"}'
+services:
+  mock-upstream:
+    build:
+      context: .
+      target: mock-upstream
+    image: ghcr.io/trimset/trimset-mock-upstream:dev
+    command: ["--port", "9000"]
+    ports:
+      - "127.0.0.1:9000:9000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=2)
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  server:
+    environment:
+      TRIMSET_UPSTREAM_MOCK_URL: http://mock-upstream:9000
+    depends_on:
+      mock-upstream:
+        condition: service_healthy

@@ -55,6 +55,7 @@ Branch coverage, enforced per package in CI:
 | `trimset-stats` | 95% | The numbers behind every guarantee |
 | `trimset` (SDK) | 90% | Runs inside customers' apps; the fail-open paths must be tested |
 | `trimset-server` | 85% | Lots of glue; integration tests cover the rest |
+| `trimset-tools` | 90% | The mock upstream and data generator every other test leans on |
 
 Lowering a minimum needs a sentence in the pull request saying why. Raising it doesn't.
 

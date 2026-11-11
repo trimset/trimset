@@ -1,0 +1,14 @@
+[project]
+name = "trimset-tools"
+version = "0.0.0"
+description = "Test and demo tools for trimset: the mock upstream (FR-59). Never published."
+requires-python = ">=3.12"
+classifiers = ["Private :: Do Not Upload"]
+dependencies = ["starlette>=1.10.0", "uvicorn>=0.54.0"]
+
+[project.scripts]
+trimset-mock-upstream = "trimset_tools.mock_upstream:main"
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14"]
+build-backend = "uv_build"

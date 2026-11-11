@@ -45,7 +45,10 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
       every minute;
     - the last label received wins (enforced in SQL), and `outcome_history` keeps every one;
     - default labels by rule, hourly; `GET/PATCH /v1/admin/questions/{question}`.
-- Next: T1.10 (the mock upstream), then the rest of M1.
+  - T1.10, the mock upstream (`tools/`, `compose.mock.yaml`): both formats,
+    deterministic answers, a version switch for silent upgrades, latency and error
+    injection. CI sends a request through the image's proxy to it.
+- Next: T1.11 (the data generator), then the rest of M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
   every milestone, from actual hours.
 - Repository: `github.com/trimset/trimset` (public).
@@ -121,6 +124,9 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
   yet.
 - `stats/`: package `trimset-stats`. Pure functions, no I/O.
 - `server/`: package `trimset-server` (server and worker).
+- `tools/`: package `trimset-tools`, never published and never in the server image. The
+  mock upstream (`trimset-mock-upstream`); the data generator joins it in T1.11. Tests
+  use the mock in-process: `create_app(transport=httpx2.ASGITransport(mock_upstream.create_app()))`.
 - `docs/`:
   - the brief and one doc per phase;
   - `adr/`, the decision records;
@@ -136,6 +142,8 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
   - Entrypoint `trimset-server`.
 - `compose.yaml`: Postgres 18.6 and the server on :8800. It needs `TRIMSET_DB_PASSWORD` in
   `.env`; there is no default password.
+- `compose.mock.yaml`: adds the mock upstream on :9000 (Dockerfile target
+  `mock-upstream`) and points the server at it. CI's image job uses both files.
 - **Server logging and telemetry:**
   - Logs are JSON on stdout. `logs.redact` strips anything that looks like a trimset key
     from every log line.
@@ -174,6 +182,7 @@ uv run --frozen mypy
 uv run --frozen pytest stats/tests/test_x.py    # one file at a time locally
 gh run list --repo trimset/trimset              # the real test results
 TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
+uv run trimset-mock-upstream --port 9000        # the mock upstream, for trying the proxy
 # The image is built and smoke-tested in CI (job "image"), not locally.
 
 # Contract checks (also in CI)

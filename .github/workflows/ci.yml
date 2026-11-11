@@ -40,6 +40,7 @@ jobs:
           - { package: sdk/python, module: trimset, coverage: 90 }
           - { package: stats, module: trimset_stats, coverage: 95 }
           - { package: server, module: trimset_server, coverage: 85 }
+          - { package: tools, module: trimset_tools, coverage: 90 }
     # Postgres for the server's integration tests; the other packages ignore it.
     services:
       postgres:
@@ -75,6 +76,7 @@ jobs:
     env:
       TRIMSET_DB_PASSWORD: ciOnlyNotASecret
       TRIMSET_SECRET: ci-only-not-a-secret-0123456789abcdef
+      COMPOSE_FILE: compose.yaml:compose.mock.yaml # the stack plus the mock upstream (FR-59)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: docker compose build
@@ -92,10 +94,26 @@ jobs:
           docker compose exec -T server trimset-server create-project ci > /dev/null
           key=$(docker compose exec -T server trimset-server create-key ci --label ci | python3 -c "import json,sys; print(json.load(sys.stdin)['key'])")
           curl -fsS -H "Authorization: Bearer $key" http://127.0.0.1:8800/v1/admin/keys > /dev/null
+      - name: the proxy forwards to the mock upstream and records decisions (FR-04, FR-59)
+        run: |
+          proxy=$(docker compose exec -T server trimset-server create-key ci --scope proxy --label app | python3 -c "import json,sys; print(json.load(sys.stdin)['key'])")
+          echo "PROXY_KEY=$proxy" >> "$GITHUB_ENV"
+          curl -fsS -D headers.txt -o answer.json "http://127.0.0.1:8800/p/$proxy/v1/systemone" \
+            -H 'content-type: application/json' \
+            -d '{"model": "mock-latest", "state": {"ticket": "t-1"}, "questions": {"fraud": {"type": "noul", "instructions": "Is this fraud?"}, "team": {"type": "choice", "instructions": "Which team?", "criteria": {"billing": null, "tech": null}}}}'
+          python3 -c "import json; a = json.load(open('answer.json')); assert a['model'] == 'mock-1.0.0', a"
+          grep -i '^x-trimset-decision-id: [0-9a-f-]*,[0-9a-f-]*' headers.txt
+          for i in $(seq 20); do
+            n=$(docker compose exec -T postgres psql -U trimset -d trimset -tAc "SELECT count(*) FROM decisions")
+            [ "$n" = 2 ] && break; sleep 0.5
+          done
+          echo "$n decisions"; test "$n" = 2
+          curl -fsS http://127.0.0.1:9000/_mock/last | python3 -c "import json,sys; last = json.load(sys.stdin)['last']; assert last['path'] == '/v1/systemone', last; assert not [h for h in last['headers'] if h.startswith('x-trimset')], last"
       - name: every log line is JSON (NFR-13)
         run: |
           docker compose logs --no-log-prefix server worker > stack.log
           python3 -c "import json,sys; lines=[l for l in open('stack.log') if l.strip()]; [json.loads(l) for l in lines]; print(len(lines), 'JSON lines')"
+          ! grep -qF "$PROXY_KEY" stack.log # the key in the proxy's path is redacted
       - name: runs as a non-root user
         run: test "$(docker compose exec -T server id -u)" = 10001
       - name: memory at idle (NFR-17, recorded)

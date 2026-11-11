@@ -4,7 +4,7 @@
 name = "trimset-workspace"
 version = "0"
 requires-python = ">=3.12"
-dependencies = ["trimset", "trimset-stats", "trimset-server"]
+dependencies = ["trimset", "trimset-stats", "trimset-server", "trimset-tools"]
 
 [dependency-groups]
 dev = [
@@ -25,12 +25,13 @@ package = false
 exclude-newer = "2026-11-03T00:00:00Z"
 
 [tool.uv.workspace]
-members = ["sdk/python", "stats", "server"]
+members = ["sdk/python", "stats", "server", "tools"]
 
 [tool.uv.sources]
 trimset = { workspace = true }
 trimset-stats = { workspace = true }
 trimset-server = { workspace = true }
+trimset-tools = { workspace = true }
 
 [tool.ruff]
 line-length = 100
@@ -44,11 +45,11 @@ select = ["E", "W", "F", "I", "UP", "B", "SIM", "S", "RUF"]
 "**/tests/**" = ["S101", "S104"] # pytest asserts; tests check the 0.0.0.0 default
 
 [tool.ruff.lint.isort]
-known-first-party = ["trimset", "trimset_stats", "trimset_server"]
+known-first-party = ["trimset", "trimset_stats", "trimset_server", "trimset_tools"]
 
 [tool.mypy]
 strict = true
-packages = ["trimset", "trimset_stats", "trimset_server"]
+packages = ["trimset", "trimset_stats", "trimset_server", "trimset_tools"]
 
 [[tool.mypy.overrides]]
 module = ["asyncpg", "asyncpg.*"] # ships no type information

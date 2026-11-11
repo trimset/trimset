@@ -1,6 +1,7 @@
 """The proxy and project settings against a real Postgres (CI)."""
 
 import json
+from dataclasses import replace
 from typing import Any
 
 import asyncpg
@@ -13,6 +14,7 @@ from trimset_server.app import create_app
 from trimset_server.config import Settings
 from trimset_server.migrate import run_migrations
 from trimset_server.upstreams import Upstream
+from trimset_tools import mock_upstream
 
 pytestmark = [pytest.mark.anyio, pytest.mark.integration]
 
@@ -137,3 +139,63 @@ async def test_project_settings_read_and_merge_patch(dsn: str) -> None:
 
     (stored,) = await _rows(dsn, "SELECT settings FROM projects")
     assert json.loads(stored["settings"]) == {"upstream": {"name": "jev", "credentials": "server"}}
+
+
+OPENAI_REQUEST = {
+    "model": "gpt-6-luna",
+    "input": "The parcel arrived crushed.",
+    "questions": [
+        {
+            "type": "predicate",
+            "name": "fraud",
+            "instructions": "Is this refund request fraudulent?",
+        },
+        {"type": "choice", "name": "team", "choices": [{"value": "a"}, {"value": "b"}]},
+    ],
+}
+
+
+@pytest.mark.req("FR-59")
+@pytest.mark.parametrize(
+    ("fmt", "path", "request_", "served"),
+    [
+        ("systemone", "/v1/systemone", REQUEST | {"model": "mock-latest"}, "mock-{}"),
+        ("openai-decisions", "/v1/decisions", OPENAI_REQUEST, "gpt-6-luna"),
+    ],
+)
+async def test_the_proxy_records_what_the_mock_upstream_answers(
+    dsn: str, fmt: Any, path: str, request_: Any, served: str
+) -> None:
+    k = await _keys(dsn)
+    mock = mock_upstream.create_app(mock_upstream.Config(seed=1))
+    app = create_app(
+        Settings(
+            database_url=dsn,
+            secret=SECRET,
+            upstreams={"mock": Upstream("mock", "http://mock.test", fmt)},
+            key_cache_ttl_s=0,
+        ),
+        transport=httpx2.ASGITransport(mock),
+    )
+    with TestClient(app) as c:
+        first = c.post(f"/p/{k['proxy']}{path}", json=request_, headers={"X-Trimset-Tags": "a=b"})
+        mock.state.config = replace(mock.state.config, version="1.1.0")  # a silent upgrade
+        second = c.post(f"/p/{k['proxy']}{path}", json=request_)
+    assert (first.status_code, second.status_code) == (200, 200)
+    assert [first.json()["model"], second.json()["model"]] == [
+        served.format("1.0.0"),
+        served.format("1.1.0"),
+    ]
+    sent = mock.state.last
+    assert sent["path"] == path  # the proxy key stays here
+    assert not [h for h in sent["headers"] if h.startswith("x-trimset")]
+
+    fraud_id = first.headers["x-trimset-decision-id"].split(",")[0]
+    (row,) = await _rows(dsn, "SELECT probs FROM decisions WHERE decision_id = $1::uuid", fraud_id)
+    answer = first.json()["answers"]
+    p = answer["fraud"]["noul"] if fmt == "systemone" else answer[0]["probability"]
+    assert row["probs"] == pytest.approx([p], abs=1e-6)
+    models = await _rows(dsn, "SELECT model_served FROM model_versions ORDER BY model_served")
+    assert [m["model_served"] for m in models] == sorted(
+        {served.format("1.0.0"), served.format("1.1.0")}
+    )
