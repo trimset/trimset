@@ -111,6 +111,9 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     (`audit.py`, GET /v1/admin/audit-log), as are keys created and revoked (API and
     server CLI, key_id null) and project and question settings changes. CLI: `trimset
     policy submit|approve|reject|activate|retire|rollback`; `policy show` prints history.
+  - T3.2, the bundle (`bundle.py`, GET /v1/policies, ingest keys): named questions,
+    active policies with guarantee status, the state-hash key (503 without
+    TRIMSET_SECRET); ETag per hashing.md §5, 304 on If-None-Match.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

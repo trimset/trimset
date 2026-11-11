@@ -12,6 +12,7 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 
+from trimset.hashing import bundle_etag, fingerprint
 from trimset_server import keys
 from trimset_server.app import create_app
 from trimset_server.cli import _admin_command
@@ -55,6 +56,7 @@ async def _setup(dsn: str) -> tuple[dict[str, str], str, list[str]]:
                 "version": version,
                 "fit_id": str(fit_id),
             }
+            body["fingerprint"] = fingerprint(body)
             await conn.execute(
                 "INSERT INTO policies (policy_id, project_id, question_id, model_served, version, "
                 "fit_id, body, fingerprint) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)",
@@ -261,3 +263,46 @@ async def test_server_commands_are_audited_without_a_key(dsn: str) -> None:
         (None, "key.create", f"key:{key_id}"),
         (None, "key.revoke", f"key:{key_id}"),
     ]
+
+
+@pytest.mark.req("FR-32")
+@pytest.mark.req("FR-34")
+async def test_the_bundle_carries_active_policies_and_answers_304(dsn: str, check: Any) -> None:
+    secrets, _, (v1, v2, _) = await _setup(dsn)
+    admin, ingest = _auth(secrets["admin"]), _auth(secrets["ingest"])
+    with TestClient(create_app(Settings(database_url=dsn, secret=b"s" * 32))) as c:
+        r = c.get("/v1/policies", headers=ingest)
+        check(r, "GET", "/v1/policies")
+        empty = r.json()
+        assert empty["policies"] == []
+        assert empty["questions"]["refund_fraud"]["definition"]["type"] == "noul"
+        assert r.headers["etag"] == f'"{empty["etag"]}"' and empty["etag"] == bundle_etag(empty)
+        assert r.headers["cache-control"] == "no-cache"
+        again = c.get("/v1/policies", headers=ingest | {"If-None-Match": r.headers["etag"]})
+        assert again.status_code == 304 and again.content == b""
+        assert again.headers["etag"] == r.headers["etag"]
+
+        for action in ("submit", "approve", "activate"):
+            c.post(f"/v1/admin/policies/{v1}/transitions", json={"action": action}, headers=admin)
+        r = c.get("/v1/policies", headers=ingest | {"If-None-Match": r.headers["etag"]})
+        check(r, "GET", "/v1/policies")
+        assert r.status_code == 200
+        (entry,) = r.json()["policies"]
+        assert entry["policy"]["policy_id"] == v1 and entry["guarantee_status"] == "certified"
+        assert fingerprint(entry["policy"]) == entry["policy"]["fingerprint"]  # what SDKs check
+
+        for action in ("submit", "approve", "activate"):
+            c.post(f"/v1/admin/policies/{v2}/transitions", json={"action": action}, headers=admin)
+        r = c.get("/v1/policies", headers=admin | {"If-None-Match": r.headers["etag"]})
+        assert [p["policy"]["policy_id"] for p in r.json()["policies"]] == [v2]
+        c.post(
+            "/v1/admin/questions/refund_fraud/rollback",
+            json={"model_served": MODEL, "reason": "v2 broke"},
+            headers=admin,
+        )
+        r = c.get("/v1/policies", headers=ingest | {"If-None-Match": r.headers["etag"]})
+        assert [p["policy"]["policy_id"] for p in r.json()["policies"]] == [v1]
+
+    with TestClient(create_app(Settings(database_url=dsn))) as c:
+        r = c.get("/v1/policies", headers=ingest)
+        assert r.status_code == 503 and "TRIMSET_SECRET" in r.json()["title"]
