@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError, api, DEMO, type Bin, type Costs, type Fit, type Job, type PolicyMetrics, q, type Question, type Rule, type SimulateResult, type Target, waitJob } from "../api.ts";
 import { candidate, count, prob, sameScalar, scalarName, simView, startThreshold } from "../format.ts";
 import { ErrorState, href, Load, Skeleton, Tile, TooFew, useLoad } from "../ui.tsx";
@@ -184,46 +184,42 @@ function CostInput({ label, value, onChange }: { label: string; value: number; o
   );
 }
 
+/** Bars sit at their bins' own edges: a fit returns only its non-empty bins. */
 function Histogram({ bins, lo, hi, noul, scalar }: { bins: Bin[]; lo: number; hi: number; noul: boolean; scalar: string }) {
-  const counts = bins.map((b) => b.count);
-  const sorted = [...counts].sort((a, b) => b - a);
+  const sorted = bins.map((b) => b.count).sort((a, b) => b - a);
   // A tall first bin would flatten the rest: cap the axis and mark the broken bar.
-  const cap = sorted[0] > 3 * (sorted[1] || 1) ? Math.max(1, Math.round(sorted[1] * 1.5)) : Math.max(1, sorted[0]);
-  const bars = useMemo(
-    () =>
-      bins.map((b) => {
-        const h = Math.max(b.count ? 2 : 0, (Math.min(b.count, cap) / cap) * 200);
-        // observed is P(true) for noul and P(top right) otherwise; orange is "yes" / "wrong".
-        const orange = b.observed == null ? null : noul ? b.observed : 1 - b.observed;
-        const mid = (b.lo + b.hi) / 2;
-        return { b, h, orange, inBand: mid >= lo && mid < hi };
-      }),
-    [bins, cap, lo, hi, noul],
-  );
+  const cap = sorted[0] > 3 * (sorted[1] || 1) ? Math.max(1, Math.round(sorted[1] * 1.5)) : Math.max(1, sorted[0] ?? 1);
+  const pct = (x: number) => `${(x * 100).toFixed(3)}%`;
   return (
     <figure style={{ margin: 0 }} className="col">
       <div style={{ display: "flex", gap: 10 }}>
         <div className="m mu" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: 216, fontSize: 11, textAlign: "right", paddingBottom: 14 }}>
-          <span>{count(cap)}{cap < sorted[0] ? "+" : ""}</span>
+          <span>{count(cap)}{cap < (sorted[0] ?? 0) ? "+" : ""}</span>
           <span>{count(Math.round(cap / 2))}</span>
           <span>0</span>
         </div>
         <div className="hist grow" role="img" aria-label={`Evaluation-split decisions by ${scalar}, coloured by real outcome, escalation band ${prob(lo)} to ${prob(hi)}`}>
-          {bars.map(({ b, h, orange, inBand }) => (
-            <div key={b.lo} className={inBand ? "in-band" : ""} title={`${prob(b.lo)}–${prob(b.hi)}: ${b.count} decisions`}>
-              {b.count > cap && <span className="m t2" style={{ fontSize: 10, textAlign: "center" }}>{count(b.count)} ⌇</span>}
-              <div className="seg" style={{ height: h, outline: inBand ? "1px dashed var(--wa)" : undefined, outlineOffset: 1 }}>
-                {orange == null ? (
-                  <div style={{ flex: "1 1 auto", background: "var(--bd2)" }} />
-                ) : (
-                  <>
-                    <div style={{ height: `${orange * 100}%`, background: "var(--bad)" }} />
-                    <div style={{ flex: "1 1 auto", background: "var(--ok)" }} />
-                  </>
-                )}
+          <div className="band" style={{ left: pct(lo), width: pct(Math.max(0, hi - lo)) }} />
+          {bins.map((b) => {
+            const h = Math.max(b.count ? 2 : 0, (Math.min(b.count, cap) / cap) * 200);
+            // observed is P(true) for noul and P(top right) otherwise; orange is "yes" / "wrong".
+            const orange = b.observed == null ? null : noul ? b.observed : 1 - b.observed;
+            return (
+              <div key={b.lo} className="bin" style={{ left: `calc(${pct(b.lo)} + 1px)`, width: `calc(${pct(b.hi - b.lo)} - 2px)` }} title={`${prob(b.lo)}–${prob(b.hi)}: ${b.count} decisions`}>
+                {b.count > cap && <span className="m t2" style={{ fontSize: 10, textAlign: "center" }}>{count(b.count)} ⌇</span>}
+                <div className="seg" style={{ height: h }}>
+                  {orange == null ? (
+                    <div style={{ flex: "1 1 auto", background: "var(--bd2)" }} />
+                  ) : (
+                    <>
+                      <div style={{ height: `${orange * 100}%`, background: "var(--bad)" }} />
+                      <div style={{ flex: "1 1 auto", background: "var(--ok)" }} />
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       <div className="m mu" style={{ display: "flex", justifyContent: "space-between", fontSize: 11, paddingLeft: 40 }}>

@@ -35,10 +35,20 @@ interface Recorded {
   pending: string[];
 }
 
-const recording: Promise<Recorded> = fetch("./recorded.json").then((r) => {
-  if (!r.ok) throw new ApiError(r.status, "The demo recording is missing");
-  return r.json();
-});
+// Fetched once; a failed fetch is forgotten, so "Try again" fetches it again.
+let recording: Promise<Recorded> | null = null;
+function load(): Promise<Recorded> {
+  recording ??= fetch("./recorded.json")
+    .then((r) => {
+      if (!r.ok) throw new ApiError(r.status, "The demo recording is missing");
+      return r.json() as Promise<Recorded>;
+    })
+    .catch((e) => {
+      recording = null;
+      throw e;
+    });
+  return recording;
+}
 
 /** The grid step the recording used; the demo's simulator handles move by it. */
 export const STEP = 0.05;
@@ -53,7 +63,7 @@ const notRecorded = (detail: string) => new ApiError(422, "Not in the demo recor
 type Init = { method?: string; body?: unknown };
 
 export async function answer(path: string, init: Init = {}): Promise<unknown> {
-  const D = await recording;
+  const D = await load();
   await new Promise((r) => setTimeout(r, 120));
   const url = new URL(path, window.location.origin);
   const p = url.pathname;

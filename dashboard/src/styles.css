@@ -184,9 +184,9 @@ dialog { background: var(--sf); color: var(--tx); border: 1px solid var(--bd2); 
 dialog::backdrop { background: rgb(0 0 0 / 0.55); }
 
 /* simulator */
-.hist { display: flex; align-items: flex-end; gap: 3px; height: 216px; border-bottom: 1px solid var(--bd2); }
-.hist > div { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px 4px 0 0; }
-.hist > div.in-band { background: var(--hv); }
+.hist { position: relative; height: 216px; border-bottom: 1px solid var(--bd2); }
+.hist .band { position: absolute; top: 0; bottom: 0; background: var(--hv); border-left: 1px dashed var(--wa); border-right: 1px dashed var(--wa); }
+.hist .bin { position: absolute; bottom: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; }
 .hist .seg { display: flex; flex-direction: column; border-radius: 4px 4px 0 0; overflow: hidden; }
 input[type="range"] { width: 100%; accent-color: #b8f36b; height: 28px; }
 .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
