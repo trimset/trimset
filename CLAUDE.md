@@ -82,6 +82,10 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     rule, delta split), cost (grid, no guarantee), unlabeled fired items as wrong,
     audited_only paths, Declined with the labels needed or the binding constraint, and
     `simulate` for FR-26. Calibration maps follow sdk.md §3 exactly.
+  - T2.5, the coverage experiment (`research/test_coverage.py`, marker `slow`, workflow
+    `nightly`): 200 seeds of refund fraud, triage and routing; each certified rule's
+    true error on fresh traffic must be within alpha in >= 95% of seeds (NFR-09).
+    Slow tests are left out of every push (`-m "not slow"` in pytest's addopts).
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

@@ -218,7 +218,7 @@ SCENARIOS = {
             },
             classes=["billing", "shipping", "returns", "tech"],
             base=[0.3, 0.35, 0.25, 0.1],
-            concentration=1.5,
+            concentration=0.35,  # a sharp model: most tickets have a clear team
             tilt=2,
             act=_triage_act,
             outcomes=_triage_outcomes,
@@ -236,7 +236,7 @@ SCENARIOS = {
             },
             classes=[0, 1, 2, 3],
             base=[0.35, 0.4, 0.18, 0.07],
-            concentration=2.0,
+            concentration=0.6,
             tilt=3,
             act=lambda p: "ACCEPT" if p[2] + p[3] < 0.3 else "ESCALATE",
             outcomes=_routing_outcomes,

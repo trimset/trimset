@@ -44,6 +44,7 @@ select = ["E", "W", "F", "I", "UP", "B", "SIM", "S", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S104"] # pytest asserts; tests check the 0.0.0.0 default
+"research/**" = ["S101"] # experiments are pytest files too
 
 [tool.ruff.lint.isort]
 known-first-party = ["trimset", "trimset_stats", "trimset_server", "trimset_tools"]
@@ -57,7 +58,7 @@ module = ["asyncpg", "asyncpg.*", "scipy", "scipy.*"] # ship no type information
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-addopts = ["-ra", "--strict-markers", "--import-mode=importlib"]
+addopts = ["-ra", "--strict-markers", "--import-mode=importlib", "-m", "not slow"]  # slow: nightly
 xfail_strict = true
 markers = [
   "req(id): the FR or NFR the test verifies, e.g. @pytest.mark.req('FR-12')",
