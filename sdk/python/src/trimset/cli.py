@@ -206,9 +206,10 @@ def print_metrics(by_split: dict[str, dict[str, Any]]) -> None:
         say(table(["split", "rule", "fired", "wrong", "95% interval", "unlabeled"], detail))
 
 
-def print_fit(fit: dict[str, Any]) -> None:
+def print_fit(fit: dict[str, Any], name: str | None = None) -> None:
     cal = fit["calibration"]
-    say(f"{fit['question_id']} on {fit['model_served']}: {cal['method']} (fit {fit['fit_id']})")
+    name = name or fit["question_id"]
+    say(f"{name} on {fit['model_served']}: {cal['method']} (fit {fit['fit_id']})")
     scores = ", ".join(f"{k} {v:.4f}" for k, v in fit["selection"]["cv_log_loss"].items())
     say(f"chosen by {fit['selection']['cv_folds']}-fold log loss: {scores}")
     raw, calibrated = fit["metrics"]["raw"], fit["metrics"]["calibrated"]
@@ -293,7 +294,7 @@ def cmd_calibrate(client: Client, args: argparse.Namespace) -> None:
     if args.json:
         say(json.dumps(fit, indent=2))
     else:
-        print_fit(fit)
+        print_fit(fit, args.question)
 
 
 def _rules(question: dict[str, Any], args: argparse.Namespace) -> list[dict[str, Any]] | None:

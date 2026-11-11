@@ -170,7 +170,8 @@ async def simulate(question: str, request: Request, admin: Admin) -> dict[str, A
 async def coverage(
     question: str, request: Request, admin: Admin, model_served: str | None = None
 ) -> dict[str, Any]:
-    """FR-14: per served model and action path, over the last 90 days."""
+    """FR-14: per served model and action path, over the label horizon plus 90 days, so
+    90 days of matured decisions show however long labels take."""
     async with request.app.state.pool.acquire() as conn:
         row = await question_row(conn, admin.project_id, question)
         horizon = int(json.loads(row["settings"]).get("label_horizon_days") or 0)
@@ -196,7 +197,7 @@ async def coverage(
             admin.project_id,
             row["question_id"],
             horizon,
-            COVERAGE_DAYS,
+            COVERAGE_DAYS + horizon,
             model_served,
         )
     return {
