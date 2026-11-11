@@ -10,7 +10,7 @@ import pytest
 from trimset_server import fitting
 from trimset_server.records import QuestionIn
 from trimset_stats.calibration import Calibrator
-from trimset_stats.compiler import Actions
+from trimset_stats.compiler import Actions, Rule
 from trimset_stats.dataset import Item, build
 
 NOW = datetime(2026, 11, 1, tzinfo=UTC)
@@ -56,7 +56,8 @@ def _fit(items: list[Item]) -> Any:
 def test_a_fit_describes_its_map_its_data_and_its_effect(conforms: Any) -> None:
     out = _fit(_items(3000))
     assert isinstance(out, tuple)
-    body, splits = out
+    body, splits, tune_ids = out
+    assert len(tune_ids) == body["provenance"]["n"]["tune"]  # every one labeled here
     conforms(body, "fit")
     assert body["calibration"]["method"] != "identity"  # the scores were overconfident
     raw, calibrated = body["metrics"]["raw"], body["metrics"]["calibrated"]
@@ -136,3 +137,17 @@ def test_the_simulator_grids_thresholds_or_takes_candidates() -> None:
             ]
         ]
         fitting.simulate_rows(NOUL, cal, data.eval, Actions(), wrong, None)
+
+
+@pytest.mark.req("FR-30")
+def test_same_policy_allows_small_moves_only() -> None:
+    policy = {
+        "calibration": {"method": "platt"},
+        "rules": [{"id": "accept", "action": "ACCEPT", "threshold": 0.18}],
+    }
+    near = [Rule("accept", "ACCEPT", "p", "lt", 0.183)]
+    far = [Rule("accept", "ACCEPT", "p", "lt", 0.19)]
+    assert fitting.same_policy(policy, "platt", near)
+    assert not fitting.same_policy(policy, "platt", far)
+    assert not fitting.same_policy(policy, "isotonic", near)
+    assert not fitting.same_policy(policy, "platt", [*near, Rule("block", "BLOCK", "p", "ge", 0.9)])
