@@ -126,6 +126,19 @@ jobs:
         run: examples/m1-capture/run.sh
       - name: the M2 demo runs end to end (T2.8, examples/m2-refund-fraud)
         run: examples/m2-refund-fraud/run.sh
+      - name: the dashboard's calls answer on a real server; record them for the demo (ADR 0017)
+        run: |
+          project=$(docker compose exec -T postgres psql -U trimset -d trimset -tAc \
+            "SELECT name FROM projects WHERE name LIKE 'refunds-%' ORDER BY created_at DESC LIMIT 1")
+          TRIMSET_KEY=$(docker compose exec -T server trimset-server create-key "$project" \
+            --scope admin --label "demo recording" | sed -E 's/.*"key": ?"([^"]*)".*/\1/')
+          export TRIMSET_KEY
+          python3 dashboard/demo/record.py --out recorded.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-recording
+          path: recorded.json
+          retention-days: 7
       - name: every log line is JSON (NFR-13)
         run: |
           docker compose logs --no-log-prefix server worker proxy > stack.log
