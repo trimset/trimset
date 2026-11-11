@@ -17,10 +17,11 @@ walked from strictest to loosest; at each, n items fire and k of them are wrong,
 p-value is P(Binomial(n, alpha) <= k). The walk keeps thresholds while p <= delta and stops
 at the first that fails (fixed-sequence testing); the loosest kept is chosen.
 
-The walk starts at the first threshold that fires on at least n_min = ceil(ln delta /
-ln(1 - alpha)) items: with fewer, even no errors at all can't pass (Priye 2026), and
-starting earlier would stop the walk at once. The cut uses only the scalars, never the
-labels.
+The walk starts at the first threshold that fires on at least n_start items: the
+fewest at which a rule half as wrong as the target, alpha / 2, would still pass. Below
+n_min = ceil(ln delta / ln(1 - alpha)) even no errors can't pass (Priye 2026); just above
+it a single error stops the walk, however good the model. The cut reads only how many
+items fire, never the labels, so the test stays valid.
 
 - An item that fires without an outcome counts as wrong: that can only make a bound more
   cautious. On a path set as `audited_only`, only audited items count, a random sample
@@ -267,6 +268,14 @@ def n_min(alpha: float, delta: float) -> int:
     return math.ceil(math.log(delta) / math.log1p(-alpha))
 
 
+def n_start(alpha: float, delta: float) -> int:
+    """Where the walk starts: the fewest items at which an error rate of alpha / 2 would
+    still pass. About 40 for alpha = 0.25 and 600 for alpha = 0.02 (delta = 0.05)."""
+    ns = np.arange(n_min(alpha, delta), 10 * n_min(alpha, delta) + 10_000)
+    passes = stats.binom.cdf(np.floor(alpha * ns / 2), ns, alpha) <= delta
+    return int(ns[np.argmax(passes)]) if passes.any() else int(ns[-1])
+
+
 def _candidates(values: Floats, rule: Rule) -> Floats:
     """Up to GRID + 1 quantiles of the scalar, plus the end that fires on everything."""
     grid = np.quantile(values, np.linspace(0, 1, GRID + 1)) if values.size else np.empty(0)
@@ -298,7 +307,7 @@ def certify(
     eligible = undecided & (scored.audit if audited_only else np.ones(scored.n, np.bool_))
     right = scored.right[template.action if template.action != "SELECT" else "SELECT"]
     bad = ~right  # wrong, or no outcome
-    need = n_min(alpha, delta)
+    need = n_start(alpha, delta)
     chosen: Rule | None = None
     chosen_n, most, tested, best = 0, 0, False, None
     for threshold in _candidates(values, template):
@@ -362,12 +371,14 @@ def templates(kind: QuestionType, actions: Actions) -> list[Rule]:
 
 def _shortfall(certified: Certified, alpha: float, delta: float) -> Declined:
     if not certified.tested:
-        more = n_min(alpha, delta) - certified.most
+        need = n_start(alpha, delta)
+        more = need - certified.most
         return Declined(
             "not_enough_labels",
-            f"Certifying {alpha:g} at {1 - delta:.0%} needs {n_min(alpha, delta)} labeled items "
-            f"where the rule fires in the tuning split, and there are {certified.most}: "
-            f"about {math.ceil(more / 0.4)} more labeled decisions in all.",
+            f"Certifying {alpha:g} at {1 - delta:.0%} needs {need} labeled items where the rule "
+            f"fires in the tuning split (at least {n_min(alpha, delta)} even with no errors), "
+            f"and there are {certified.most}: about {math.ceil(more / 0.4)} more labeled "
+            "decisions in all.",
             needed=math.ceil(more / 0.4),
         )
     best = {"alpha": round(certified.best_alpha or 1.0, 6)}

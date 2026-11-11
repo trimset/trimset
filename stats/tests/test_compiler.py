@@ -42,6 +42,9 @@ def _compile(
 def test_how_many_error_free_items_a_target_needs() -> None:
     assert compiler.n_min(0.005, 0.05) == 598  # the requirements' worked example (FR-23)
     assert compiler.n_min(0.02, 0.05) == 149
+    # The walk starts where an error rate of alpha / 2 would still pass.
+    assert compiler.n_start(0.25, 0.05) == 23
+    assert compiler.n_start(0.005, 0.05) == 1549
 
 
 @pytest.mark.req("FR-22")
@@ -96,8 +99,8 @@ def test_without_a_cap_a_false_pass_target_has_no_block_rule() -> None:
 def test_too_few_labels_say_how_many_more_are_needed() -> None:
     out = _compile(_noul(3, 400), Target("risk", "false_pass", alpha=0.005))
     assert isinstance(out, Declined) and out.reason == "not_enough_labels"
-    assert out.needed == pytest.approx((598 - 400) / 0.4, abs=1)
-    assert "598" in out.message
+    assert out.needed == pytest.approx((1549 - 400) / 0.4, abs=1)
+    assert "1549" in out.message and "598" in out.message
 
 
 @pytest.mark.req("FR-24")
@@ -220,7 +223,7 @@ def test_unlabeled_fired_items_count_as_wrong() -> None:
 def test_an_audited_only_path_counts_only_audited_items() -> None:
     tune = _noul(13, 6000)
     audited = np.zeros(tune.labels.size, bool)
-    audited[::50] = True  # 2% audited: 120 items, under the 149 needed
+    audited[::50] = True  # 2% audited: 120 items, under the 386 the walk starts at
     split = Split(tune.ids, tune.probs, tune.labels, audited)
     out = _compile(split, Target("risk", "false_pass", alpha=0.02), audited_only={"ACCEPT"})
     assert isinstance(out, Declined) and out.reason == "not_enough_labels"
@@ -287,3 +290,18 @@ def test_a_target_with_costs_reports_them() -> None:
     assert target.to_json()["costs"] == {"escalation": 1.0, "wrong": {"ACCEPT": 5.0}}
     out = _compile(_noul(16, 6000), target)
     assert isinstance(out, Compiled) and out.metrics["eval"]["expected_cost_per_1000"] is not None
+
+
+@pytest.mark.req("FR-23")
+def test_one_early_error_doesnt_end_certification() -> None:
+    """At n_min, a single error among the strictest items stopped the walk; starting at
+    n_start, a model that is right 95% of the time at the top certifies a 25% budget."""
+    rng = np.random.default_rng(17)
+    n = 600
+    top = np.sort(rng.uniform(0.5, 1.0, size=n))[::-1]
+    probs = np.column_stack([top, 1 - top])
+    labels = np.where(rng.random(n) < 0.95, 0, 1).astype(np.intp)
+    labels[2] = 1  # an error among the very first items
+    split = Split(tuple(map(str, range(n))), probs, labels, np.zeros(n, bool))
+    out = _compile(split, Target("risk", "error_budget", alpha=0.25), kind="choice")
+    assert isinstance(out, Compiled) and out.metrics["tune"]["automated"] > 0.5

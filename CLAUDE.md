@@ -77,14 +77,16 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     shadows, renormalises probabilities, labels to class indices). Unlabeled matured
     items stay in the splits with label -1, with their audit flags, for the compiler.
   - T2.4, the compiler (`stats/.../compiler.py`): rules per type (FR-20), Learn-then-Test
-    with exact binomial p-values from the first threshold that could pass, false_pass
+    with exact binomial p-values, the walk starting at n_start (where alpha/2 errors would
+    still pass), false_pass
     (accept rule certified, block rule within the escalation cap), error_budget (every
     rule, delta split), cost (grid, no guarantee), unlabeled fired items as wrong,
     audited_only paths, Declined with the labels needed or the binding constraint, and
     `simulate` for FR-26. Calibration maps follow sdk.md §3 exactly.
   - T2.5, the coverage experiment (`research/test_coverage.py`, marker `slow`, workflow
     `nightly`): 200 seeds of refund fraud, triage and routing; each certified rule's
-    true error on fresh traffic must be within alpha in >= 95% of seeds (NFR-09).
+    true error on fresh traffic (exact, from the generator's q) must hold in a share of
+    seeds not credibly below 95% (exact binomial at 1%; NFR-09).
     Slow tests are left out of every push (`-m "not slow"` in pytest's addopts).
   - T2.6, fits and compiles as jobs (`jobs.py`: a `jobs` table claimed with SKIP LOCKED,
     3 tries with backoff, run by the worker every second; `fitting.py`; `analysis.py`
