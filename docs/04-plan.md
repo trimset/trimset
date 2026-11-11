@@ -24,7 +24,9 @@
   - Release work splits between the alpha and M7.
   - The operations doc is written in M7.
 - **M6 (dashboard)** is v2, as decided in Phase 0. A rough size for v0.2 (dashboard plus
-  TypeScript SDK) is 110–140 hours, re-estimated after launch.
+  TypeScript SDK) is 110–140 hours, re-estimated after launch. The agent gate and the
+  assistant ([ADR 0014](adr/0014-agents-and-assistant.md)) add about 35 more; see
+  "After v0.1.0" below.
 
 | Milestone | Your hours | With buffer | Weeks | Dates |
 |---|---|---|---|---|
@@ -147,6 +149,16 @@ T2.4 covers:
 | T7.4 | Community files, issue labels, `ROADMAP.md` | — | 5 |
 | T7.5 | Homepage: use-case pages (site v2 design), final numbers | — | 6 |
 | T7.6 | Fresh-machine quickstart check; upgrade test from the alpha; launch | NFR-15, NFR-20 | 4 |
+
+### After v0.1.0: agents and the assistant
+
+Not in v0.1's hours or dates ([ADR 0014](adr/0014-agents-and-assistant.md)). TV.1 can
+start once M3 ships; if the re-plan after M3 finds room, it moves before the launch.
+
+| ID | Task | Covers | Hours |
+|---|---|---|---|
+| TV.1 | MCP server (gate, outcome and explain tools) and a Claude Code `PreToolUse` hook demo: a decision model and an approved policy decide whether an agent's tool call runs, asks a human, or is blocked | UC-5, FR-31–35 | 12 |
+| TV.2 | Assistant in the v2 dashboard: a text model with read-only tools over fits, simulations, drift reports and policy diffs, explaining trade-offs in plain words; it may draft a proposal, never approve one. Off by default; the operator picks the model | FR-61, FR-27–29, FR-54 | 24 |
 
 ## 3. Dependencies
 

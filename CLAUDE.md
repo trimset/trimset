@@ -83,6 +83,9 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - Privacy: the state hash is a keyed HMAC.
   - SDK: when nothing is configured it falls back to ESCALATE, and never raises. It
     stays pure Python for 3.11 and newer, with no numpy or scipy.
+- **Phase 5:** agents and a chat assistant wait until the guarantees exist (ADR 0014):
+  an MCP server and agent hook (TV.1, v0.2 or earlier if M3 leaves room) and an
+  assistant in the v2 dashboard (TV.2). No model playground.
 - **Phase 3** (`docs/03-api/`):
   - Wire formats: two, `systemone` and `openai-decisions`, chosen by the upstream's
     format, not the path.
