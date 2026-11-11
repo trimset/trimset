@@ -598,6 +598,7 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
+ "memchr",
  "rustls",
  "serde",
  "serde_json",

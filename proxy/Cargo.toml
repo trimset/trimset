@@ -16,6 +16,7 @@ http = "=1.5.0"
 http-body-util = "=0.1.5"
 hyper = { version = "=1.12.0", features = ["client", "http1", "server"] }
 hyper-rustls = { version = "=0.27.10", default-features = false, features = ["http1", "ring", "tls12", "webpki-tokio"] }
+memchr = "=2.8.3"
 hyper-util = { version = "=0.1.21", features = ["client-legacy", "http1", "tokio"] }
 rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "=1.0.229", features = ["derive"] }

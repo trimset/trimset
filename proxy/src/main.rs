@@ -627,57 +627,93 @@ fn capture(
     })
 }
 
+/// Linear-time substring search (memchr's two-way), so no body can make it quadratic.
 fn find(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
-    haystack
-        .get(from..)?
-        .windows(needle.len())
-        .position(|w| w == needle)
-        .map(|i| i + from)
+    memchr::memmem::find(haystack.get(from..)?, needle).map(|i| i + from)
 }
 
-/// The `name` parameter of a Content-Disposition line, unquoted.
-fn disposition_name(line: &str) -> Option<&str> {
-    let (header, params) = line.split_once(':')?;
-    if !header.trim().eq_ignore_ascii_case("content-disposition") {
-        return None;
+/// The parameters of a header like Content-Type or Content-Disposition, lowercase names,
+/// quoted strings honoured (RFC 7578, RFC 6266): `filename="a; name=request"` is one
+/// parameter, not two. None when a quoted string never ends.
+fn header_params(text: &str) -> Option<Vec<(String, String)>> {
+    let mut out = Vec::new();
+    let mut chars = text.chars().peekable();
+    loop {
+        while chars.next_if(|c| c.is_whitespace() || *c == ';').is_some() {}
+        if chars.peek().is_none() {
+            return Some(out);
+        }
+        let mut name = String::new();
+        while let Some(c) = chars.next_if(|c| *c != '=' && *c != ';') {
+            name.push(c);
+        }
+        let name = name.trim().to_ascii_lowercase();
+        if chars.next_if_eq(&'=').is_none() {
+            out.push((name, String::new())); // a bare token, like the type `form-data`
+            continue;
+        }
+        while chars.next_if(|c| *c == ' ' || *c == '\t').is_some() {}
+        let mut value = String::new();
+        if chars.next_if_eq(&'"').is_some() {
+            loop {
+                match chars.next()? {
+                    '"' => break,
+                    '\\' => value.push(chars.next()?),
+                    c => value.push(c),
+                }
+            }
+        } else {
+            while let Some(c) = chars.next_if(|c| *c != ';') {
+                value.push(c);
+            }
+            value = value.trim().to_owned();
+        }
+        out.push((name, value));
     }
-    params.split(';').find_map(|param| {
-        let (key, value) = param.split_once('=')?;
-        key.trim()
-            .eq_ignore_ascii_case("name")
-            .then(|| value.trim().trim_matches('"'))
-    })
+}
+
+/// The one value of parameter `key`, or None when it is missing or given twice.
+fn only_param(params: &[(String, String)], key: &str) -> Option<String> {
+    let mut found = params.iter().filter(|(name, _)| name == key);
+    let first = found.next()?;
+    found.next().is_none().then(|| first.1.clone())
 }
 
 /// The `request` part of a multipart image request (wire-formats.md §5). The image parts
-/// are forwarded but never read here.
+/// are forwarded but never read here. None unless exactly one part is named `request`, so
+/// what is recorded is what the upstream read.
 fn request_part<'a>(content_type: &str, body: &'a [u8]) -> Option<&'a [u8]> {
-    let boundary = content_type.split(';').skip(1).find_map(|param| {
-        let (key, value) = param.split_once('=')?;
-        key.trim()
-            .eq_ignore_ascii_case("boundary")
-            .then(|| value.trim().trim_matches('"'))
-    })?;
-    if boundary.is_empty() {
-        return None;
+    let params = header_params(content_type.split_once(';')?.1)?;
+    let boundary = only_param(&params, "boundary")?;
+    if boundary.is_empty() || boundary.len() > 70 {
+        return None; // RFC 2046: 1 to 70 characters
     }
     let delimiter = format!("--{boundary}");
     let delimiter = delimiter.as_bytes();
     let mut at = find(body, delimiter, 0)? + delimiter.len();
+    let mut request = None;
     loop {
         if body.get(at..at + 2) == Some(b"--".as_slice()) {
-            return None; // the closing delimiter: no request part
+            return request; // the closing delimiter
         }
         let next = find(body, delimiter, at)?;
         let part = body[at..next].strip_prefix(b"\r\n")?;
         let part = part.strip_suffix(b"\r\n").unwrap_or(part);
         let blank = find(part, b"\r\n\r\n", 0)?;
         let head = std::str::from_utf8(&part[..blank]).ok()?;
-        if head
-            .split("\r\n")
-            .any(|line| disposition_name(line) == Some("request"))
-        {
-            return Some(&part[blank + 4..]);
+        let mut named = None;
+        for line in head.split("\r\n") {
+            if let Some((header, value)) = line.split_once(':')
+                && header.trim().eq_ignore_ascii_case("content-disposition")
+            {
+                named = only_param(&header_params(value)?, "name");
+            }
+        }
+        if named.as_deref() == Some("request") {
+            if request.is_some() {
+                return None; // two parts claim to be the request: record neither
+            }
+            request = Some(&part[blank + 4..]);
         }
         at = next + delimiter.len();
     }
@@ -1621,6 +1657,28 @@ mod tests {
         assert!(request_part("multipart/form-data", body).is_none());
         let named = b"--b\r\nContent-Disposition: form-data; filename=\"request\"; name=\"x\"\r\n\r\n{}\r\n--b--\r\n";
         assert!(request_part("multipart/form-data; boundary=b", named).is_none());
+        // A quoted filename can't smuggle in a second `name`.
+        let smuggled = b"--b\r\nContent-Disposition: form-data; name=\"image\"; filename=\"x; name=request\"\r\n\r\n{\"fake\":1}\r\n--b\r\nContent-Disposition: form-data; name=\"request\"\r\n\r\n{\"real\":1}\r\n--b--\r\n";
+        assert_eq!(
+            request_part("multipart/form-data; boundary=b", smuggled),
+            Some(b"{\"real\":1}".as_slice())
+        );
+        // Two parts claiming to be the request: record neither.
+        let twice = b"--b\r\nContent-Disposition: form-data; name=request\r\n\r\n{\"a\":1}\r\n--b\r\nContent-Disposition: form-data; name=\"request\"\r\n\r\n{\"b\":1}\r\n--b--\r\n";
+        assert!(request_part("multipart/form-data; boundary=b", twice).is_none());
+        // A boundary past RFC 2046's 70 characters is refused, never searched for.
+        let long = format!("multipart/form-data; boundary={}", "b".repeat(71));
+        assert!(request_part(&long, &vec![b'b'; 1 << 20]).is_none());
+        // An unterminated quoted string is refused.
+        assert!(header_params(" name=\"request").is_none());
+        assert_eq!(
+            header_params("form-data; name=\"a\\\"b\"; x=1").unwrap(),
+            vec![
+                ("form-data".into(), String::new()),
+                ("name".into(), "a\"b".into()),
+                ("x".into(), "1".into())
+            ]
+        );
     }
 
     #[tokio::test]
