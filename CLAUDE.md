@@ -114,6 +114,14 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T3.2, the bundle (`bundle.py`, GET /v1/policies, ingest keys): named questions,
     active policies with guarantee status, the state-hash key (503 without
     TRIMSET_SECRET); ETag per hashing.md §5, 304 on If-None-Match.
+  - T3.3, scheduled refits (`refits.py`, `cron.py`, migration 0007): the worker queues a
+    project's `refit` job each minute its `refit_schedule` (5-field cron, UTC) falls due,
+    once (unique per project and minute), catching up at most a day. The job refits
+    every group with an active policy, with its target, and stores a `proposed` policy
+    (key null, reason "scheduled refit") unless no threshold moved by 0.005 or more;
+    a new proposal rejects the refits' older one. Never activates. Fits store their
+    tuning labels' mix by source and key; `policy diff` shows it (threat T1). The
+    "proposal ready" alert waits for T4.1.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

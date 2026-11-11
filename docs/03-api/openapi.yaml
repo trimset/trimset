@@ -1167,7 +1167,10 @@ components:
             store_raw_state: { type: boolean, default: false }
             raw_state_retention_days: { type: integer, minimum: 1, maximum: 400, default: 30 }
             tag_allowlist: { type: [array, "null"], items: { type: string }, default: null }
-        refit_schedule: { type: string, default: "0 3 * * *", description: "Cron expression, in UTC." }
+        refit_schedule:
+          type: string
+          default: "0 3 * * *"
+          description: "When scheduled refits run: five-field cron (minute hour day month weekday), in UTC. A refit proposes; it never activates (FR-30)."
 
     QuestionSettings:
       type: object
@@ -1346,10 +1349,13 @@ components:
           type: array
           items:
             type: object
+            required: [source, key_id, share]
             properties:
-              source: { type: string }
-              key_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
-              share: { type: number }
+              source: { enum: [human_review, downstream, rule] }
+              key_id:
+                description: The key that sent the labels; null for labels from a default rule.
+                oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/uuid" }, { type: "null" }]
+              share: { type: number, minimum: 0, maximum: 1 }
 
     DecisionView:
       type: object
@@ -1412,7 +1418,7 @@ components:
         kind: { enum: [fit, compile, deletion, refit] }
         status: { enum: [queued, running, succeeded, failed] }
         result:
-          description: fit → {fit_id}; compile → {policy_id} or {infeasible} or {not_enough_labels}; deletion → {deleted}.
+          description: "fit → {fit_id}; compile → {policy_id} or {infeasible} or {not_enough_labels}; refit → {groups: [one result per question and model, a compile's or {unchanged}]}; deletion → {deleted}."
           type: [object, "null"]
         error: { type: [string, "null"] }
         created_at: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }

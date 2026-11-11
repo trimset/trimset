@@ -135,8 +135,9 @@ def compute_fit(
     now: datetime,
     window_days: int,
     horizon_days: int,
-) -> tuple[dict[str, Any], bytes] | dict[str, Any]:
-    """fit/1 and the packed splits, or a not_enough_labels result."""
+) -> tuple[dict[str, Any], bytes, list[str]] | dict[str, Any]:
+    """fit/1, the packed splits and the labeled tuning items' ids, or a not_enough_labels
+    result."""
     seed = seed_of(fit_id)
     data = build(
         items, now=now.timestamp(), seed=seed, window_days=window_days, horizon_days=horizon_days
@@ -186,7 +187,8 @@ def compute_fit(
         "metrics": {"raw": _metrics(*raw), "calibrated": _metrics(*calibrated)},
         "reliability": {"raw": _bins(*raw), "calibrated": _bins(*calibrated)},
     }
-    return body, _pack(data)
+    tune = data.tune
+    return body, _pack(data), [i for i, ok in zip(tune.ids, tune.labeled, strict=True) if ok]
 
 
 async def run_fit(
@@ -213,10 +215,10 @@ async def run_fit(
     )
     if isinstance(out, dict):
         return out
-    body, splits = out
+    body, splits, tune_ids = out
     await conn.execute(
         "INSERT INTO fits (fit_id, project_id, question_id, model_served, created_at, body, "
-        "splits) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)",
+        "splits, label_sources) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8::jsonb)",
         fit_id,
         project_id,
         question_id,
@@ -224,8 +226,28 @@ async def run_fit(
         now,
         json.dumps(body),
         splits,
+        json.dumps(await label_sources(conn, project_id, tune_ids)),
     )
     return {"fit_id": str(fit_id)}
+
+
+async def label_sources(conn: Any, project_id: uuid.UUID, ids: Sequence[str]) -> list[Any]:
+    """Each source and key's share of these decisions' labels (threat T1)."""
+    rows = await conn.fetch(
+        "SELECT source, key_id, count(*) AS n FROM outcomes "
+        "WHERE project_id = $1 AND decision_id = ANY($2::uuid[]) GROUP BY 1, 2 ORDER BY 3 DESC",
+        project_id,
+        list(ids),
+    )
+    total = sum(r["n"] for r in rows)
+    return [
+        {
+            "source": r["source"],
+            "key_id": str(r["key_id"]) if r["key_id"] else None,
+            "share": round(r["n"] / total, 4),
+        }
+        for r in rows
+    ]
 
 
 # ------------------------------------------------------------------ compiles
@@ -292,8 +314,17 @@ async def fit_row(
 
 
 async def run_compile(
-    conn: Any, project_id: uuid.UUID, payload: Mapping[str, Any], key_id: uuid.UUID | None = None
+    conn: Any,
+    project_id: uuid.UUID,
+    payload: Mapping[str, Any],
+    key_id: uuid.UUID | None = None,
+    *,
+    state: str = "draft",
+    reason: str | None = None,
+    unless_like: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Compiles a policy from a fit and stores it in `state`. With `unless_like` (a policy
+    body), stores nothing when the result is the same policy: {"unchanged": its id}."""
     question_id, model_served = payload["question_id"], payload["model_served"]
     settings, name = await _settings(conn, project_id, question_id)
     question = (await definitions(conn, project_id, {question_id}))[question_id]
@@ -316,6 +347,8 @@ async def run_compile(
         if out.binding:
             report |= {"binding": out.binding, "best": out.best}
         return {out.reason: report}
+    if unless_like is not None and same_policy(unless_like, cal.method, out.rules):
+        return {"unchanged": unless_like["policy_id"]}
 
     policy_id = uuid.uuid4()
     audit_fraction = float(payload.get("audit_fraction", settings.get("audit_fraction") or 0.0))
@@ -351,24 +384,45 @@ async def run_compile(
         policy["fingerprint"] = fingerprint(policy)
         await conn.execute(
             "INSERT INTO policies (policy_id, project_id, question_id, model_served, version, "
-            "fit_id, body, fingerprint) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)",
+            "state, fit_id, body, fingerprint) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)",
             policy_id,
             project_id,
             question_id,
             model_served,
             version,
+            state,
             uuid.UUID(body["fit_id"]),
             json.dumps(policy),
             policy["fingerprint"],
         )
-        await conn.execute(  # FR-27: its first event, by whoever asked for the compile
-            "INSERT INTO policy_events (project_id, policy_id, from_state, to_state, key_id) "
-            "VALUES ($1, $2, NULL, 'draft', $3)",
+        await conn.execute(  # FR-27: its first event, by whoever asked for it
+            "INSERT INTO policy_events (project_id, policy_id, from_state, to_state, key_id, "
+            "reason) VALUES ($1, $2, NULL, $3, $4, $5)",
             project_id,
             policy_id,
+            state,
             key_id,
+            reason,
         )
     return {"policy_id": str(policy_id), "version": version}
+
+
+SAME_THRESHOLD = 0.005  # a refit that moves no threshold further proposes nothing
+
+
+def same_policy(policy: Mapping[str, Any], method: str, rules: Sequence[Rule]) -> bool:
+    """Whether new rules and a calibration method amount to `policy` again."""
+    old = {r["id"]: r for r in policy["rules"]}
+    return (
+        policy["calibration"]["method"] == method
+        and old.keys() == {r.id for r in rules}
+        and all(
+            old[r.id]["action"] == r.action
+            and abs(old[r.id]["threshold"] - r.threshold) < SAME_THRESHOLD
+            for r in rules
+        )
+    )
 
 
 # ------------------------------------------------------------------ the simulator

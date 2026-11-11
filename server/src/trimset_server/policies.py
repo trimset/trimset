@@ -104,7 +104,7 @@ async def _policy(conn: Any, project_id: uuid.UUID, policy_id: uuid.UUID) -> Any
     return row
 
 
-async def _lock_group(conn: Any, project_id: uuid.UUID, question_id: str, model: str) -> None:
+async def lock_group(conn: Any, project_id: uuid.UUID, question_id: str, model: str) -> None:
     """Serializes lifecycle changes within one group, until the transaction ends."""
     await conn.execute(
         "SELECT pg_advisory_xact_lock(hashtext('policies'), hashtext($1))",
@@ -199,7 +199,7 @@ async def transition(
         raise Problem(422, "invalid-request", f"Give a reason to {body.action} a policy")
     async with request.app.state.pool.acquire() as conn, conn.transaction():
         row = await _policy(conn, admin.project_id, policy_id)
-        await _lock_group(conn, admin.project_id, row["question_id"], row["model_served"])
+        await lock_group(conn, admin.project_id, row["question_id"], row["model_served"])
         row = await _policy(conn, admin.project_id, policy_id)  # as of the lock
         to = next_state(body.action, row["state"])
         if to is None:
@@ -231,7 +231,7 @@ async def rollback(
     async with request.app.state.pool.acquire() as conn, conn.transaction():
         question_id = (await question_row(conn, admin.project_id, question))["question_id"]
         model = body.model_served
-        await _lock_group(conn, admin.project_id, question_id, model)
+        await lock_group(conn, admin.project_id, question_id, model)
         current = await _active(conn, admin.project_id, question_id, model)
         if current is None:
             raise Problem(409, "nothing-active", f"No policy is active on {model}")
@@ -272,7 +272,10 @@ async def diff_policy(
             other = await _active(conn, admin.project_id, row["question_id"], row["model_served"])
             if other is not None and other["policy_id"] == policy_id:
                 other = None
-    after = json.loads(row["body"])
+        after = json.loads(row["body"])
+        sources = await conn.fetchval(
+            "SELECT label_sources FROM fits WHERE fit_id = $1", uuid.UUID(after["fit_id"])
+        )
     before = json.loads(other["body"]) if other is not None else None
     old = {r["id"]: r["threshold"] for r in (before or {}).get("rules", [])}
     new = {r["id"]: r["threshold"] for r in after["rules"]}
@@ -287,4 +290,7 @@ async def diff_policy(
             "before": before["metrics"]["eval"] if before else None,
             "after": after["metrics"]["eval"],
         },
+        # Who supplied the tuning labels, to spot poisoned outcomes (threat T1). Empty for
+        # fits made before T3.3.
+        "label_sources": json.loads(sources) if sources else [],
     }

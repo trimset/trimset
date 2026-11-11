@@ -493,13 +493,11 @@ stateDiagram-v2
   [*] --> draft: compiled by hand
   [*] --> proposed: scheduled refit
   draft --> proposed: submit
-  draft --> [*]: discard
-  proposed --> approved: approve (admin, reason)
-  proposed --> rejected: reject (admin, reason)
-  approved --> active: activate
-  approved --> retired: superseded before activation
-  active --> retired: another version activated
-  retired --> active: rollback (only versions once approved)
+  proposed --> approved: approve (admin)
+  proposed --> rejected: reject (admin, reason), or a newer refit's proposal
+  approved --> active: activate (admin)
+  active --> retired: retire (admin, reason), or another version activated
+  retired --> active: rollback (admin, reason; the version active before)
   rejected --> [*]
 ```
 
