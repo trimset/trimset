@@ -133,7 +133,7 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
             </>
           )}
         </div>
-        {axis && split && <Histogram bins={split.bins} lo={lo} hi={hi} noul={question.type === "noul"} scalar={scalarName(shapes[0].scalar)} />}
+        {axis && split && <Histogram bins={split.bins} lo={lo} hi={hi} noul={question.type === "noul"} scalar={scalarName(shapes[0].scalar)} splitLabel={splitName(split.name)} />}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
           {shapes.map((r, i) => (
             <label key={r.id} className="col" style={{ gap: 4, fontSize: 13 }}>
@@ -273,7 +273,7 @@ function CostInput({ label, value, onChange }: { label: string; value: number; o
 }
 
 /** Bars sit at their bins' own edges: a fit returns only its non-empty bins. */
-function Histogram({ bins, lo, hi, noul, scalar }: { bins: Bin[]; lo: number; hi: number; noul: boolean; scalar: string }) {
+function Histogram({ bins, lo, hi, noul, scalar, splitLabel }: { bins: Bin[]; lo: number; hi: number; noul: boolean; scalar: string; splitLabel: string }) {
   const sorted = bins.map((b) => b.count).sort((a, b) => b - a);
   // A tall first bin would flatten the rest: cap the axis and mark the broken bar.
   const cap = sorted[0] > 3 * (sorted[1] || 1) ? Math.max(1, Math.round(sorted[1] * 1.5)) : Math.max(1, sorted[0] ?? 1);
@@ -313,7 +313,7 @@ function Histogram({ bins, lo, hi, noul, scalar }: { bins: Bin[]; lo: number; hi
       <div className="m mu" style={{ display: "flex", justifyContent: "space-between", fontSize: 11, paddingLeft: 40 }}>
         <span>0.00</span><span>0.25</span><span>0.50</span><span>0.75</span><span>1.00</span>
       </div>
-      <figcaption className="t2 small" style={{ paddingLeft: 40 }}>Calibrated {scalar}, the fit's bins · y: decisions per bin</figcaption>
+      <figcaption className="t2 small" style={{ paddingLeft: 40 }}>Calibrated {scalar}, labelled items in the {splitLabel} split · y: decisions per bin</figcaption>
     </figure>
   );
 }
