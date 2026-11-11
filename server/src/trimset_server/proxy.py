@@ -59,7 +59,7 @@ def _fail(fmt: Format, status: int, message: str, code: str) -> JSONResponse:
     """An error from trimset itself, in the upstream's format (wire-formats.md §6)."""
     if fmt == "openai-decisions":
         body: dict[str, Any] = {
-            "error": {"message": message, "type": "trimset_error", "code": code}
+            "error": {"message": message, "type": "trimset_error", "code": code, "param": None}
         }
     else:
         body = {"detail": message}

@@ -114,10 +114,18 @@ These use **the upstream's error format**, so the app's own client parses them:
 | Format | Body | Status codes |
 |---|---|---|
 | systemone | `{"detail": "<message>"}` (TypeSafe's 400 shape) | 401, 502, 504 |
-| openai-decisions | `{"error": {"message": "<message>", "type": "trimset_error", "code": "<code>"}}` | 401, 502, 504 |
+| openai-decisions | `{"error": {"message": "<message>", "type": "trimset_error", "code": "<code>", "param": null}}` | 401, 502, 504 |
 
-OpenAI's Decisions pages don't document an error body. The shape above is OpenAI's
-general error envelope, an **assumption to confirm with a real call in M1**.
+OpenAI's Decisions pages don't document an error body. **Confirmed on 2026-11-11** with a
+call carrying a made-up key: `/v1/decisions` answers 401 with
+`{"error": {"message", "type": "invalid_request_error", "code": "invalid_api_key",
+"param": null}, "status": 401}`, served as `text/plain`. trimset's own errors carry the
+same four `error` fields.
+
+TypeSafe answers a made-up key with 401
+`{"detail": {"error_type": "authentication_error", "message": "..."}}`. Its `detail` is a
+string (400), a list (422) or an object (401), so its clients already read all three;
+trimset's string form is the 400 one.
 
 Upstream errors pass through unchanged. That includes Ollaya's
 `{"error", "code"}`, Ollama's `{"error"}`, TypeSafe's 422 `{"detail": [...]}`, and 429

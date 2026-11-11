@@ -187,6 +187,7 @@ def test_server_credentials_replace_the_apps_and_trimset_keys_never_leave(proxy:
                     "message": MISSING,
                     "type": "trimset_error",
                     "code": "missing_key",
+                    "param": None,
                 }
             },
         ),
