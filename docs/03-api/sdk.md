@@ -43,7 +43,7 @@ ts.log_exchange(request, response, format="systemone", gates={"fraud": d},
 ts.log(record)                                 # one record/1 dict, for clients doing their own thing
 ts.outcome(external_ref="rf-1001", question="refund_fraud", label=True, source="downstream")
 ts.wait_for_policies(timeout=2.0)              # the only call that may wait on the network
-ts.flush(timeout=2.0); ts.close()
+ts.flush(timeout=2.0); ts.close()                # ts.dropped: items lost so far
 ```
 
 | Method | Returns | Never… |
@@ -51,7 +51,7 @@ ts.flush(timeout=2.0); ts.close()
 | `gate(question, *, p=None, probabilities=None, answer=None, model_served=None, decision_id=None, question_def=None, default=None)` | `GateResult` | raises, or touches the network. |
 | `log_exchange(request, response, *, format, gates=None, external_ref=None, tags=None, latency_ms=None)` | `list[str]`: decision ids, in question order | sends raw state: the state is hashed on the calling thread, then dropped. |
 | `instrument(model_callable, *, model, format="systemone")` | the same callable, logging every call as `log_exchange` would | changes the model's answers; a logging failure never reaches the caller. Bare answers (wire-formats.md §2) are wrapped, and `model` is the served model, `<repo>@<revision>`. |
-| `log(record)` | `None` | blocks. |
+| `log(record)` | `None` | blocks. No question definition goes with it, so the server must already know the question (from the proxy or a `log_exchange`). |
 | `outcome(*, decision_id=None, external_ref=None, question=None, label, source, observed_at=None, outcome_id=None)` | `None` | blocks. |
 
 **Inputs to `gate()`:**

@@ -1,11 +1,16 @@
-"""The client (sdk.md §1, §2 and §4): a policy cache kept fresh by a background thread, and
-gate(), which applies it locally. gate() never raises and never touches the network
-(ADR 0012): without a usable policy it returns the question's default, with a reason.
+"""The client (sdk.md): a policy cache kept fresh by a background thread, gate(), which
+applies it locally, and the calls that report back to the server (log_exchange, log,
+outcome, instrument), which only queue for the sending thread (sender.py).
 
-Sending records, action reports and outcomes arrives with T3.5.
+gate() never raises and never touches the network (ADR 0012): without a usable policy it
+returns the question's default, with a reason. The reporting calls never raise or block
+either: a failure is logged, never handed to the caller.
 """
 
+import atexit
+import base64
 import contextlib
+import functools
 import json
 import logging
 import math
@@ -17,19 +22,32 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Mapping, Sequence
+import weakref
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from trimset import policy as policies
-from trimset.hashing import fingerprint, question_id
-from trimset.wire import SUM_TOLERANCE, Format, WireError, _probabilities, uuid7
+from trimset.hashing import fingerprint, question_id, state_hash
+from trimset.sender import Sender
+from trimset.wire import (
+    SUM_TOLERANCE,
+    Format,
+    WireError,
+    _probabilities,
+    parse_exchange,
+    to_records,
+    uuid7,
+)
 
 log = logging.getLogger("trimset")
 ACTIONS = ("ACCEPT", "BLOCK", "ESCALATE")
 LIBRARY_DEFAULT = "ESCALATE"
 MAX_BACKOFF_S = 60.0
+SOURCES = ("human_review", "downstream", "rule")
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 @dataclass(frozen=True)
@@ -55,6 +73,7 @@ class Snapshot:
     broken: frozenset[tuple[str, str]] = frozenset()  # failed fingerprints, no good version
     etag: str | None = None
     fetched_at: float | None = None  # wall clock of the last good answer, 200 or 304
+    state_key: bytes | None = None  # the project's key for state hashes (ADR 0009)
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -88,7 +107,9 @@ def build_snapshot(
         else:
             log.warning("policy %s failed its fingerprint and is not used", group)
             broken.add(group)
+    key = bundle.get("state_hash_key") or {}
     return Snapshot(
+        state_key=base64.b64decode(key["key_b64"]) if key.get("key_b64") else None,
         questions=questions,
         policies=kept,
         with_policy=frozenset(g[0] for g in kept) | frozenset(g[0] for g in broken),
@@ -111,6 +132,9 @@ class Client:
         max_policy_age: float | None = None,
         cache_path: str | os.PathLike[str] | None = None,
         timeout: float = 5.0,
+        buffer_size: int = 10_000,
+        batch_size: int = 100,
+        flush_interval: float = 1.0,
     ) -> None:
         if urllib.parse.urlsplit(base_url).scheme not in ("http", "https"):
             raise ValueError("base_url must start with http:// or https://")
@@ -131,8 +155,14 @@ class Client:
         self._warned: set[str] = set()
         self._pid: int | None = None
         self._thread: threading.Thread | None = None
+        self._sender = Sender(
+            self.base_url, key, timeout=timeout, buffer_size=buffer_size,
+            batch_size=batch_size, flush_interval=flush_interval,
+        )  # fmt: skip
         self._load_cache()
         self._ensure_thread()
+        ref = weakref.ref(self)  # at exit, flush for at most 2 s (sdk.md §5)
+        atexit.register(lambda: (c := ref()) is not None and c.flush(2.0))
 
     # ------------------------------------------------------------ the policy cache
 
@@ -151,13 +181,25 @@ class Client:
         self._ensure_thread()
         return self._ready.wait(timeout)
 
-    def close(self) -> None:
+    def flush(self, timeout: float = 2.0) -> bool:
+        """Sends what is queued; True when it all went within `timeout`."""
+        return self._sender.flush(timeout)
+
+    @property
+    def dropped(self) -> int:
+        """Records, reports and outcomes dropped: a full queue, or refused by the server."""
+        return self._sender.dropped_total
+
+    def close(self, timeout: float = 2.0) -> None:
+        """Flushes for at most `timeout`, then stops both threads."""
         self._stop.set()
+        self._sender.close(timeout)
         if self._thread is not None and self._pid == os.getpid():
             self._thread.join(timeout=2.0)
 
     def _ensure_thread(self) -> None:
         """Starts the poller, and starts it again in a forked child (gunicorn preload)."""
+        self._sender.ensure_thread()
         if self._pid == os.getpid() or self._stop.is_set():
             return
         self._pid = os.getpid()
@@ -245,12 +287,116 @@ class Client:
         did = decision_id or uuid7()
         try:
             self._ensure_thread()
-            return self._gate(
+            result = self._gate(
                 question, p, probabilities, answer, model_served, did, question_def, default
             )
         except Exception:
             log.exception("trimset: gate() failed; returning the default")
-            return self._default(question, default, "no_policy", did)
+            result = self._default(question, default, "no_policy", did)
+        if decision_id is not None:  # logged elsewhere (the proxy): tell the server what we did
+            with contextlib.suppress(Exception):
+                self._sender.add("actions", [_action_report(result)])
+        return result
+
+    # ------------------------------------------------------------ reporting back
+
+    def log_exchange(
+        self,
+        request: Mapping[str, Any],
+        response: Mapping[str, Any],
+        *,
+        format: Format,
+        gates: Mapping[str, GateResult] | None = None,
+        external_ref: str | None = None,
+        tags: Mapping[str, str] | None = None,
+        latency_ms: float | None = None,
+    ) -> list[str]:
+        """Records one call to a decision model: a record per answered question, with the
+        action from `gates` (by question name). The state is hashed here, with the project's
+        key, then dropped; it is never sent. Returns the decision ids in question order."""
+        try:
+            exchange = parse_exchange(request, response, format)
+            gated = [(gates or {}).get(d.name or "") for d in exchange.decisions]
+            ids = [g.decision_id if g else uuid7() for g in gated]
+            key = self._snapshot.state_key
+            hashed = state_hash(key, request["state"]) if key and "state" in request else None
+            records = to_records(
+                exchange, ts=datetime.now(UTC), request_id=uuid7(), decision_ids=ids,
+                state_hash=hashed, latency_ms=latency_ms, tags=tags, external_ref=external_ref,
+            )  # fmt: skip
+            for record, g in zip(records, gated, strict=True):
+                if g:
+                    record |= _action_fields(g)
+            questions = {d.question_id: d.definition for d in exchange.decisions}
+            self._sender.add("records", records, questions)
+            return ids
+        except Exception as e:
+            log.warning("trimset: couldn't log an exchange (%s)", type(e).__name__)
+            return []
+
+    def log(self, record: Mapping[str, Any]) -> None:
+        """Queues one record/1 as it is, for clients that build their own. No question
+        definition goes with it: the server must already know the question."""
+        with contextlib.suppress(Exception):
+            self._sender.add("records", [dict(record)])
+
+    def outcome(
+        self,
+        *,
+        decision_id: str | None = None,
+        external_ref: str | None = None,
+        question: str | None = None,
+        label: Any,
+        source: str,
+        observed_at: datetime | str | None = None,
+        outcome_id: str | None = None,
+    ) -> None:
+        """Queues what really happened (sdk.md §6). Only the shape is checked here; the
+        server checks the label against the question. Never raises."""
+        if (decision_id is None) == (external_ref is None) or (external_ref and not question):
+            log.warning("trimset: outcome() needs a decision_id, or an external_ref and question")
+            return
+        if source not in SOURCES:
+            log.warning("trimset: outcome() source must be one of %s", ", ".join(SOURCES))
+            return
+        when = observed_at or datetime.now(UTC)
+        item: dict[str, Any] = {
+            "schema": "outcome/1",
+            "label": label,
+            "source": source,
+            "observed_at": when.isoformat() if isinstance(when, datetime) else when,
+        }
+        if decision_id is not None:
+            item["decision_id"] = decision_id
+        else:
+            item |= {"external_ref": external_ref, "question": question}
+        if outcome_id is not None:
+            item["outcome_id"] = outcome_id
+        with contextlib.suppress(Exception):
+            self._sender.add("outcomes", [item])
+
+    def instrument(self, model_callable: F, *, model: str, format: Format = "systemone") -> F:
+        """The same callable, logging every call as log_exchange() would (sdk.md §2). For
+        a model run in this process, e.g. a Hugging Face pipeline: it takes the request
+        without `model` and may answer bare. `model` is the served model, `<repo>@<revision>`.
+        The model's answers are returned untouched; a logging failure never reaches here."""
+
+        @functools.wraps(model_callable)
+        def wrapper(request: Any, *args: Any, **kwargs: Any) -> Any:
+            start = time.perf_counter()
+            response = model_callable(request, *args, **kwargs)
+            try:
+                latency = (time.perf_counter() - start) * 1000
+                sent = dict(request)
+                sent.setdefault("model", model)
+                got = dict(response) if "answers" in response else {"answers": response}
+                got.setdefault("model", model)
+                self.log_exchange(sent, got, format=format, latency_ms=latency)
+            except Exception as e:
+                log.warning("trimset: couldn't log a call to %s (%s)", model, type(e).__name__)
+            return response
+
+        return wrapper  # type: ignore[return-value]
 
     def _default(self, question: str, given: str | None, reason: str, did: str) -> GateResult:
         action = given or self.defaults.get(question)
@@ -375,3 +521,18 @@ def _read_probabilities(
     if abs(total - 1) > SUM_TOLERANCE:
         return None
     return [float(x) / total for x in found]
+
+
+def _action_fields(d: GateResult) -> dict[str, Any]:
+    return {
+        "action_taken": d.action,
+        "action_source": d.source,
+        "policy_version": d.policy_version,
+        "policy_fingerprint": d.policy_fingerprint,
+        "audit": d.audit,
+    }
+
+
+def _action_report(d: GateResult) -> dict[str, Any]:
+    """An ActionReport (POST /v1/decisions:actions) for a decision logged elsewhere."""
+    return {"decision_id": d.decision_id, "reason": d.reason} | _action_fields(d)
