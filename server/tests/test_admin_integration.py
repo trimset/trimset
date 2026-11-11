@@ -3,6 +3,7 @@
 import json
 from typing import Any
 
+import anyio
 import asyncpg
 import pytest
 from fastapi.testclient import TestClient
@@ -89,8 +90,10 @@ async def test_invalid_key_requests_are_refused(dsn: str) -> None:
             assert r.headers["content-type"] == "application/problem+json"
 
 
-def _run(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str) -> Any:
-    code = cli.main(list(argv))
+async def _run(capsys: pytest.CaptureFixture[str], *argv: str) -> Any:
+    """Run a command the way a shell would: on a thread with no event loop of its own,
+    because the CLI starts one with asyncio.run()."""
+    code = await anyio.to_thread.run_sync(cli.main, list(argv))
     captured = capsys.readouterr()
     return code, (json.loads(captured.out) if code == 0 else captured.err)
 
@@ -103,23 +106,23 @@ async def test_bootstrap_commands_create_a_working_first_key(
     monkeypatch.setenv("TRIMSET_DATABASE_URL", dsn)
     monkeypatch.delenv("TRIMSET_AUTO_MIGRATE", raising=False)
 
-    code, out = _run(monkeypatch, capsys, "create-project", "acme")
+    code, out = await _run(capsys, "create-project", "acme")
     assert code == 0 and "project_id" in out
-    code, err = _run(monkeypatch, capsys, "create-project", "acme")
+    code, err = await _run(capsys, "create-project", "acme")
     assert code == 1 and "already exists" in err
 
-    code, out = _run(monkeypatch, capsys, "create-key", "acme", "--label", "me")
+    code, out = await _run(capsys, "create-key", "acme", "--label", "me")
     assert code == 0 and out["scope"] == "admin" and keys.looks_like_key(out["key"])
-    code, err = _run(monkeypatch, capsys, "create-key", "nobody")
+    code, err = await _run(capsys, "create-key", "nobody")
     assert code == 1 and "no project named" in err
 
     with TestClient(create_app(Settings(database_url=dsn, key_cache_ttl_s=0))) as c:
         assert c.get("/v1/admin/keys", headers=_auth(out["key"])).status_code == 200
-        code, _ = _run(monkeypatch, capsys, "revoke-key", out["key_id"])
+        code, _ = await _run(capsys, "revoke-key", out["key_id"])
         assert code == 0
         assert c.get("/v1/admin/keys", headers=_auth(out["key"])).status_code == 401
 
-    code, err = _run(monkeypatch, capsys, "revoke-key", "00000000-0000-0000-0000-000000000000")
+    code, err = await _run(capsys, "revoke-key", "00000000-0000-0000-0000-000000000000")
     assert code == 1 and "no key with id" in err
 
 
@@ -128,5 +131,5 @@ async def test_bootstrap_on_an_unmigrated_database_says_what_to_do(
 ) -> None:
     monkeypatch.setenv("TRIMSET_DATABASE_URL", dsn)
     monkeypatch.delenv("TRIMSET_AUTO_MIGRATE", raising=False)
-    code, err = _run(monkeypatch, capsys, "create-project", "acme")
+    code, err = await _run(capsys, "create-project", "acme")
     assert code == 1 and "trimset-server migrate" in err
