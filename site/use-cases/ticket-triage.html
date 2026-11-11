@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support ticket triage · trimset</title>
+<meta name="description" content="Support ticket triage with trimset: Which team should handle this ticket? The outcome, the policy and its target.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="../how-it-works.html">How it works</a>
+<a href="../use-cases/" aria-current="page">Use cases</a>
+<a href="../integrations.html">Integrations</a>
+<a href="../docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap page">
+<section class="intro">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="./">Use cases</a> / Support ticket triage</nav>
+<div class="row-start"><span class="tag">choice</span><span class="badge badge-lg">Coming soon</span></div>
+<h1>Support ticket triage</h1>
+<p class="lead">An online shop routes every incoming ticket to one of four teams. A misrouted ticket waits in the wrong queue and gets passed along. When jev-latest moves to a new version, the probabilities move overnight.</p>
+<p class="question">“Which team should handle this ticket?”</p>
+</section>
+
+<section class="pair" aria-label="Request and policy">
+<div class="panel">
+<h2 class="panel-head">The request · POST /v1/systemone</h2>
+<pre>{
+  &quot;model&quot;: &quot;jev-latest&quot;,
+  &quot;state&quot;: {
+    &quot;subject&quot;: &quot;Where is my order?&quot;,
+    &quot;body&quot;: &quot;…&quot;
+  },
+  &quot;questions&quot;: {
+    &quot;team&quot;: {
+      &quot;type&quot;: &quot;choice&quot;,
+      &quot;instructions&quot;: &quot;Which team should handle this ticket?&quot;,
+      &quot;criteria&quot;: {
+        &quot;billing&quot;: &quot;…&quot;,
+        &quot;shipping&quot;: &quot;…&quot;,
+        &quot;returns&quot;: &quot;…&quot;,
+        &quot;tech&quot;: &quot;…&quot;
+      }
+    }
+  }
+}</pre>
+</div>
+<div class="card">
+<h2 class="h-22">The policy</h2>
+<ul class="rules">
+<li><span class="when">top option ≥ t</span><span class="act">SELECT:&lt;team&gt;</span><span class="means">route it to that team</span></li>
+<li><span class="when">otherwise</span><span class="act">ESCALATE</span><span class="means">a human dispatcher decides</span></li>
+</ul>
+<div class="target">
+<span class="label">target</span>
+<p class="hl text-16">Misroutes ≤ 5% among auto-routed tickets, with 95% confidence.</p>
+<p class="text">t = [X]: proposed by the refit. A policy is bound to the exact model version, so a new version behind jev-latest gets the default until it is refit.</p>
+</div>
+</div>
+</section>
+
+<section class="stack" aria-labelledby="timeline-title">
+<h2 id="timeline-title" class="h-28">When the truth arrives</h2>
+<ol class="timeline grid cols-220">
+<li class="card"><span class="eyebrow">now</span><span class="hl">Routed to a team, or escalated.</span><span class="label">proxy</span></li>
+<li class="card"><span class="eyebrow">hours</span><span class="hl">The team that finally closed the ticket, from the help desk.</span><span class="label">downstream</span></li>
+<li class="card"><span class="eyebrow">72 hours</span><span class="hl">No reassignment: the first routing was right.</span><span class="label">rule</span></li>
+</ol>
+</section>
+
+<section class="pair" aria-label="Code and dashboard">
+<div class="panel">
+<h2 class="panel-head">In your app · Python SDK, gate() from M3</h2>
+<pre>d = ts.gate(&quot;team&quot;, answer=resp[&quot;answers&quot;][&quot;team&quot;],
+            model_served=resp[&quot;model&quot;], decision_id=ids[0])
+if d.action.startswith(&quot;SELECT:&quot;):
+    route(ticket, team=d.action.removeprefix(&quot;SELECT:&quot;))
+else:
+    dispatcher_queue.add(ticket)</pre>
+</div>
+<div class="shot" role="img" aria-label="Placeholder for a dashboard screenshot: Misroutes by team and the routing threshold for team, from the demo.">
+<span class="type">[ dashboard screenshot ]</span>
+<span class="text">Misroutes by team and the routing threshold for team, from the demo.</span>
+</div>
+</section>
+
+<section class="card cta" aria-label="Try it">
+<p class="text-16">This use case is on the way. The roadmap shows where trimset is.</p>
+<a class="btn btn-primary" href="../roadmap.html">See the roadmap</a>
+</section>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="../docs.html">Docs</a>
+<a href="../self-hosting.html">Self-hosting</a>
+<a href="../roadmap.html">Roadmap</a>
+</nav>
+</div>
+</footer>
+</body>
+</html>

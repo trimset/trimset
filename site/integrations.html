@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Integrations · trimset</title>
+<meta name="description" content="trimset works with Jev, Ollaya, Ollama and OpenAI decisions by changing one base URL.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="./" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="how-it-works.html">How it works</a>
+<a href="use-cases/">Use cases</a>
+<a href="integrations.html" aria-current="page">Integrations</a>
+<a href="docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap page">
+<section class="intro">
+<p class="eyebrow">Integrations</p>
+<h1>Change one base URL</h1>
+<p class="lead">The proxy speaks each model's own format and forwards requests unchanged, so your client code stays as it is. The operator names each upstream once on the server; the app only ever sees trimset's URL with its proxy key in the path.</p>
+</section>
+
+<section class="grid cols-340" aria-label="Integrations">
+<article class="card">
+<div class="row"><h2 class="h-24">Jev</h2><span class="badge badge-demo">v0.1</span></div>
+<p class="text">TypeSafe’s hosted decision models. The response names the exact version behind jev-latest, so a silent upgrade is caught on its first answer.</p>
+<div class="stack-xs">
+<span class="label">before</span>
+<pre class="inset">base_url = &quot;https://api.typesafe.ai&quot;</pre>
+<span class="label">after</span>
+<pre class="inset inset-strong">base_url = &quot;https://trimset.example.com/p/tsp_…&quot;</pre>
+<span class="label">on the server, once</span>
+<pre class="inset">TRIMSET_UPSTREAM_JEV_URL=https://api.typesafe.ai</pre>
+</div>
+</article>
+<article class="card">
+<div class="row"><h2 class="h-24">Ollaya</h2><span class="badge badge-demo">v0.1</span></div>
+<p class="text">Open decision models on your own hardware. Its /v1/systemone and its /v1/decisions alias both work.</p>
+<div class="stack-xs">
+<span class="label">before</span>
+<pre class="inset">base_url = &quot;http://localhost:11435&quot;</pre>
+<span class="label">after</span>
+<pre class="inset inset-strong">base_url = &quot;http://localhost:8800/p/tsp_…&quot;</pre>
+<span class="label">on the server, once</span>
+<pre class="inset">TRIMSET_UPSTREAM_OLLAYA_URL=http://host.docker.internal:11435</pre>
+</div>
+</article>
+<article class="card">
+<div class="row"><h2 class="h-24">Ollama</h2><span class="badge badge-demo">v0.1</span></div>
+<p class="text">Decision models through Ollama 0.35 and later, on /v1/systemone.</p>
+<div class="stack-xs">
+<span class="label">before</span>
+<pre class="inset">base_url = &quot;http://localhost:11434&quot;</pre>
+<span class="label">after</span>
+<pre class="inset inset-strong">base_url = &quot;http://localhost:8800/p/tsp_…&quot;</pre>
+<span class="label">on the server, once</span>
+<pre class="inset">TRIMSET_UPSTREAM_OLLAMA_URL=http://host.docker.internal:11434</pre>
+</div>
+</article>
+<article class="card">
+<div class="row"><h2 class="h-24">OpenAI decisions</h2><span class="badge badge-demo">v0.1</span></div>
+<p class="text">OpenAI’s /v1/decisions format: questions as an array, answers in the same order. Errors from trimset itself come back in OpenAI’s error shape.</p>
+<div class="stack-xs">
+<span class="label">before</span>
+<pre class="inset">base_url = &quot;https://api.openai.com/v1&quot;</pre>
+<span class="label">after</span>
+<pre class="inset inset-strong">base_url = &quot;https://trimset.example.com/p/tsp_…/v1&quot;</pre>
+<span class="label">on the server, once</span>
+<pre class="inset">TRIMSET_UPSTREAM_OPENAI_URL=https://api.openai.com
+TRIMSET_UPSTREAM_OPENAI_FORMAT=openai-decisions</pre>
+</div>
+</article>
+<article class="card">
+<div class="row"><h2 class="h-24">LangGraph</h2><span class="badge">Coming soon</span></div>
+<p class="text">Decision nodes inside a graph. They call a model client, so they go through the same proxy URL; a guide comes with the integration.</p>
+<div class="stack-xs">
+<span class="label">before</span>
+<pre class="inset">base_url = &quot;https://api.typesafe.ai&quot;</pre>
+<span class="label">after</span>
+<pre class="inset inset-strong">base_url = &quot;https://trimset.example.com/p/tsp_…&quot;</pre>
+<span class="label">on the server, once</span>
+<pre class="inset">Same as the model the nodes call.</pre>
+</div>
+</article>
+<article class="card">
+<div class="row"><h2 class="h-24">decision-circuits</h2><span class="badge">Coming soon</span></div>
+<p class="text">Chains of decisions where one answer picks the next question. Each call is logged on its own and keeps its place in the chain.</p>
+<div class="stack-xs">
+<span class="label">before</span>
+<pre class="inset">base_url = &quot;http://localhost:11435&quot;</pre>
+<span class="label">after</span>
+<pre class="inset inset-strong">base_url = &quot;http://localhost:8800/p/tsp_…&quot;</pre>
+<span class="label">on the server, once</span>
+<pre class="inset">Same as the model the circuit calls.</pre>
+</div>
+</article>
+</section>
+
+<section class="card card-row" aria-labelledby="headers-title">
+<div class="stack-sm">
+<h2 id="headers-title" class="h-24">Your app can set headers?</h2>
+<p class="text">Keep the model's usual path and send the key in a header instead. Your Authorization header then still goes to the model, unless the operator set a model key on the server. trimset never forwards its own key and never follows a redirect.</p>
+</div>
+<pre class="inset">POST https://trimset.example.com/v1/systemone
+X-Trimset-Key: tsp_…
+X-Trimset-External-Ref: rf-1001   <span class="c"># optional: your own id</span>
+Authorization: Bearer &lt;your model key&gt;</pre>
+</section>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="docs.html">Docs</a>
+<a href="self-hosting.html">Self-hosting</a>
+<a href="roadmap.html">Roadmap</a>
+</nav>
+</div>
+</footer>
+</body>
+</html>

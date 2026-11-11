@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-hosting · trimset</title>
+<meta name="description" content="Run trimset on your own machine with one compose file: what it starts, what it needs, privacy and data retention.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="./" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="how-it-works.html">How it works</a>
+<a href="use-cases/">Use cases</a>
+<a href="integrations.html">Integrations</a>
+<a href="docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap page">
+<section class="intro">
+<p class="eyebrow">Self-hosting</p>
+<h1>One compose file, one machine</h1>
+<p class="lead">trimset runs next to your apps, on your own server. No account, no outside service, and nothing leaves the machine unless you send it.</p>
+</section>
+
+<section class="split" aria-labelledby="start-title">
+<div class="stack-sm">
+<h2 id="start-title" class="h-28">Start it</h2>
+<p class="text-16">Two secrets in a <code>.env</code> file, then compose. The server and the worker set up the database themselves on first start.</p>
+</div>
+<pre class="code">git clone https://github.com/trimset/trimset
+cd trimset
+echo "TRIMSET_DB_PASSWORD=$(openssl rand -hex 16)" &gt; .env
+echo "TRIMSET_SECRET=$(openssl rand -hex 32)" &gt;&gt; .env
+docker compose up -d
+
+<span class="c"># a project and its first key, shown once</span>
+docker compose exec server trimset-server create-project acme
+docker compose exec server trimset-server create-key acme --scope proxy</pre>
+</section>
+
+<section class="stack" aria-labelledby="starts-title">
+<h2 id="starts-title" class="h-28">What it starts, and what it needs</h2>
+<div class="grid cols-260">
+<div class="card">
+<p class="eyebrow">proxy and server · :8800</p>
+<p class="text">The proxy is the front door: it forwards model calls unchanged and passes everything else to the API behind it. Health on <code>/health</code>, readiness on <code>/ready</code>, JSON logs.</p>
+</div>
+<div class="card">
+<p class="eyebrow">worker</p>
+<p class="text">The jobs that run in the background: joining late outcomes, default labels, fits and compiles, and later drift checks.</p>
+</div>
+<div class="card">
+<p class="eyebrow">Postgres 18</p>
+<p class="text">The only store. No Redis, no queue, no second database. Decisions live in monthly partitions.</p>
+</div>
+<div class="card">
+<p class="eyebrow eyebrow-plain">You bring</p>
+<p class="text">Docker with Compose. Aimed at a 2 vCPU, 4 GB machine, with Postgres on the same box.</p>
+</div>
+</div>
+<div class="card card-row">
+<p class="text">Upstreams are set only on the server, never through the API, so a key holder can't point trimset somewhere else. A model key you set here only ever goes to its own URL.</p>
+<pre class="inset">TRIMSET_UPSTREAM_OLLAYA_URL=http://host.docker.internal:11435
+TRIMSET_UPSTREAM_JEV_URL=https://api.typesafe.ai
+TRIMSET_UPSTREAM_JEV_KEY=…            <span class="c"># optional, https only</span></pre>
+</div>
+</section>
+
+<section class="grid cols-340" aria-label="Privacy and data retention">
+<div class="card">
+<h2 class="h-24">Privacy</h2>
+<ul>
+<li>Raw state is never stored. trimset keeps a keyed hash of it, unique to each project, so the same input can be recognised but not read.</li>
+<li>Tag keys can be limited to a per-project allow-list, so personal data can't slip in through tags.</li>
+<li>Keys are stored as hashes and shown once. A key in a URL is redacted from every log line.</li>
+<li>Keeping raw state for reviewers is a per-project switch, off by default. <span class="hl">Coming soon.</span></li>
+</ul>
+</div>
+<div class="card">
+<h2 class="h-24">Data retention</h2>
+<ul>
+<li>Each project sets how long it keeps decisions. The default is 400 days.</li>
+<li>Decisions are stored by month, so an expired month goes as a whole, with its outcomes. <span class="hl">Coming soon.</span></li>
+<li>Deleting everything for one external reference, for a data-subject request. <span class="hl">Coming soon.</span></li>
+<li>Fits keep probabilities and labels, never decision ids or state. Policies keep only thresholds and the numbers behind them.</li>
+</ul>
+</div>
+</section>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="docs.html">Docs</a>
+<a href="self-hosting.html">Self-hosting</a>
+<a href="roadmap.html">Roadmap</a>
+</nav>
+</div>
+</footer>
+</body>
+</html>

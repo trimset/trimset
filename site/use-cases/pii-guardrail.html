@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PII guardrail · trimset</title>
+<meta name="description" content="PII guardrail with trimset: Does this text contain personal data? The outcome, the policy and its target.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="../how-it-works.html">How it works</a>
+<a href="../use-cases/" aria-current="page">Use cases</a>
+<a href="../integrations.html">Integrations</a>
+<a href="../docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap page">
+<section class="intro">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="./">Use cases</a> / PII guardrail</nav>
+<div class="row-start"><span class="tag">noul</span><span class="badge badge-lg">Coming soon</span></div>
+<h1>PII guardrail</h1>
+<p class="lead">A company’s internal chat assistant checks every prompt before it reaches an LLM. Personal data that slips through is a leak. The prompts are exactly what must not be stored, so reviewers open them in the company’s own tool.</p>
+<p class="question">“Does this text contain personal data?”</p>
+</section>
+
+<section class="pair" aria-label="Request and policy">
+<div class="panel">
+<h2 class="panel-head">The request · POST /v1/systemone</h2>
+<pre>{
+  &quot;model&quot;: &quot;jev-latest&quot;,
+  &quot;state&quot;: {
+    &quot;text&quot;: &quot;…&quot;
+  },
+  &quot;questions&quot;: {
+    &quot;personal_data&quot;: {
+      &quot;type&quot;: &quot;noul&quot;,
+      &quot;instructions&quot;: &quot;Does this text contain personal data?&quot;
+    }
+  }
+}</pre>
+</div>
+<div class="card">
+<h2 class="h-22">The policy</h2>
+<ul class="rules">
+<li><span class="when">p &lt; lo</span><span class="act">ACCEPT</span><span class="means">send the prompt</span></li>
+<li><span class="when">lo ≤ p &lt; hi</span><span class="act">ESCALATE</span><span class="means">redact it, or ask a person</span></li>
+<li><span class="when">p ≥ hi</span><span class="act">BLOCK</span><span class="means">stop the prompt</span></li>
+</ul>
+<div class="target">
+<span class="label">target</span>
+<p class="hl text-16">False passes ≤ 1% with 95% confidence.</p>
+<p class="text">lo = [X], hi = [X]: proposed by the refit. trimset keeps only a keyed hash of each prompt.</p>
+</div>
+</div>
+</section>
+
+<section class="stack" aria-labelledby="timeline-title">
+<h2 id="timeline-title" class="h-28">When the truth arrives</h2>
+<ol class="timeline grid cols-220">
+<li class="card"><span class="eyebrow">now</span><span class="hl">Sent, redacted or stopped.</span><span class="label">proxy</span></li>
+<li class="card"><span class="eyebrow">days</span><span class="hl">The leak scanner flags what got through.</span><span class="label">downstream</span></li>
+<li class="card"><span class="eyebrow">weekly</span><span class="hl">The privacy team reviews a sample of passed prompts.</span><span class="label">human_review</span></li>
+</ol>
+</section>
+
+<section class="pair" aria-label="Code and dashboard">
+<div class="panel">
+<h2 class="panel-head">In your app · Python SDK, gate() from M3</h2>
+<pre>d = ts.gate(&quot;personal_data&quot;, answer=resp[&quot;answers&quot;][&quot;personal_data&quot;],
+            model_served=resp[&quot;model&quot;], decision_id=ids[0])
+if d.action == &quot;BLOCK&quot;:
+    refuse(prompt)
+elif d.action == &quot;ESCALATE&quot;:
+    prompt = redact(prompt)</pre>
+</div>
+<div class="shot" role="img" aria-label="Placeholder for a dashboard screenshot: False passes against the weekly review sample, from the demo.">
+<span class="type">[ dashboard screenshot ]</span>
+<span class="text">False passes against the weekly review sample, from the demo.</span>
+</div>
+</section>
+
+<section class="card cta" aria-label="Try it">
+<p class="text-16">This use case is on the way. The roadmap shows where trimset is.</p>
+<a class="btn btn-primary" href="../roadmap.html">See the roadmap</a>
+</section>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="../docs.html">Docs</a>
+<a href="../self-hosting.html">Self-hosting</a>
+<a href="../roadmap.html">Roadmap</a>
+</nav>
+</div>
+</footer>
+</body>
+</html>

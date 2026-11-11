@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent tool approval · trimset</title>
+<meta name="description" content="Agent tool approval with trimset: Is this tool call safe to run without a human? The outcome, the policy and its target.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="../how-it-works.html">How it works</a>
+<a href="../use-cases/" aria-current="page">Use cases</a>
+<a href="../integrations.html">Integrations</a>
+<a href="../docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap page">
+<section class="intro">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="./">Use cases</a> / Agent tool approval</nav>
+<div class="row-start"><span class="tag">noul</span><span class="badge badge-lg">Coming soon</span></div>
+<h1>Agent tool approval</h1>
+<p class="lead">An operations agent wants to run a database write or send an email. Most calls are safe and should just run; the rare unsafe one needs a person. Bad events are rare, so a low rate takes many labels to prove.</p>
+<p class="question">“Is this tool call safe to run without a human?”</p>
+</section>
+
+<section class="pair" aria-label="Request and policy">
+<div class="panel">
+<h2 class="panel-head">The request · POST /v1/systemone</h2>
+<pre>{
+  &quot;model&quot;: &quot;jev-latest&quot;,
+  &quot;state&quot;: {
+    &quot;tool&quot;: &quot;db.write&quot;,
+    &quot;args&quot;: {&quot;table&quot;: &quot;orders&quot;, &quot;rows&quot;: 120}
+  },
+  &quot;questions&quot;: {
+    &quot;safe_to_run&quot;: {
+      &quot;type&quot;: &quot;noul&quot;,
+      &quot;instructions&quot;: &quot;Is this tool call safe to run without a human?&quot;
+    }
+  }
+}</pre>
+</div>
+<div class="card">
+<h2 class="h-22">The policy</h2>
+<ul class="rules">
+<li><span class="when">p ≥ hi</span><span class="act">ACCEPT</span><span class="means">run it</span></li>
+<li><span class="when">lo ≤ p &lt; hi</span><span class="act">ESCALATE</span><span class="means">ask a human</span></li>
+<li><span class="when">p &lt; lo</span><span class="act">BLOCK</span><span class="means">refuse it</span></li>
+</ul>
+<div class="target">
+<span class="label">target</span>
+<p class="hl text-16">Unsafe passes ≤ 0.5% with 95% confidence. p is the probability that the call is safe.</p>
+<p class="text">Proving 0.5% takes about 600 labeled auto-run calls without an incident. Until then trimset says how many more labels it needs instead of guessing.</p>
+</div>
+</div>
+</section>
+
+<section class="stack" aria-labelledby="timeline-title">
+<h2 id="timeline-title" class="h-28">When the truth arrives</h2>
+<ol class="timeline grid cols-220">
+<li class="card"><span class="eyebrow">now</span><span class="hl">Run, sent to a human, or refused.</span><span class="label">proxy</span></li>
+<li class="card"><span class="eyebrow">minutes</span><span class="hl">A human approves or denies the escalated calls.</span><span class="label">human_review</span></li>
+<li class="card"><span class="eyebrow">days to weeks</span><span class="hl">Incident reports on calls that ran, rare and late.</span><span class="label">downstream</span></li>
+</ol>
+</section>
+
+<section class="pair" aria-label="Code and dashboard">
+<div class="panel">
+<h2 class="panel-head">In your app · Python SDK, gate() from M3</h2>
+<pre>d = ts.gate(&quot;safe_to_run&quot;, answer=resp[&quot;answers&quot;][&quot;safe_to_run&quot;],
+            model_served=resp[&quot;model&quot;], decision_id=ids[0])
+if d.action == &quot;ACCEPT&quot;:
+    run(call)
+elif d.action == &quot;ESCALATE&quot;:
+    ask_human(call)
+else:
+    refuse(call)</pre>
+</div>
+<div class="shot" role="img" aria-label="Placeholder for a dashboard screenshot: Labels so far against the labels the target needs, from the demo.">
+<span class="type">[ dashboard screenshot ]</span>
+<span class="text">Labels so far against the labels the target needs, from the demo.</span>
+</div>
+</section>
+
+<section class="card cta" aria-label="Try it">
+<p class="text-16">This use case is on the way. The roadmap shows where trimset is.</p>
+<a class="btn btn-primary" href="../roadmap.html">See the roadmap</a>
+</section>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="../docs.html">Docs</a>
+<a href="../self-hosting.html">Self-hosting</a>
+<a href="../roadmap.html">Roadmap</a>
+</nav>
+</div>
+</footer>
+</body>
+</html>

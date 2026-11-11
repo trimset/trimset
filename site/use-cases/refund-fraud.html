@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Refund fraud · trimset</title>
+<meta name="description" content="Refund fraud with trimset: Is this refund request fraudulent? The outcome, the policy and its target.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="../how-it-works.html">How it works</a>
+<a href="../use-cases/" aria-current="page">Use cases</a>
+<a href="../integrations.html">Integrations</a>
+<a href="../docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap page">
+<section class="intro">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="./">Use cases</a> / Refund fraud</nav>
+<div class="row-start"><span class="tag">noul</span><span class="badge badge-demo badge-lg">Demo available</span></div>
+<h1>Refund fraud</h1>
+<p class="lead">An online shop pays refunds automatically. Paying a fraudulent one loses money; holding an honest one loses a customer. The truth comes as a chargeback one to three months later, and a refund that was held almost never learns it.</p>
+<p class="question">“Is this refund request fraudulent?”</p>
+</section>
+
+<section class="pair" aria-label="Request and policy">
+<div class="panel">
+<h2 class="panel-head">The request · POST /v1/systemone</h2>
+<pre>{
+  &quot;model&quot;: &quot;jev-latest&quot;,
+  &quot;state&quot;: {
+    &quot;refund_id&quot;: &quot;rf-1001&quot;,
+    &quot;amount&quot;: 129.5,
+    &quot;reason&quot;: &quot;item not received&quot;
+  },
+  &quot;questions&quot;: {
+    &quot;refund_fraud&quot;: {
+      &quot;type&quot;: &quot;noul&quot;,
+      &quot;instructions&quot;: &quot;Is this refund request fraudulent?&quot;
+    }
+  }
+}</pre>
+</div>
+<div class="card">
+<h2 class="h-22">The policy</h2>
+<ul class="rules">
+<li><span class="when">p &lt; lo</span><span class="act">ACCEPT</span><span class="means">pay out</span></li>
+<li><span class="when">lo ≤ p &lt; hi</span><span class="act">ESCALATE</span><span class="means">the risk team decides</span></li>
+<li><span class="when">p ≥ hi</span><span class="act">BLOCK</span><span class="means">hold the refund</span></li>
+</ul>
+<div class="target">
+<span class="label">target</span>
+<p class="hl text-16">False passes ≤ 2% with 95% confidence, and at most 15% escalated.</p>
+<p class="text">lo = [X], hi = [X]: proposed by the refit on your own labels. 1% of accepted refunds are reviewed anyway, so the refits stay honest.</p>
+</div>
+</div>
+</section>
+
+<section class="stack" aria-labelledby="timeline-title">
+<h2 id="timeline-title" class="h-28">When the truth arrives</h2>
+<ol class="timeline grid cols-220">
+<li class="card"><span class="eyebrow">now</span><span class="hl">The decision is logged with the refund id.</span><span class="label">proxy</span></li>
+<li class="card"><span class="eyebrow">hours</span><span class="hl">The risk team’s verdict on escalated and audited refunds.</span><span class="label">human_review</span></li>
+<li class="card"><span class="eyebrow">30–90 days</span><span class="hl">A chargeback or a confirmed fraud case.</span><span class="label">downstream</span></li>
+<li class="card"><span class="eyebrow">120 days</span><span class="hl">No chargeback: recorded as not fraud.</span><span class="label">rule</span></li>
+</ol>
+</section>
+
+<section class="pair" aria-label="Code and dashboard">
+<div class="panel">
+<h2 class="panel-head">In your app · Python SDK, gate() from M3</h2>
+<pre>d = ts.gate(&quot;refund_fraud&quot;, answer=resp[&quot;answers&quot;][&quot;refund_fraud&quot;],
+            model_served=resp[&quot;model&quot;], decision_id=ids[0])
+if d.action == &quot;ACCEPT&quot;:
+    pay_out(refund)
+elif d.action == &quot;ESCALATE&quot;:
+    risk_queue.add(refund)
+else:
+    hold(refund)</pre>
+</div>
+<div class="shot" role="img" aria-label="Placeholder for a dashboard screenshot: Calibration and the proposed thresholds for refund_fraud, from the demo.">
+<span class="type">[ dashboard screenshot ]</span>
+<span class="text">Calibration and the proposed thresholds for refund_fraud, from the demo.</span>
+</div>
+</section>
+
+<section class="card cta" aria-label="Try it">
+<p class="text-16">Run the capture demo from a clean checkout: refund checks through the proxy against a mock model, a silent model upgrade, and chargebacks that arrive late, early or never.</p>
+<a class="btn btn-primary" href="https://github.com/trimset/trimset/tree/main/examples/m1-capture">Run the demo</a>
+</section>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="../docs.html">Docs</a>
+<a href="../self-hosting.html">Self-hosting</a>
+<a href="../roadmap.html">Roadmap</a>
+</nav>
+</div>
+</footer>
+</body>
+</html>
