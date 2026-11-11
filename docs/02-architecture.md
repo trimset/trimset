@@ -520,7 +520,6 @@ stateDiagram-v2
 flowchart TB
   subgraph vm["One VM (2 vCPU, 4 GB): docker compose"]
     rp["reverse proxy (optional)<br/>Caddy or nginx, TLS"]
-    mig["migrate<br/>one-shot, runs first"]
     s1["server<br/>uvicorn, one process per core<br/>:8800"]
     w1["worker"]
     pg[("postgres:18<br/>volume pgdata")]
@@ -528,7 +527,6 @@ flowchart TB
   apps["Apps + SDKs"] --> rp --> s1
   s1 --> pg
   w1 --> pg
-  mig --> pg
   s1 --> up["Upstream: Jev on the internet,<br/>or Ollaya on the host at :11435"]
   w1 --> ch["Slack · SMTP · webhooks"]
   s1 & w1 -. OTLP .-> otel["OTel collector (optional)"]

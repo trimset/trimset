@@ -42,7 +42,12 @@ One image, two processes. The brief's parts are modules inside them:
 - Retries use backoff, and the last error is kept on the row.
 - Schedules live in `schedules`. The worker turns due schedules into jobs.
 - Every job is idempotent, so running two workers is safe.
-- A one-shot `migrate` service runs first in compose.
+- Migrations run when the server or the worker starts (`TRIMSET_AUTO_MIGRATE`, on in
+  compose), under an advisory lock, so any number of replicas can start at once.
+  `trimset-server migrate` runs them on demand. (Phase 5 replaced the planned one-shot
+  `migrate` service, so `docker compose up` stays one step.)
+- The `jobs` table arrives with the first on-demand job (T2.6). Until then the worker
+  runs periodic maintenance only.
 
 ## Consequences
 

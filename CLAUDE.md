@@ -14,10 +14,12 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T1.1, the scaffold;
   - T1.2, CI and [docs/05-testing.md](docs/05-testing.md);
   - T1.3, the image, compose (Postgres and server), `/health`, `/ready`, JSON logs and
-    OpenTelemetry.
-- Next: T1.4 (migrations and the first schema). It also adds the `migrate` and `worker`
-  services to compose, which were left out of T1.3 because they had nothing to do yet.
-  Then T1.5, T1.6 and the rest of M1.
+    OpenTelemetry;
+  - T1.4, the migration runner, `0001_capture` (projects, questions, model_versions,
+    and the monthly-partitioned decisions table), the worker (partition upkeep), and
+    compose's worker service.
+- Next: T1.5 (keys, scopes and the bootstrap command; migration `0002`), then T1.6 and
+  the rest of M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
   every milestone, from actual hours.
 - Repository: `github.com/trimset/trimset` (public).
@@ -114,6 +116,15 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
   - OpenTelemetry is on only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and span
     attributes pass through the same redaction.
 - **HTTP client:** `httpx2`, not `httpx`, which Starlette deprecated.
+- **Migrations:** `server/src/trimset_server/migrations/NNNN_name.sql`.
+  - They only move forward. Never edit one that has been applied: the checksum guard
+    refuses to run if you do.
+  - Each task adds its own migration for the tables it needs.
+  - With `TRIMSET_AUTO_MIGRATE=true` (as in compose), the server and the worker migrate
+    at start under an advisory lock.
+- **Database tests:** `server/tests/test_db_integration.py` needs
+  `TRIMSET_TEST_DATABASE_URL`. CI provides Postgres 18.6 and sets it; locally the tests
+  skip. Each test gets a fresh database.
 
 ## Commands
 
