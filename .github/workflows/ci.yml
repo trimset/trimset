@@ -19,8 +19,57 @@ env:
   UV_EXCLUDE_NEWER: "2026-11-03T00:00:00Z"
 
 jobs:
+  # Each job runs only when a file it checks changed; a change to this file runs them all.
+  # Skipped jobs count as passed for the required checks on main.
+  changes:
+    name: what changed
+    runs-on: ubuntu-24.04
+    outputs:
+      lint: ${{ steps.f.outputs.lint }}
+      python: ${{ steps.f.outputs.python }}
+      sdk: ${{ steps.f.outputs.sdk }}
+      proxy: ${{ steps.f.outputs.proxy }}
+      image: ${{ steps.f.outputs.image }}
+      contracts: ${{ steps.f.outputs.contracts }}
+      dashboard: ${{ steps.f.outputs.dashboard }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: f
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            files=$(git diff --name-only "$BASE"...HEAD)
+          elif [ "$EVENT" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            files=$(git diff --name-only "$BEFORE" HEAD)
+          else
+            files=ALL # a manual run, or a push with no earlier commit to compare
+          fi
+          printf '%s\n' "$files"
+          on() {
+            if [ "$files" = ALL ] || grep -qE "$2|^\.github/workflows/ci\.yml$" <<< "$files"; then
+              echo "$1=true"
+            else
+              echo "$1=false"
+            fi >> "$GITHUB_OUTPUT"
+          }
+          py='^(sdk|stats|server|tools|research)/|^pyproject\.toml$|^uv\.lock$'
+          on lint '\.pyi?$|^pyproject\.toml$|^uv\.lock$'
+          on python "$py|^docs/03-api/"
+          on sdk '^sdk/|^pyproject\.toml$|^uv\.lock$|^docs/03-api/'
+          on proxy '^proxy/'
+          on image "$py|^proxy/|^examples/|^Dockerfile$|^compose[^/]*\.yaml$|^\.dockerignore$|^dashboard/demo/record\.py$"
+          on contracts '^docs/03-api/'
+          on dashboard '^dashboard/|^docs/03-api/openapi\.yaml$'
+
   lint:
     name: lint and types
+    needs: changes
+    if: needs.changes.outputs.lint == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,6 +81,7 @@ jobs:
 
   test:
     name: test ${{ matrix.package }}
+    needs: changes
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -54,16 +104,23 @@ jobs:
     env:
       TRIMSET_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
+      # Skipped steps keep the per-package checks reporting when nothing they test changed.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.python == 'true'
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: needs.changes.outputs.python == 'true'
       - run: uv sync --locked
-      - run: >-
+        if: needs.changes.outputs.python == 'true'
+      - if: needs.changes.outputs.python == 'true'
+        run: >-
           uv run --frozen pytest ${{ matrix.package }}/tests
           --cov=${{ matrix.module }} --cov-report=term-missing
           --cov-fail-under=${{ matrix.coverage }}
 
   proxy:
     name: proxy (Rust)
+    needs: changes
+    if: needs.changes.outputs.proxy == 'true'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -77,6 +134,8 @@ jobs:
 
   sdk-oldest-python:
     name: SDK on Python 3.11
+    needs: changes
+    if: needs.changes.outputs.sdk == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -85,6 +144,8 @@ jobs:
 
   image:
     name: image and compose smoke test
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
     runs-on: ubuntu-24.04
     env:
       TRIMSET_DB_PASSWORD: ciOnlyNotASecret
@@ -155,6 +216,8 @@ jobs:
 
   contracts:
     name: API contracts and test vectors
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -172,6 +235,8 @@ jobs:
 
   dashboard:
     name: dashboard (types, tests, build)
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true'
     runs-on: ubuntu-24.04
     defaults:
       run:
