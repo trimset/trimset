@@ -441,17 +441,24 @@ def rule_of(raw: Mapping[str, Any]) -> Rule:
     )
 
 
+def calibrated_bins(question: QuestionIn, cal: Calibrator, split: Split) -> list[dict[str, Any]]:
+    """Reliability bins of a split's labeled items, calibrated, as fit/1 reports them."""
+    labeled = split.labeled
+    _, calibrated, y = _events(question, split.probs[labeled], split.labels[labeled], cal)
+    return _bins(*((calibrated, y) if y is not None else calibrated))
+
+
 def simulate_rows(
     question: QuestionIn,
     cal: Calibrator,
-    evaluation: Split,
+    split: Split,
     actions: Actions,
     candidates: Sequence[Sequence[Rule]] | None,
     costs: Costs | None,
 ) -> list[dict[str, Any]]:
-    """FR-26: metrics on the eval split for each candidate rule set; without candidates,
-    a grid of thresholds per rule (50 for one rule, 22 x 22 for two)."""
-    scored = compiler.score(question.type, cal, evaluation, actions)
+    """FR-26: metrics on one split for each candidate rule set; without candidates, a grid
+    of thresholds per rule (50 for one rule, 22 x 22 for two)."""
+    scored = compiler.score(question.type, cal, split, actions)
     if candidates is None:
         shapes = compiler.templates(question.type, actions)
         size = SIMULATE_GRID if len(shapes) == 1 else 22

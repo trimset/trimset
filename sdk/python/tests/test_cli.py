@@ -259,7 +259,9 @@ def test_simulate_builds_rules_from_the_questions_actions(
     assert run("simulate", "q", "--model", "m", *flags) == 0
     sent = api.bodies("POST", "/v1/admin/questions/q/simulate")[0]["candidates"][0]
     assert [[r["id"], r["action"], r["scalar"], r["op"], r["threshold"]] for r in sent] == rules
-    assert "90.0%" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "90.0%" in out and "on the eval split of fit f1 (exploration" in out
+    assert "split" not in api.bodies("POST", "/v1/admin/questions/q/simulate")[0]
 
 
 def test_simulate_without_thresholds_asks_for_a_grid_and_takes_costs(
@@ -267,13 +269,16 @@ def test_simulate_without_thresholds_asks_for_a_grid_and_takes_costs(
 ) -> None:
     api.routes[("GET", "/v1/admin/questions/q")] = (200, {"type": "noul", "settings": {}})
     rows = [{"rules": [], "metrics": METRICS | {"automated": a}} for a in (0.2, 0.7, 0.5)]
-    api.routes[("POST", "/v1/admin/questions/q/simulate")] = (200, {"fit_id": "f1", "rows": rows})
+    out = {"fit_id": "f1", "split": "tune", "rows": rows}
+    api.routes[("POST", "/v1/admin/questions/q/simulate")] = (200, out)
     assert (
         run(
             "simulate",
             "q",
             "--model",
             "m",
+            "--split",
+            "tune",
             "--cost-escalation",
             "1",
             "--cost-wrong",
@@ -284,11 +289,13 @@ def test_simulate_without_thresholds_asks_for_a_grid_and_takes_costs(
         == 0
     )
     body = api.bodies("POST", "/v1/admin/questions/q/simulate")[0]
+    assert body["split"] == "tune"
     assert "candidates" not in body and body["costs"] == {
         "escalation": 1.0,
         "wrong": {"ACCEPT": 20.0},
     }
     out = capsys.readouterr().out
+    assert "on the tune split of fit f1" in out
     assert out.index("70.0%") < out.index("50.0%") and "20.0%" not in out
     assert (
         run("simulate", "q", "--model", "m", "--cost-escalation", "1", "--cost-wrong", "nope") == 1
