@@ -11,7 +11,6 @@ const sample = <T>(data: T): Promise<T> => Promise.resolve(structuredClone(data)
 
 export const ENDPOINT = {
   overview: "GET /v1/admin/decisions (aggregates)",
-  questions: "GET /v1/admin/questions",
   outcomes: "an outcomes feed",
   drift: "GET /v1/admin/drift-reports",
   shadow: "GET /v1/admin/questions/{question}/shadow",
@@ -46,8 +45,6 @@ const QUESTIONS: QuestionRow[] = [
   { name: "safe_to_run", wording: "Is this tool call safe to run without a human?", type: "noul", question_id: "q_7f3e215cd08b…e9a1", models: [{ name: "jev-1.13.0" }], decisions24h: 611, decisions30d: 18330, automated: 0.715, outcomesKnown: 0.284, ece: null, policy: "draft", health: { tone: "mu", text: "◷ n = 412 labelled: 188 more for a 0.5% guarantee" }, spark: [4, 6, 5, 8, 9, 10, 12] },
   { name: "listing_severity", wording: "How serious is the problem with this listing?", note: "none · mild · serious · remove", type: "score · 4", question_id: "q_c8a40d2e95f1…5b72", models: [{ name: "laya:latest" }], decisions24h: 1231, decisions30d: 36912, automated: 0.79, outcomesKnown: 0.22, ece: 0.044, policy: "v1", health: { tone: "cr", text: "✕ Queue over cap" }, spark: [8, 9, 12, 14, 16, 18, 20] },
 ];
-
-export const questions = () => sample(QUESTIONS);
 
 export const overview = () =>
   sample({

@@ -23,6 +23,7 @@ interface Recorded {
   project: Project;
   keys: { items: Key[] };
   question: Question;
+  questions?: Question[];
   model: string;
   fits: Fit[];
   coverage: unknown;
@@ -76,6 +77,7 @@ export async function answer(path: string, init: Init = {}): Promise<unknown> {
 
   if (p === "/v1/admin/project" && method === "GET") return D.project;
   if (p === "/v1/admin/keys" && method === "GET") return D.keys;
+  if (p === "/v1/admin/questions" && method === "GET") return { items: D.questions ?? [D.question], next_cursor: null };
 
   if (p.startsWith("/v1/admin/questions/")) {
     const [ref, ...rest] = p.slice("/v1/admin/questions/".length).split("/").map(decodeURIComponent);

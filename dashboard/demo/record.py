@@ -107,6 +107,7 @@ def record(api: Api, name: str) -> dict[str, Any]:
         "project": api("/v1/admin/project"),
         "keys": api("/v1/admin/keys"),
         "question": question,
+        "questions": api("/v1/admin/questions")["items"],
         "model": model,
         "fits": [fit],
         "coverage": api(f"/v1/admin/questions/{q}/coverage", model_served=model),

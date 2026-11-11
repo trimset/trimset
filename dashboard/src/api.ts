@@ -167,6 +167,8 @@ export interface Question {
   };
   first_seen: string;
   models: { model_requested: string; model_served: string; first_seen: string }[];
+  /** The id this name pointed to before, when the wording changed (ADR 0010). */
+  previous_question_id?: string | null;
   settings: { target?: Target; actions?: Record<string, unknown> };
 }
 

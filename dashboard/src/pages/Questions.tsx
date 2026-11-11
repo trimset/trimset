@@ -1,80 +1,97 @@
 import { useEffect, useState } from "react";
-import { ApiError, api, DEMO, q, type Question } from "../api.ts";
-import { count } from "../format.ts";
-import * as mock from "../mock.ts";
-import { href, Load, SamplePill, Tabs, Top, useLoad } from "../ui.tsx";
+import { ApiError, api, DEMO, type PolicyView, q, type Question } from "../api.ts";
+import { day } from "../format.ts";
+import { href, Load, Tabs, Top, useLoad } from "../ui.tsx";
 import { Calibration } from "./Calibration.tsx";
 import { DriftBody } from "./Drift.tsx";
 import { PoliciesBody } from "./Policies.tsx";
 import { Simulator } from "./Simulator.tsx";
 
+/** "choice · 4 options", "score · 4 levels", "noul". */
+function kind(question: Question): string {
+  const d = question.definition;
+  if (d.options) return `choice · ${d.options.length} options`;
+  if (d.levels) return `score · ${d.levels.length} levels`;
+  return question.type;
+}
+
 export function Questions() {
-  const state = useLoad(() => mock.questions(), []);
-  const [name, setName] = useState("");
+  const state = useLoad(
+    (signal) =>
+      Promise.all([
+        api<{ items: Question[] }>("/v1/admin/questions?limit=500", { signal }),
+        api<{ items: PolicyView[] }>("/v1/admin/policies?limit=1000", { signal }),
+      ]),
+    [],
+  );
+  const [find, setFind] = useState("");
   return (
     <>
       <Top crumb="Analyze" title="Questions">
-        <SamplePill endpoint={mock.ENDPOINT.questions} />
+        <input className="in" type="search" placeholder="Name, wording or question_id" aria-label="Find a question" value={find} onChange={(e) => setFind(e.target.value)} style={{ width: 260, maxWidth: "100%" }} />
       </Top>
       <div className="body">
-        <form
-          className="card pad row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (name.trim()) window.location.hash = href("questions", name.trim());
-          }}
-        >
-          <label className="row grow" style={{ gap: 8 }}>
-            <span style={{ fontSize: 13 }}>Open a question in this project by name or <span className="m">question_id</span></span>
-            <input className="in m grow" value={name} onChange={(e) => setName(e.target.value)} placeholder="refund_fraud" style={{ minWidth: 180 }} />
-          </label>
-          <button className="btn p" type="submit" disabled={!name.trim()}>Open</button>
-          <span className="mu small" style={{ flexBasis: "100%" }}>
-            {DEMO && <>In the demo, <a href={href("questions", "refund_fraud")}>refund_fraud</a> has recorded data. </>}
-            The list below is sample data until <span className="m">{mock.ENDPOINT.questions}</span> is built; opening a question reads your server.
-          </span>
-        </form>
         <p className="t2" style={{ margin: 0, maxWidth: 760 }}>
           A question is its exact wording, hashed into a <span className="m">question_id</span>. A name follows the newest wording; earlier
           wordings keep their own history.
         </p>
         <Load state={state}>
-          {(rows) => (
-            <section className="card" aria-label="Question groups">
-              <div className="tw">
-                <table className="t">
-                  <thead>
-                    <tr>
-                      <th>Name and wording</th><th>Type</th><th>question_id</th><th>Models seen</th><th className="r">Decisions, 30 d</th><th>Policy</th><th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.name}>
-                        <td className="wrap">
-                          <a className="m" href={href("questions", r.name)}>{r.name}</a>
-                          <div className="t2" style={{ fontSize: 13 }}>{r.wording}</div>
-                          {r.note && <div className="mu small">{r.note}</div>}
-                        </td>
-                        <td className="t2">{r.type}</td>
-                        <td className="m t2 small">{r.question_id}</td>
-                        <td>
-                          <div className="row" style={{ gap: 6 }}>
-                            {r.models.map((m) => (
-                              <span key={m.name} className={`pill m${m.isNew ? " wa" : ""}`}>{m.isNew ? `▲ ${m.name} · ${m.isNew}` : m.name}</span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="m r">{count(r.decisions30d)}</td>
-                        <td className={r.policy === "draft" ? "mu" : "m"}>{r.policy === "draft" ? "draft" : `${r.policy} active`}</td>
-                        <td className={`${r.health.tone} wrap`} style={{ minWidth: 0 }}>{r.health.text}</td>
+          {([{ items }, { items: policies }]) => {
+            const f = find.trim().toLowerCase();
+            const rows = items.filter((r) => !f || [r.name ?? "", wording(r), r.question_id].some((x) => x.toLowerCase().includes(f)));
+            const earlier = new Set(items.map((r) => r.previous_question_id).filter(Boolean));
+            return !items.length ? (
+              <section className="card pad">
+                <p className="t2" style={{ margin: 0 }}>No questions yet. A question appears the first time a decision asks it.</p>
+              </section>
+            ) : (
+              <section className="card" aria-label="Questions">
+                <div className="tw">
+                  <table className="t">
+                    <thead>
+                      <tr>
+                        <th>Name and wording</th><th>Type</th><th>question_id</th><th>Models served</th><th>Active policy</th><th>First seen</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
+                    </thead>
+                    <tbody>
+                      {rows.map((r) => {
+                        const active = policies.filter((p) => p.state === "active" && p.policy.question_id === r.question_id);
+                        const drafts = policies.filter((p) => p.state !== "active" && p.policy.question_id === r.question_id).length;
+                        return (
+                          <tr key={r.question_id}>
+                            <td className="wrap">
+                              <a className="m" href={href("questions", r.name && !earlier.has(r.question_id) ? r.name : r.question_id)}>
+                                {r.name ?? "(no name)"}
+                              </a>
+                              <div className="t2" style={{ fontSize: 13 }}>{wording(r)}</div>
+                              {earlier.has(r.question_id) && <div className="mu small">an earlier wording</div>}
+                            </td>
+                            <td className="t2">{kind(r)}</td>
+                            <td className="m t2 small" title={r.question_id}>{r.question_id.slice(0, 14)}…</td>
+                            <td>
+                              <div className="row" style={{ gap: 6 }}>
+                                {servedModels(r).map((m) => <span key={m} className="pill m">{m}</span>)}
+                                {!r.models.length && <span className="mu">none yet</span>}
+                              </div>
+                            </td>
+                            <td>
+                              {active.length ? (
+                                active.map((p) => <div key={p.policy.policy_id} className="m">v{p.policy.version} · {p.policy.model_served}</div>)
+                              ) : (
+                                <span className="mu">none{drafts ? ` · ${drafts} other version${drafts > 1 ? "s" : ""}` : ""}</span>
+                              )}
+                            </td>
+                            <td className="m t2">{day(r.first_seen)}</td>
+                          </tr>
+                        );
+                      })}
+                      {!rows.length && <tr><td colSpan={6} className="mu">No question matches “{find}”.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          }}
         </Load>
       </div>
     </>

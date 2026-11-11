@@ -64,8 +64,9 @@ maintainer chose the stack, and the screens are an interactive app, not pages.
 
 ## Consequences
 
-- Each new endpoint retires a part of `src/mock.ts`; the Questions list, Outcomes, Drift,
-  Shadow, Review queue, Alerts and the Overview tiles are sample data until then.
+- Each new endpoint retires a part of `src/mock.ts` (the Questions list went first, with
+  GET /v1/admin/questions); Outcomes, Drift, Shadow, Review queue, Alerts and the Overview
+  tiles are sample data until theirs exist.
 - Policies use the lifecycle from T3.1 (FR-27 to FR-29): each action has a confirm that
   names the change, and reject, retire and rollback take the reason the server requires.
 - The recording goes stale when the API changes; CI records on every run that touches
