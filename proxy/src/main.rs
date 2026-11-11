@@ -817,20 +817,24 @@ struct Config {
 }
 
 fn build_app(config: Config) -> Result<Arc<App>, BoxError> {
+    // TCP_NODELAY on every outgoing connection. hyper's connector leaves Nagle on, and a
+    // request written as headers then body then waits for the peer's delayed ACK, up to
+    // 40 ms: ingest through the proxy had a p99 of 24-26 ms against 16-17 ms direct.
+    let connector = || {
+        let mut http = HttpConnector::new();
+        http.set_nodelay(true);
+        http.enforce_http(false); // the https wrapper decides the scheme
+        http
+    };
     let tls = rustls::crypto::ring::default_provider();
     let https = hyper_rustls::HttpsConnectorBuilder::new()
         .with_provider_and_webpki_roots(tls)?
         .https_or_http()
         .enable_http1()
-        .build();
+        .wrap_connector(connector());
     Ok(Arc::new(App {
         api_base: config.api_base.trim_end_matches('/').to_owned(),
-        // No idle connections to the server: each request opens its own, so the kernel
-        // spreads them over the server's processes. Kept-alive ones funnelled everything
-        // into one process, and ingest's p99 went from 17 ms to 24 ms.
-        api: Client::builder(TokioExecutor::new())
-            .pool_max_idle_per_host(0)
-            .build_http(),
+        api: Client::builder(TokioExecutor::new()).build(connector()),
         upstream: Client::builder(TokioExecutor::new())
             .pool_idle_timeout(Duration::from_secs(60))
             .build(https),
