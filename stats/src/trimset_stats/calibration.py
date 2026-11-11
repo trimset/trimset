@@ -1,31 +1,26 @@
 """Calibration maps and choosing between them (FR-16, ADR 0005).
 
-For one event's probability p (metrics.events):
-- **temperature** (Guo 2017): sigmoid(β · logit p). One parameter.
-- **platt** (Platt 1999, with the stable loss of Lin 2007): sigmoid(a · logit p + b),
-  fitted to Platt's smoothed targets.
-- **isotonic** (Zadrozny 2002): the best non-decreasing step map, interpolated between
-  its knots.
-- **identity**: p as it is, so "no calibration" competes too.
+A map is applied exactly as the SDKs apply a policy's (docs/03-api/sdk.md §3), so the
+thresholds the compiler picks are the ones the SDK will see: p is clamped to
+[1e-6, 1 - 1e-6] and logit(p) = ln(p / (1 - p)).
+- **identity:** s = p.
+- **temperature** (Guo 2017): s = sigmoid(logit p / T); for a distribution, sᵢ = softmax(ln pᵢ / T).
+- **platt** (Platt 1999, the stable loss of Lin 2007): s = 1 / (1 + exp(a · logit p + b)).
+  a < 0 keeps the order of p; a fit that doesn't is refused.
+- **isotonic** (Zadrozny 2002): linear interpolation between knots (x, y), at most 1,000.
 
-Every map is non-decreasing in p, so a threshold on calibrated p is a threshold on raw p
-and the SDK needs no calibration code (ADR 0006). A Platt fit whose slope isn't positive
-would reverse the order; it is refused.
-
-Choice and score questions get temperature scaling on the whole distribution:
-softmax(β · log p).
+Every map is non-decreasing in p, so a threshold on calibrated p is a threshold on raw p.
+`to_json` gives the policy's `calibration` object (fit.schema.json).
 
 `choose` picks the map with the lowest cross-validated log loss inside the fit split
-(Niculescu-Mizil 2005). Folds come from a seeded generator, so the same data and seed
-give the same choice (NFR-19).
-
-The fitting follows scikit-learn's `_TemperatureScaling`, `_SigmoidCalibration` and
-`IsotonicRegression` closely enough that the golden tests compare with them directly.
+(Niculescu-Mizil 2005), from seeded folds, so the same data and seed give the same choice
+(NFR-19). Fitting follows scikit-learn's `_TemperatureScaling`, `_SigmoidCalibration` and
+`IsotonicRegression`; the golden tests compare with them.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -36,51 +31,77 @@ from trimset_stats.metrics import log_loss, multiclass_log_loss
 Method = Literal["identity", "temperature", "platt", "isotonic"]
 Array = npt.NDArray[np.float64]
 BINARY_METHODS: tuple[Method, ...] = ("identity", "temperature", "platt", "isotonic")
-MULTICLASS_METHODS: tuple[Method, ...] = ("identity", "temperature")
+CLAMP = 1e-6  # sdk.md §3
+MAX_KNOTS = 1000  # fit.schema.json
 _EPS = float(np.finfo(np.float64).eps)
 
 
-@dataclass(frozen=True)
-class Calibrator:
-    """A fitted map. `beta` is the inverse temperature; `a`, `b` are Platt's slope and
-    intercept on logit p; `xs`, `ys` are the isotonic knots."""
-
-    method: Method
-    beta: float = 1.0
-    a: float = 1.0
-    b: float = 0.0
-    xs: tuple[float, ...] = ()
-    ys: tuple[float, ...] = ()
-
-    def apply(self, probs: npt.ArrayLike) -> Array:
-        """Calibrated probabilities: for a 1-D p, of the event; for an (n, k) array, of
-        each class (identity and temperature only)."""
-        arr = np.asarray(probs, dtype=np.float64)
-        if self.method == "identity":
-            return arr.copy()
-        if arr.ndim == 2:
-            if self.method != "temperature":
-                raise ValueError(
-                    f"{self.method} calibrates one event's probability, not a distribution"
-                )
-            logits = self.beta * np.log(arr + _EPS)
-            logits -= logits.max(axis=1, keepdims=True)
-            weights = np.exp(logits)
-            return np.asarray(weights / weights.sum(axis=1, keepdims=True))
-        if self.method == "temperature":
-            return _sigmoid(self.beta * _logit(arr))
-        if self.method == "platt":
-            return _sigmoid(self.a * _logit(arr) + self.b)
-        return np.asarray(np.interp(arr, self.xs, self.ys))
+def clamp(p: npt.ArrayLike) -> Array:
+    return np.clip(np.asarray(p, dtype=np.float64), CLAMP, 1 - CLAMP)
 
 
-def _logit(p: Array) -> Array:
-    """The two-class logit scikit-learn uses: log(p + eps) - log(1 - p + eps)."""
-    return np.asarray(np.log(p + _EPS) - np.log1p(-p + _EPS))
+def logit(p: npt.ArrayLike) -> Array:
+    q = clamp(p)
+    return np.asarray(np.log(q / (1 - q)))
 
 
 def _sigmoid(z: Array) -> Array:
     return np.asarray(np.exp(-np.logaddexp(0.0, -z)))
+
+
+@dataclass(frozen=True)
+class Calibrator:
+    """A fitted map, with the parameters the policy stores."""
+
+    method: Method
+    temperature: float = 1.0
+    a: float = -1.0
+    b: float = 0.0
+    x: tuple[float, ...] = ()
+    y: tuple[float, ...] = ()
+
+    def apply(self, probs: npt.ArrayLike) -> Array:
+        """Calibrated probabilities: for a 1-D p, of the event; for an (n, k) array, of
+        each class (identity and temperature only)."""
+        arr = clamp(probs)
+        if arr.ndim == 2 and self.method not in ("identity", "temperature"):
+            raise ValueError(
+                f"{self.method} calibrates one event's probability, not a distribution"
+            )
+        if self.method == "identity":
+            return arr
+        if arr.ndim == 2:
+            z = np.log(arr) / self.temperature
+            z -= z.max(axis=1, keepdims=True)
+            weights = np.exp(z)
+            return np.asarray(weights / weights.sum(axis=1, keepdims=True))
+        if self.method == "temperature":
+            return _sigmoid(logit(arr) / self.temperature)
+        if self.method == "platt":
+            return _sigmoid(-(self.a * logit(arr) + self.b))
+        return np.asarray(np.interp(arr, self.x, self.y))
+
+    def to_json(self) -> dict[str, Any]:
+        if self.method == "temperature":
+            return {"method": "temperature", "temperature": self.temperature}
+        if self.method == "platt":
+            return {"method": "platt", "a": self.a, "b": self.b}
+        if self.method == "isotonic":
+            return {"method": "isotonic", "x": list(self.x), "y": list(self.y)}
+        return {"method": "identity"}
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, Any]) -> "Calibrator":
+        method = data["method"]
+        if method == "temperature":
+            return cls("temperature", temperature=float(data["temperature"]))
+        if method == "platt":
+            return cls("platt", a=float(data["a"]), b=float(data["b"]))
+        if method == "isotonic":
+            return cls("isotonic", x=tuple(data["x"]), y=tuple(data["y"]))
+        if method == "identity":
+            return cls("identity")
+        raise ValueError(f"unknown calibration method {method!r}")
 
 
 def _check_binary(p: npt.ArrayLike, y: npt.ArrayLike) -> tuple[Array, Array]:
@@ -109,56 +130,58 @@ def _fit_beta(logits: Array, labels: npt.NDArray[np.intp]) -> float:
 
 def fit_temperature(p: npt.ArrayLike, y: npt.ArrayLike) -> Calibrator:
     p_arr, y_arr = _check_binary(p, y)
-    logits = np.log(np.column_stack([1 - p_arr, p_arr]) + _EPS)
-    return Calibrator("temperature", beta=_fit_beta(logits, y_arr.astype(np.intp)))
-
-
-def fit_platt(p: npt.ArrayLike, y: npt.ArrayLike) -> Calibrator:
-    """Platt's method: logistic regression on logit p against the smoothed targets
-    (N+ + 1)/(N+ + 2) and 1/(N- + 2), minimised with L-BFGS on a loss written with
-    logaddexp, which never overflows (Lin 2007)."""
-    p_arr, y_arr = _check_binary(p, y)
-    f = _logit(p_arr)
-    scale = max(1.0, float(np.max(np.abs(f))) / 30.0)  # rescaled as scikit-learn does
-    f = f / scale
-    positives = float(y_arr.sum())
-    negatives = y_arr.size - positives
-    t = np.where(y_arr > 0, (positives + 1) / (positives + 2), 1 / (negatives + 2))
-
-    def loss(ab: Array) -> tuple[float, Array]:
-        z = ab[0] * f + ab[1]
-        value = float(np.sum(t * np.logaddexp(0.0, -z) + (1 - t) * np.logaddexp(0.0, z)))
-        residual = _sigmoid(z) - t
-        return value, np.array([np.dot(residual, f), residual.sum()])
-
-    start = np.array([1.0, float(np.log((positives + 1) / (negatives + 1)))])
-    found = optimize.minimize(loss, start, jac=True, method="L-BFGS-B")
-    a, b = float(found.x[0]) / scale, float(found.x[1])
-    if a <= 0:
-        raise ValueError("Platt's slope isn't positive: the scores don't rank the outcomes")
-    return Calibrator("platt", a=a, b=b)
-
-
-def fit_isotonic(p: npt.ArrayLike, y: npt.ArrayLike) -> Calibrator:
-    """Pool-adjacent-violators on the distinct p, weighted by how often each occurs;
-    only the knots that bound a flat run are kept."""
-    p_arr, y_arr = _check_binary(p, y)
-    xs, inverse, counts = np.unique(p_arr, return_inverse=True, return_counts=True)
-    means = np.bincount(inverse, weights=y_arr) / counts
-    ys = optimize.isotonic_regression(means, weights=counts.astype(np.float64)).x
-    keep = np.ones(xs.size, dtype=bool)
-    if xs.size > 2:
-        flat = (ys[1:-1] == ys[:-2]) & (ys[1:-1] == ys[2:])
-        keep[1:-1] = ~flat
-    return Calibrator("isotonic", xs=tuple(xs[keep].tolist()), ys=tuple(ys[keep].tolist()))
+    two_class = np.column_stack([np.zeros_like(p_arr), logit(p_arr)])  # softmax = sigmoid(β·logit)
+    return Calibrator("temperature", temperature=1 / _fit_beta(two_class, y_arr.astype(np.intp)))
 
 
 def fit_temperature_multiclass(probs: npt.ArrayLike, labels: npt.ArrayLike) -> Calibrator:
     probs_arr, labels_arr = np.asarray(probs, dtype=np.float64), np.asarray(labels)
     multiclass_log_loss(probs_arr, labels_arr)  # checks the shapes and the values
-    return Calibrator(
-        "temperature", beta=_fit_beta(np.log(probs_arr + _EPS), labels_arr.astype(np.intp))
-    )
+    beta = _fit_beta(np.log(clamp(probs_arr)), labels_arr.astype(np.intp))
+    return Calibrator("temperature", temperature=1 / beta)
+
+
+def fit_platt(p: npt.ArrayLike, y: npt.ArrayLike) -> Calibrator:
+    """Platt's method: P = 1 / (1 + exp(a·F + b)) on F = logit p, fitted to the smoothed
+    targets (N+ + 1)/(N+ + 2) and 1/(N- + 2) with L-BFGS, the loss written with
+    logaddexp so it never overflows (Lin 2007)."""
+    p_arr, y_arr = _check_binary(p, y)
+    f = logit(p_arr)
+    positives = float(y_arr.sum())
+    negatives = y_arr.size - positives
+    t = np.where(y_arr > 0, (positives + 1) / (positives + 2), 1 / (negatives + 2))
+
+    def loss(ab: Array) -> tuple[float, Array]:
+        z = -(ab[0] * f + ab[1])  # the log-odds of the event
+        value = float(np.sum(t * np.logaddexp(0.0, -z) + (1 - t) * np.logaddexp(0.0, z)))
+        residual = _sigmoid(z) - t
+        return value, np.array([-np.dot(residual, f), -residual.sum()])
+
+    start = np.array([0.0, float(np.log((negatives + 1) / (positives + 1)))])
+    found = optimize.minimize(loss, start, jac=True, method="L-BFGS-B")
+    a, b = float(found.x[0]), float(found.x[1])
+    if a >= 0:
+        raise ValueError("Platt's slope keeps no order: the scores don't rank the outcomes")
+    return Calibrator("platt", a=a, b=b)
+
+
+def fit_isotonic(p: npt.ArrayLike, y: npt.ArrayLike) -> Calibrator:
+    """Pool-adjacent-violators on the distinct clamped p, weighted by how often each
+    occurs. Only knots that bound a flat run are kept, at most MAX_KNOTS."""
+    p_arr, y_arr = _check_binary(p, y)
+    xs, inverse, counts = np.unique(clamp(p_arr), return_inverse=True, return_counts=True)
+    means = np.bincount(inverse, weights=y_arr) / counts
+    ys = optimize.isotonic_regression(means, weights=counts.astype(np.float64)).x
+    keep = np.ones(xs.size, dtype=bool)
+    if xs.size > 2:
+        keep[1:-1] = ~((ys[1:-1] == ys[:-2]) & (ys[1:-1] == ys[2:]))
+    xs, ys = xs[keep], ys[keep]
+    if xs.size > MAX_KNOTS:  # the schema's limit; an evenly spaced subset stays monotone
+        pick = np.unique(np.linspace(0, xs.size - 1, MAX_KNOTS).round().astype(np.intp))
+        xs, ys = xs[pick], ys[pick]
+    if xs.size == 1:
+        xs, ys = np.repeat(xs, 2), np.repeat(ys, 2)
+    return Calibrator("isotonic", x=tuple(xs.tolist()), y=tuple(ys.tolist()))
 
 
 _BINARY_FITS: dict[Method, Callable[[Array, Array], Calibrator]] = {
@@ -206,15 +229,14 @@ def choose(
         try:
             for test in parts:
                 train = np.setdiff1d(np.arange(p_arr.size), test, assume_unique=True)
-                predicted[test] = _BINARY_FITS[method](p_arr[train], y_arr[train]).apply(
-                    p_arr[test]
-                )
+                fitted = _BINARY_FITS[method](p_arr[train], y_arr[train])
+                predicted[test] = fitted.apply(p_arr[test])
         except ValueError as e:
             refused[method] = str(e)
             continue
         scores[method] = log_loss(predicted, y_arr)
-    best = min(scores, key=lambda m: scores[m])  # the first of the lowest: the simplest
-    return Choice(_BINARY_FITS[best](p_arr, y_arr), scores, refused)  # type: ignore[index]
+    best = cast(Method, min(scores, key=scores.__getitem__))  # the first lowest: simplest
+    return Choice(_BINARY_FITS[best](p_arr, y_arr), scores, refused)
 
 
 def choose_multiclass(
@@ -225,15 +247,14 @@ def choose_multiclass(
     multiclass_log_loss(probs_arr, labels_arr)
     if folds < 2 or labels_arr.size < 2 * folds:
         raise ValueError(f"choosing a map needs at least {2 * folds} labels")
-    parts = _folds(labels_arr.size, folds, seed)
     predicted = np.empty_like(probs_arr)
-    for test in parts:
+    for test in _folds(labels_arr.size, folds, seed):
         train = np.setdiff1d(np.arange(labels_arr.size), test, assume_unique=True)
-        predicted[test] = fit_temperature_multiclass(probs_arr[train], labels_arr[train]).apply(
-            probs_arr[test]
-        )
+        fitted = fit_temperature_multiclass(probs_arr[train], labels_arr[train])
+        predicted[test] = fitted.apply(probs_arr[test])
+    identity = Calibrator("identity").apply(probs_arr)
     scores = {
-        "identity": multiclass_log_loss(probs_arr, labels_arr),
+        "identity": multiclass_log_loss(identity / identity.sum(axis=1, keepdims=True), labels_arr),
         "temperature": multiclass_log_loss(predicted, labels_arr),
     }
     if scores["temperature"] < scores["identity"]:

@@ -23,10 +23,11 @@ def _overconfident(seed: int, n: int, power: float = 3.0) -> tuple[np.ndarray, n
 def test_binary_temperature_matches_scikit_learn(seed: int) -> None:
     p, y = _overconfident(seed, 3000)
     ours = calibration.fit_temperature(p, y)
-    theirs = _TemperatureScaling().fit(np.column_stack([1 - p, p]), y)
-    assert ours.beta == pytest.approx(float(theirs.beta_), rel=1e-6)
-    expected = theirs.predict(np.column_stack([1 - p, p]))[:, 1]
-    assert ours.apply(p) == pytest.approx(expected, abs=1e-5)  # beta agrees to 1e-6
+    # scikit-learn turns a 1-D decision value x into the logits (-x, x): x = logit / 2.
+    theirs = _TemperatureScaling().fit(calibration.logit(p) / 2, y)
+    assert 1 / ours.temperature == pytest.approx(float(theirs.beta_), rel=1e-6)
+    expected = 1 / (1 + np.exp(-float(theirs.beta_) * calibration.logit(p)))
+    assert ours.apply(p) == pytest.approx(expected, abs=1e-5)
 
 
 @pytest.mark.golden
@@ -37,10 +38,11 @@ def test_multiclass_temperature_matches_scikit_learn() -> None:
     labels = np.array([rng.choice(4, p=row) for row in truth])
     sharp = truth**2.5 / (truth**2.5).sum(axis=1, keepdims=True)  # overconfident
     ours = calibration.fit_temperature_multiclass(sharp, labels)
-    theirs = _TemperatureScaling().fit(sharp, labels)
-    assert ours.beta == pytest.approx(float(theirs.beta_), rel=1e-6)
-    assert ours.apply(sharp) == pytest.approx(theirs.predict(sharp), abs=1e-6)
-    assert ours.beta < 1  # an overconfident model gets a temperature above 1
+    logits = np.log(calibration.clamp(sharp))  # negative, so read as logits, not probabilities
+    theirs = _TemperatureScaling().fit(logits, labels)
+    assert 1 / ours.temperature == pytest.approx(float(theirs.beta_), rel=1e-6)
+    assert ours.apply(sharp) == pytest.approx(theirs.predict(logits), abs=1e-5)
+    assert ours.temperature > 1  # an overconfident model gets a temperature above 1
 
 
 @pytest.mark.golden
@@ -49,9 +51,9 @@ def test_multiclass_temperature_matches_scikit_learn() -> None:
 def test_platt_matches_scikit_learn(seed: int) -> None:
     p, y = _overconfident(seed, 2000, power=0.5)  # underconfident this time
     ours = calibration.fit_platt(p, y)
-    logit = np.log(p + np.finfo(float).eps) - np.log1p(-p + np.finfo(float).eps)
-    theirs = _SigmoidCalibration().fit(logit, y)
-    assert ours.apply(p) == pytest.approx(theirs.predict(logit), abs=1e-6)
+    theirs = _SigmoidCalibration().fit(calibration.logit(p), y)
+    assert (ours.a, ours.b) == pytest.approx((theirs.a_, theirs.b_), rel=1e-4, abs=1e-6)
+    assert ours.apply(p) == pytest.approx(theirs.predict(calibration.logit(p)), abs=1e-6)
 
 
 @pytest.mark.golden
@@ -62,10 +64,47 @@ def test_isotonic_matches_scikit_learn_including_ties(seed: int) -> None:
     p = np.round(rng.random(2000), 2)  # many ties
     y = (rng.random(2000) < p**2).astype(float)
     ours = calibration.fit_isotonic(p, y)
-    theirs = IsotonicRegression(out_of_bounds="clip").fit(p, y)
-    grid = np.linspace(-0.1, 1.1, 1001).clip(0, 1)
-    assert ours.apply(grid) == pytest.approx(theirs.predict(grid), abs=1e-12)
-    assert len(ours.xs) < len(np.unique(p))  # only the knots that matter are kept
+    theirs = IsotonicRegression(out_of_bounds="clip").fit(calibration.clamp(p), y)
+    grid = np.linspace(0, 1, 1001)
+    assert ours.apply(grid) == pytest.approx(theirs.predict(calibration.clamp(grid)), abs=1e-12)
+    assert len(ours.x) < len(np.unique(p))  # only the knots that matter are kept
+
+
+def test_the_sdks_worked_example() -> None:
+    """docs/03-api/sdk.md §3: Platt with a = -0.71, b = 0.42 maps p = 0.83 to 0.6695."""
+    assert Calibrator("platt", a=-0.71, b=0.42).apply([0.83])[0] == pytest.approx(0.6695, abs=5e-5)
+
+
+def test_maps_round_trip_through_the_policys_json() -> None:
+    p, y = _overconfident(9, 3000)
+    for fitted in (
+        Calibrator("identity"),
+        calibration.fit_temperature(p, y),
+        calibration.fit_platt(p, y),
+        calibration.fit_isotonic(p, y),
+    ):
+        again = Calibrator.from_json(fitted.to_json())
+        assert again == fitted
+        assert np.array_equal(again.apply(p), fitted.apply(p))
+    with pytest.raises(ValueError):
+        Calibrator.from_json({"method": "magic"})
+
+
+def test_isotonic_keeps_at_most_a_thousand_knots_and_at_least_two(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rng = np.random.default_rng(10)
+    p = rng.random(50_000)
+    y = (rng.random(p.size) < p).astype(float)
+    many = calibration.fit_isotonic(p, y)
+    assert 2 <= len(many.x) <= calibration.MAX_KNOTS
+    assert np.all(np.diff(many.apply(np.linspace(0, 1, 2001))) >= 0)
+    monkeypatch.setattr(calibration, "MAX_KNOTS", 5)  # real fits rarely reach 1,000
+    capped = calibration.fit_isotonic(p, y)
+    assert len(capped.x) == 5 and capped.x[0] == many.x[0] and capped.x[-1] == many.x[-1]
+    assert np.all(np.diff(capped.y) >= 0)
+    one = calibration.fit_isotonic([0.3, 0.3], [0, 1])
+    assert one.x == (0.3, 0.3) and one.apply([0.1, 0.9]).tolist() == [0.5, 0.5]
 
 
 @pytest.mark.golden
@@ -123,7 +162,7 @@ def test_the_same_data_and_seed_give_the_same_choice() -> None:
 
 def test_a_reversed_score_is_refused_by_platt_and_skipped_by_choose() -> None:
     p, y = _overconfident(6, 2000)
-    with pytest.raises(ValueError, match="slope"):
+    with pytest.raises(ValueError, match="keeps no order"):
         calibration.fit_platt(1 - p, y)
     choice = calibration.choose(1 - p, y, seed=1)
     assert "platt" in choice.refused and "platt" not in choice.scores
@@ -153,6 +192,10 @@ def test_maps_for_one_event_dont_take_distributions() -> None:
     with pytest.raises(ValueError):
         Calibrator("platt").apply([[0.5, 0.5]])
     assert Calibrator("identity").apply([[0.2, 0.8]]).tolist() == [[0.2, 0.8]]
+    assert Calibrator("identity").apply([0.0, 1.0]).tolist() == [
+        1e-6,
+        1 - 1e-6,
+    ]  # clamped, as the SDK does
 
 
 @pytest.mark.parametrize(("p", "y"), [([], []), ([0.5], [1, 0]), ([1.5], [1]), ([0.5], [3])])
