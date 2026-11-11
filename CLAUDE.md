@@ -248,8 +248,9 @@ Built early, on 2026-11-11, from the site v2 design (T7.5's pages, TA.3's deploy
   - Dependencies: `npm install --before=<the exclude-newer date> --save-exact`.
 - `.github/workflows/ci.yml`: lint, types, tests per package with coverage gates, SDK on
   Python 3.11, contract checks, an image and compose smoke test, and the dashboard's
-  tests, types and build. Each job runs only when a file it checks changed (job "what
-  changed"); a docs-only change runs none, so `[skip ci]` is no longer needed.
+  tests, types and build. Job "what changed" sorts the changed files and each job runs
+  only if it reads one of them; prose and `site/` run none, `ci.yml`, the Dockerfile,
+  compose or an unknown file run all.
 - `Dockerfile`: one image for the proxy, the server and the worker.
   - Base images and uv are pinned by digest.
   - It runs as uid 10001.

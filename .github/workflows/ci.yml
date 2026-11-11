@@ -19,57 +19,54 @@ env:
   UV_EXCLUDE_NEWER: "2026-11-03T00:00:00Z"
 
 jobs:
-  # Each job runs only when a file it checks changed; a change to this file runs them all.
-  # Skipped jobs count as passed for the required checks on main.
+  # Which checks a change can affect, so a PR runs only those. The others are skipped,
+  # which branch protection counts as passing. Prose and the site affect none; a file
+  # this doesn't recognise, the workflow, the Dockerfile or compose run everything, and so
+  # does any failure here (the jobs below run unless this succeeded and said no).
   changes:
     name: what changed
     runs-on: ubuntu-24.04
     outputs:
-      lint: ${{ steps.f.outputs.lint }}
-      python: ${{ steps.f.outputs.python }}
-      sdk: ${{ steps.f.outputs.sdk }}
-      proxy: ${{ steps.f.outputs.proxy }}
-      image: ${{ steps.f.outputs.image }}
-      contracts: ${{ steps.f.outputs.contracts }}
-      dashboard: ${{ steps.f.outputs.dashboard }}
+      code: ${{ steps.sort.outputs.code }}
+      rust: ${{ steps.sort.outputs.rust }}
+      api: ${{ steps.sort.outputs.api }}
+      dashboard: ${{ steps.sort.outputs.dashboard }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - id: f
+      - id: sort
         env:
-          EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
-          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if [ "$EVENT" = pull_request ]; then
-            files=$(git diff --name-only "$BASE"...HEAD)
-          elif [ "$EVENT" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            files=$(git diff --name-only "$BEFORE" HEAD)
+          set -euo pipefail
+          code=false rust=false api=false dashboard=false
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || ! git cat-file -e "${BASE:-none}^{commit}"; then
+            code=true rust=true api=true dashboard=true
           else
-            files=ALL # a manual run, or a push with no earlier commit to compare
+            git diff --name-only "$BASE" HEAD > changed.txt
+            while read -r f; do
+              case "$f" in
+                *.md | site/* | wrangler.jsonc | LICENSE | NOTICE | .gitignore) ;;
+                docs/03-api/*) api=true code=true dashboard=true ;; # their tests read them
+                dashboard/demo/record.py) code=true dashboard=true ;; # the image job runs it
+                dashboard/*) dashboard=true ;;
+                docs/*) ;;
+                proxy/*) rust=true ;;
+                .github/workflows/ci.yml | Dockerfile | compose*.yaml) code=true rust=true api=true dashboard=true ;;
+                .github/workflows/*) ;; # nightly and load run on their own triggers
+                *) code=true ;;
+              esac
+            done < changed.txt
+            sed 's/^/  /' changed.txt
           fi
-          printf '%s\n' "$files"
-          on() {
-            if [ "$files" = ALL ] || grep -qE "$2|^\.github/workflows/ci\.yml$" <<< "$files"; then
-              echo "$1=true"
-            else
-              echo "$1=false"
-            fi >> "$GITHUB_OUTPUT"
-          }
-          py='^(sdk|stats|server|tools|research)/|^pyproject\.toml$|^uv\.lock$'
-          on lint '\.pyi?$|^pyproject\.toml$|^uv\.lock$'
-          on python "$py|^docs/03-api/"
-          on sdk '^sdk/|^pyproject\.toml$|^uv\.lock$|^docs/03-api/'
-          on proxy '^proxy/'
-          on image "$py|^proxy/|^examples/|^Dockerfile$|^compose[^/]*\.yaml$|^\.dockerignore$|^dashboard/demo/record\.py$"
-          on contracts '^docs/03-api/'
-          on dashboard '^dashboard/|^docs/03-api/openapi\.yaml$'
+          printf 'code=%s\nrust=%s\napi=%s\ndashboard=%s\n' "$code" "$rust" "$api" "$dashboard" \
+            | tee -a "$GITHUB_OUTPUT"
 
   lint:
     name: lint and types
     needs: changes
-    if: needs.changes.outputs.lint == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,6 +79,9 @@ jobs:
   test:
     name: test ${{ matrix.package }}
     needs: changes
+    # Skipped at the job level, a matrix job would report one check under an unexpanded
+    # name, and "test server" would never arrive. So the job runs and its steps skip.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -103,15 +103,15 @@ jobs:
           --health-interval 2s --health-timeout 3s --health-retries 30
     env:
       TRIMSET_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      RUN: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
     steps:
-      # Skipped steps keep the per-package checks reporting when nothing they test changed.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: needs.changes.outputs.python == 'true'
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        if: needs.changes.outputs.python == 'true'
-      - run: uv sync --locked
-        if: needs.changes.outputs.python == 'true'
-      - if: needs.changes.outputs.python == 'true'
+      - if: env.RUN == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: env.RUN == 'true'
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - if: env.RUN == 'true'
+        run: uv sync --locked
+      - if: env.RUN == 'true'
         run: >-
           uv run --frozen pytest ${{ matrix.package }}/tests
           --cov=${{ matrix.module }} --cov-report=term-missing
@@ -120,7 +120,7 @@ jobs:
   proxy:
     name: proxy (Rust)
     needs: changes
-    if: needs.changes.outputs.proxy == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -135,7 +135,7 @@ jobs:
   sdk-oldest-python:
     name: SDK on Python 3.11
     needs: changes
-    if: needs.changes.outputs.sdk == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -145,7 +145,7 @@ jobs:
   image:
     name: image and compose smoke test
     needs: changes
-    if: needs.changes.outputs.image == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-24.04
     env:
       TRIMSET_DB_PASSWORD: ciOnlyNotASecret
@@ -217,7 +217,7 @@ jobs:
   contracts:
     name: API contracts and test vectors
     needs: changes
-    if: needs.changes.outputs.contracts == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.api == 'true') }}
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -236,7 +236,7 @@ jobs:
   dashboard:
     name: dashboard (types, tests, build)
     needs: changes
-    if: needs.changes.outputs.dashboard == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.dashboard == 'true') }}
     runs-on: ubuntu-24.04
     defaults:
       run:
