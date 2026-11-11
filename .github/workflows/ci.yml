@@ -19,8 +19,50 @@ env:
   UV_EXCLUDE_NEWER: "2026-11-03T00:00:00Z"
 
 jobs:
+  # Which checks a change can affect, so a PR runs only those. The others are skipped,
+  # which branch protection counts as passing. Prose and the site affect none; a file
+  # this doesn't recognise, the workflow, the Dockerfile or compose run everything, and so
+  # does any failure here (the jobs below run unless this succeeded and said no).
+  changes:
+    name: what changed
+    runs-on: ubuntu-24.04
+    outputs:
+      code: ${{ steps.sort.outputs.code }}
+      rust: ${{ steps.sort.outputs.rust }}
+      api: ${{ steps.sort.outputs.api }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: sort
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          code=false rust=false api=false
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || ! git cat-file -e "${BASE:-none}^{commit}"; then
+            code=true rust=true api=true
+          else
+            git diff --name-only "$BASE" HEAD > changed.txt
+            while read -r f; do
+              case "$f" in
+                *.md | site/* | wrangler.jsonc | LICENSE | NOTICE | .gitignore) ;;
+                docs/03-api/*) api=true code=true ;; # the server's and SDK's tests read them
+                docs/*) ;;
+                proxy/*) rust=true ;;
+                .github/workflows/ci.yml | Dockerfile | compose*.yaml) code=true rust=true api=true ;;
+                .github/workflows/*) ;; # nightly and load run on their own triggers
+                *) code=true ;;
+              esac
+            done < changed.txt
+            sed 's/^/  /' changed.txt
+          fi
+          printf 'code=%s\nrust=%s\napi=%s\n' "$code" "$rust" "$api" | tee -a "$GITHUB_OUTPUT"
+
   lint:
     name: lint and types
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,6 +74,10 @@ jobs:
 
   test:
     name: test ${{ matrix.package }}
+    needs: changes
+    # Skipped at the job level, a matrix job would report one check under an unexpanded
+    # name, and "test server" would never arrive. So the job runs and its steps skip.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -53,17 +99,24 @@ jobs:
           --health-interval 2s --health-timeout 3s --health-retries 30
     env:
       TRIMSET_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      RUN: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-      - run: uv sync --locked
-      - run: >-
+      - if: env.RUN == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: env.RUN == 'true'
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - if: env.RUN == 'true'
+        run: uv sync --locked
+      - if: env.RUN == 'true'
+        run: >-
           uv run --frozen pytest ${{ matrix.package }}/tests
           --cov=${{ matrix.module }} --cov-report=term-missing
           --cov-fail-under=${{ matrix.coverage }}
 
   proxy:
     name: proxy (Rust)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -77,6 +130,8 @@ jobs:
 
   sdk-oldest-python:
     name: SDK on Python 3.11
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -85,6 +140,8 @@ jobs:
 
   image:
     name: image and compose smoke test
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-24.04
     env:
       TRIMSET_DB_PASSWORD: ciOnlyNotASecret
@@ -142,6 +199,8 @@ jobs:
 
   contracts:
     name: API contracts and test vectors
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.api == 'true') }}
     runs-on: ubuntu-24.04
     defaults:
       run:

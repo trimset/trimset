@@ -10,6 +10,11 @@ the coverage gate exist from the first line of product code.
 - **CI is the source of truth.** [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
   runs on every push and pull request.
   - A change is done when its run is green, never before.
+  - Changes reach `main` through pull requests, which need all nine checks. Its first job
+    sorts the changed files, and each check skips when nothing it reads changed: a
+    change to the site or to prose runs none, the proxy runs only the Rust job, and the
+    workflow, the Dockerfile, compose or an unrecognised file run everything. A skipped
+    check counts as passed; if the sorting itself fails, every check runs.
 - **Locally:** lint, types, and one test file at a time, for example
   `uv run --frozen pytest stats/tests/test_metrics.py`. The maintainer's machine is short
   on memory.
