@@ -31,6 +31,23 @@ Ingest = Annotated[Principal, Depends(require("ingest"))]
 MAX_BODY = 1024 * 1024
 MAX_OUTCOMES = 1000
 HOLD_FOR = timedelta(days=30)  # FR-11
+MAX_HELD = 100_000  # per project, so one project can't fill the table for the rest
+
+# Held rows whose decision may have arrived, least recently tried first. By decision_id
+# the check is exact; by external_ref the question can still differ, so a row tried and
+# still held goes to the back of the line.
+# ponytail: probes every held row until `batch` are found, at most MAX_HELD per project;
+# drive the join from newly received decisions if that gets slow.
+_DUE = """
+SELECT * FROM unmatched_outcomes u
+WHERE u.expires_at > now()
+  AND (EXISTS (SELECT 1 FROM decisions d
+               WHERE d.project_id = u.project_id AND d.decision_id = u.decision_id)
+       OR EXISTS (SELECT 1 FROM decisions d
+                  WHERE d.project_id = u.project_id AND d.external_ref = u.external_ref))
+ORDER BY u.tried_at NULLS FIRST, u.id
+LIMIT $1 FOR UPDATE OF u SKIP LOCKED
+"""
 
 
 @dataclass(frozen=True)
@@ -233,6 +250,19 @@ async def post_outcomes(request: Request, principal: Ingest) -> JSONResponse:
         results |= await process(conn, principal.project_id, claims)
         held = [c for c in claims if results[c.index].status == "held"]
         if held:
+            waiting = await conn.fetchval(
+                "SELECT count(*) FROM (SELECT 1 FROM unmatched_outcomes WHERE project_id = $1 "
+                "LIMIT $2) s",
+                principal.project_id,
+                MAX_HELD,
+            )
+            room = max(0, MAX_HELD - waiting)
+            for c in held[room:]:
+                results[c.index] = Result(
+                    "rejected", [], f"{MAX_HELD} outcomes are already waiting for their decisions"
+                )
+            held = held[:room]
+        if held:
             await conn.executemany(
                 "INSERT INTO unmatched_outcomes (project_id, outcome_id, decision_id, "
                 "external_ref, question, label, source, observed_at, received_at, key_id, "
@@ -270,19 +300,17 @@ async def post_outcomes(request: Request, principal: Ingest) -> JSONResponse:
     return JSONResponse(out, status_code=207 if counts["rejected"] else 200)
 
 
-async def join_held(conn: Any) -> tuple[int, int]:
+async def join_held(conn: Any, batch: int = 1000) -> tuple[int, int]:
     """Join held outcomes whose decisions have arrived; drop expired ones. Returns
     (joined, expired). Runs in the worker every minute."""
     joined = 0
     async with conn.transaction():
-        rows = await conn.fetch(
-            "SELECT * FROM unmatched_outcomes WHERE expires_at > now() ORDER BY id LIMIT 1000 "
-            "FOR UPDATE SKIP LOCKED"
-        )
+        rows = await conn.fetch(_DUE, batch)
         by_project: dict[uuid.UUID, list[Any]] = {}
         for r in rows:
             by_project.setdefault(r["project_id"], []).append(r)
         done: list[int] = []
+        tried: list[int] = []
         for project_id, held in by_project.items():
             claims = [
                 Claim(
@@ -300,10 +328,15 @@ async def join_held(conn: Any) -> tuple[int, int]:
                 for r in held
             ]
             results = await process(conn, project_id, claims, check_duplicates=False)
-            done += [i for i, res in results.items() if res.status != "held"]
+            for i, res in results.items():
+                (tried if res.status == "held" else done).append(i)
             joined += sum(res.status == "matched" for res in results.values())
         if done:
             await conn.execute("DELETE FROM unmatched_outcomes WHERE id = ANY($1::bigint[])", done)
+        if tried:
+            await conn.execute(
+                "UPDATE unmatched_outcomes SET tried_at = now() WHERE id = ANY($1::bigint[])", tried
+            )
         expired = await conn.fetch(
             "DELETE FROM unmatched_outcomes WHERE expires_at <= now() RETURNING id"
         )

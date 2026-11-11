@@ -23,6 +23,7 @@ router = APIRouter()
 Ingest = Annotated[Principal, Depends(require("ingest"))]
 MAX_ACTIONS = 1000
 HOLD_FOR = timedelta(hours=1)
+MAX_HELD = 10_000  # per project, so one project can't fill the table for the rest
 
 _APPLY = """
 UPDATE decisions d SET action_taken = w.a, action_source = w.s, action_reason = w.r,
@@ -62,10 +63,12 @@ async def report_actions(request: Request, principal: Ingest) -> JSONResponse:
         raise Problem(413, "too-large", f"At most {MAX_ACTIONS} reports per request")
 
     reports: list[ActionIn] = []
+    index: dict[int, int] = {}  # position in `reports` -> position in the request
     errors = []
     for i, raw in enumerate(items):
         try:
             reports.append(ActionIn.model_validate(raw))
+            index[len(reports) - 1] = i
         except ValidationError as e:
             first = e.errors()[0]
             pointer = f"/actions/{i}/" + "/".join(str(p) for p in first.get("loc", ()))
@@ -74,36 +77,60 @@ async def report_actions(request: Request, principal: Ingest) -> JSONResponse:
     now = datetime.now(UTC)
     async with request.app.state.pool.acquire() as conn, conn.transaction():
         updated = await apply(conn, principal.project_id, reports) if reports else set()
-        waiting = {r.decision_id: r for r in reports if r.decision_id not in updated}
+        waiting = {
+            r.decision_id: (n, r) for n, r in enumerate(reports) if r.decision_id not in updated
+        }
+        unplaced = len(waiting)
+        if waiting:
+            held = await conn.fetchval(
+                "SELECT count(*) FROM (SELECT 1 FROM pending_actions WHERE project_id = $1 "
+                "LIMIT $2) s",
+                principal.project_id,
+                MAX_HELD,
+            )
+            room = max(0, MAX_HELD - held)
+            for d in list(waiting)[room:]:
+                n, _ = waiting.pop(d)
+                errors.append(
+                    {
+                        "index": index[n],
+                        "pointer": f"/actions/{index[n]}/decision_id",
+                        "message": f"{MAX_HELD} reports are already waiting for their decisions",
+                    }
+                )
         if waiting:
             await conn.executemany(
                 "INSERT INTO pending_actions (project_id, decision_id, report, received_at, "
                 "expires_at) VALUES ($1, $2, $3::jsonb, $4, $5)",
                 [
                     (principal.project_id, d, r.model_dump_json(), now, now + HOLD_FOR)
-                    for d, r in waiting.items()
+                    for d, (_, r) in waiting.items()
                 ],
             )
 
     result: dict[str, Any] = {
         "stored": len(updated),
-        "duplicates": len(reports) - len(updated) - len(waiting),
+        "duplicates": len(reports) - len(updated) - unplaced,
         "rejected": len(errors),
         "held": len(waiting),
     }
     if errors:
-        result["errors"] = errors
+        result["errors"] = sorted(errors, key=lambda e: e["index"])
     return JSONResponse(result, status_code=207 if errors else 200)
 
 
-async def apply_held(conn: Any) -> tuple[int, int]:
+async def apply_held(conn: Any, batch: int = 1000) -> tuple[int, int]:
     """Apply held reports whose decisions have arrived; drop expired ones. Returns
-    (applied, expired). Runs in the worker every minute."""
+    (applied, expired). Runs in the worker every minute. Only rows whose decision exists
+    are read, so reports that never match can't keep the others waiting."""
     applied = 0
     async with conn.transaction():
         rows = await conn.fetch(
-            "SELECT id, project_id, report FROM pending_actions WHERE expires_at > now() "
-            "ORDER BY id LIMIT 1000 FOR UPDATE SKIP LOCKED"
+            "SELECT p.id, p.project_id, p.report FROM pending_actions p "
+            "WHERE p.expires_at > now() AND EXISTS (SELECT 1 FROM decisions d "
+            "WHERE d.project_id = p.project_id AND d.decision_id = p.decision_id) "
+            "ORDER BY p.id LIMIT $1 FOR UPDATE OF p SKIP LOCKED",
+            batch,
         )
         by_project: dict[uuid.UUID, list[tuple[int, ActionIn]]] = {}
         for r in rows:

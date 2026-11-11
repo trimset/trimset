@@ -390,3 +390,63 @@ async def test_the_worker_joins_held_outcomes(dsn: str) -> None:
     finally:
         stop.set()
         await asyncio.wait_for(task, timeout=5)
+
+
+@pytest.mark.req("FR-11")
+async def test_held_outcomes_that_never_match_cant_keep_the_rest_waiting(dsn: str) -> None:
+    ingest, _ = await _setup(dsn)
+    with TestClient(create_app(Settings(database_url=dsn))) as c:
+        _log(c, ingest, ref="rf-1")
+        _send(
+            c,
+            ingest,
+            _outcome(True, external_ref="rf-never", question="refund_fraud"),  # no decision
+            _outcome(True, external_ref="rf-1", question="nope"),  # a decision, not this question
+            _outcome(True, external_ref="rf-1", question="nope2"),
+            _outcome(True, external_ref="rf-2", question="refund_fraud"),
+        )
+        ids = _log(c, ingest, ref="rf-2")
+    join = outcomes.join_held
+    assert await _call(dsn, lambda conn: join(conn, batch=2)) == (0, 0)  # tries the two nopes
+    assert await _call(dsn, lambda conn: join(conn, batch=2)) == (1, 0)  # then the rest
+    assert ids["refund_fraud"] in await _current(dsn)
+    assert len(await _rows(dsn, "SELECT id FROM unmatched_outcomes")) == 3
+
+
+@pytest.mark.req("FR-33")
+async def test_held_action_reports_that_never_match_cant_keep_the_rest_waiting(dsn: str) -> None:
+    ingest, _ = await _setup(dsn)
+    later = uuid7()
+    reports = [
+        {"decision_id": d, "action_taken": "ACCEPT", "action_source": "default"}
+        for d in (uuid7(), uuid7(), later)
+    ]
+    with TestClient(create_app(Settings(database_url=dsn))) as c:
+        r = c.post("/v1/decisions:actions", json={"actions": reports}, headers=_auth(ingest))
+        assert r.json()["held"] == 3
+        _log(c, ingest, ids=[later, uuid7()])
+    assert await _call(dsn, lambda conn: actions.apply_held(conn, batch=1)) == (1, 0)
+
+
+async def test_a_project_can_hold_only_so_many(dsn: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    ingest, _ = await _setup(dsn)
+    monkeypatch.setattr(outcomes, "MAX_HELD", 2)
+    monkeypatch.setattr(actions, "MAX_HELD", 1)
+    report = {"action_taken": "ACCEPT", "action_source": "default"}
+    with TestClient(create_app(Settings(database_url=dsn))) as c:
+        r = _send(c, ingest, *(_outcome(True, decision_id=uuid7()) for _ in range(3)))
+        assert r.status_code == 207
+        assert [x["status"] for x in r.json()["results"]] == ["held", "held", "rejected"]
+        assert (
+            r.json()["results"][2]["message"]
+            == "2 outcomes are already waiting for their decisions"
+        )
+
+        r = c.post(
+            "/v1/decisions:actions",
+            json={"actions": [report | {"decision_id": uuid7()} for _ in range(2)]},
+            headers=_auth(ingest),
+        )
+        assert r.status_code == 207
+        assert (r.json()["held"], r.json()["rejected"]) == (1, 1)
+        assert r.json()["errors"][0]["index"] == 1
