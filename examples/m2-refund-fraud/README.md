@@ -35,7 +35,8 @@ It writes a `.env` with a random database password and secret if you don't have 
 
 - Coverage: labels on ACCEPT and ESCALATE, and a warning that BLOCK has almost none.
 - Calibration: Platt scaling, with ECE falling from about 0.07 to about 0.01.
-- Simulate: "accept below 0.30" looks reasonable, but lets about 2.2% fraud through.
+- Simulate: "accept below 0.30" looks reasonable, but lets about 2% fraud through: the
+  whole budget, with no room for chance.
 - A draft policy that accepts below about 0.18 instead, with the guarantee in words and
   the number of refunds it rests on. Only about 5% of refunds go to the risk team, well
   under the 15% cap, so the policy needs no BLOCK rule.

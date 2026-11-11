@@ -97,6 +97,19 @@ async def test_fit_then_compile_then_simulate(dsn: str, check: Any, conforms: An
         sim = c.post("/v1/admin/questions/team/simulate", json=model, headers=auth)
         check(sim, "POST", "/v1/admin/questions/{question}/simulate")
         assert sim.json()["fit_id"] == fit_id and len(sim.json()["rows"]) > 1
+        # Exploration runs on the tune split; its bins describe the same items as its rows.
+        tune_n = fit.json()["provenance"]["n"]["tune"]
+        assert sim.json()["split"] == "tune"
+        assert 0 < sum(b["count"] for b in sim.json()["reliability"]) <= tune_n
+        on_eval = c.post(
+            "/v1/admin/questions/team/simulate", json=model | {"split": "eval"}, headers=auth
+        )
+        check(on_eval, "POST", "/v1/admin/questions/{question}/simulate")
+        assert on_eval.json()["split"] == "eval"
+        assert on_eval.json()["reliability"] != sim.json()["reliability"]
+        assert sum(b["count"] for b in on_eval.json()["reliability"]) == sum(
+            b["count"] for b in fit.json()["reliability"]["calibrated"]
+        )  # the fit's own eval bins
         one = {"id": "select", "action": "SELECT", "scalar": "top", "op": "ge", "threshold": 0.9}
         sim = c.post(
             "/v1/admin/questions/team/simulate", json=model | {"candidates": [[one]]}, headers=auth

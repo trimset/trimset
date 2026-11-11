@@ -508,7 +508,11 @@ paths:
     post:
       tags: [admin]
       operationId: simulate
-      summary: Metrics of candidate thresholds on a fit's eval split (FR-26). Synchronous.
+      summary: Metrics of candidate thresholds on a fit's tune split, or its eval split on request (FR-26). Synchronous.
+      description: |
+        Exploration. A threshold picked by looking at these numbers makes them optimistic,
+        so the tune split is the default and the eval split stays for the compiled
+        policy's report. Only a compiled policy's guarantee is a promise.
       security: [{ bearerKey: [admin] }]
       parameters: [{ $ref: "#/components/parameters/QuestionRef" }]
       requestBody:
@@ -1285,11 +1289,16 @@ components:
             maxItems: 2
             items: { $ref: "./schemas/policy.schema.json#/$defs/rule" }
         costs: { $ref: "./schemas/policy.schema.json#/$defs/target/properties/costs" }
+        split: { enum: [tune, eval], default: tune, description: The fit's split to explore. }
     SimulateResult:
       type: object
-      required: [fit_id, rows]
+      required: [fit_id, split, reliability, rows]
       properties:
         fit_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+        split: { enum: [tune, eval], description: The split the rows and the bins describe. }
+        reliability:
+          description: The split's labeled items in calibrated reliability bins, as a fit reports them.
+          $ref: "./schemas/fit.schema.json#/$defs/bins"
         rows:
           type: array
           items:
