@@ -18,3 +18,4 @@ build/
 .playwright-mcp/
 tools/load/out/
 proxy/target/
+.wrangler/
