@@ -64,6 +64,11 @@ against the thresholds.
 2. **The test at each threshold:**
    - Candidate thresholds are up to 200 quantiles of the tune-split scalar, ordered from
      strictest (fires on the fewest items) to loosest.
+   - Each candidate then moves to the middle of the gap between the tune values around
+     it (Phase 5, T3.4). It fires on exactly the same tune items, so the test is
+     unchanged, but no answer sits on it. Answers rounded to 4 decimals repeat, and a
+     quantile often lands on one, where an SDK whose float arithmetic differs from
+     numpy's by an ulp would flip `lt` and `ge` for every repeat of that answer.
    - At each candidate, let n be the items the rule fires on and k the wrong ones among
      them. The p-value is P(Binomial(n, α) ≤ k).
 3. **Fixed-sequence testing:** walk the order, keep thresholds while p ≤ δ_rule, and stop

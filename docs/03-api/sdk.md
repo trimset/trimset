@@ -79,7 +79,7 @@ GateResult(action="ESCALATE", label=None, source="policy", reason=None,
 
 | Field | Values |
 |---|---|
-| `action` | `ACCEPT`, `BLOCK`, `ESCALATE`, or `SELECT:<value>` (`label` holds the value, string or boolean) |
+| `action` | `ACCEPT`, `BLOCK`, `ESCALATE`, or `SELECT:<value>`: a string value as it is, a boolean as `true` or `false`. `label` holds the value, also when an option in `option_actions` turns a SELECT into `BLOCK`. |
 | `source` | `policy`, `audit` or `default` |
 | `reason`, when the source is `default` | `no_policy`, `model_unknown`, `model_mismatch`, `question_changed`, `invalid_probabilities`, `fingerprint_mismatch`, `stale_policy`, `refusal` |
 
@@ -122,6 +122,11 @@ The algorithm every SDK implements exactly, in float64:
    - `SELECT:<top option>`, or `BLOCK` if the top option is in `option_actions`.
 8. **No rule fires:** `fallback_action` (`ESCALATE`).
 
+`scalar` in the result is what the deciding rule read, or the first rule's when none
+fired. Compiled thresholds never sit on a tuning value ([ADR 0006](../adr/0006-policy-compiler.md)),
+so an implementation whose float arithmetic differs from numpy's by an ulp decides the
+same; the Python SDK is checked against the compiler on random policies.
+
 **Example:**
 - **Policy:** [examples/policy.json](examples/policy.json), Platt with a = −0.71 and
   b = 0.42.
@@ -139,8 +144,9 @@ The algorithm every SDK implements exactly, in float64:
   2. Keep the policies that match. Drop any that don't, with reason
      `fingerprint_mismatch`, and keep the last good version of those.
   3. Swap in one immutable snapshot. `gate()` reads that snapshot without locks.
-- **Failures:** keep the last good bundle and retry with backoff. The policy's age is
-  exported as `trimset_policy_age_seconds`.
+- **Failures:** keep the last good bundle and retry with backoff. The policy's age (since
+  the server last confirmed it, a 304 included) is `client.policy_age_seconds`, exported
+  as `trimset_policy_age_seconds` once the SDK has metrics.
 - **Forks:** after a fork (gunicorn `preload`), the first call in the child notices the
   new process id and starts a fresh thread.
 
