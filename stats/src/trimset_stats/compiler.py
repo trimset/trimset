@@ -55,6 +55,8 @@ Scalar = str | int  # "p", "top", or k for P(level >= k)
 GRID = 200
 COST_GRID = 100  # per rule when two rules search together
 METHOD = "ltt-binomial/1"
+# Below these a target needs millions of labeled items, and the searches grow with 1/alpha.
+MIN_ALPHA, MIN_DELTA = 1e-4, 1e-6
 _ESCALATE, _ACCEPT, _BLOCK, _SELECT = 0, 1, 2, 3
 _CODES: dict[str, int] = {"ACCEPT": _ACCEPT, "BLOCK": _BLOCK, "SELECT": _SELECT}
 Bools = npt.NDArray[np.bool_]
@@ -91,11 +93,11 @@ class Target:
 
     def __post_init__(self) -> None:
         if self.kind == "risk" and (
-            self.metric is None or self.alpha is None or not 0 < self.alpha < 1
+            self.metric is None or self.alpha is None or not MIN_ALPHA <= self.alpha < 1
         ):
-            raise ValueError("a risk target needs a metric and alpha in (0, 1)")
-        if not 0 < self.delta < 1:
-            raise ValueError("delta must be in (0, 1)")
+            raise ValueError(f"a risk target needs a metric and alpha in [{MIN_ALPHA}, 1)")
+        if not MIN_DELTA <= self.delta < 1:
+            raise ValueError(f"delta must be in [{MIN_DELTA}, 1)")
         if self.kind == "cost" and self.costs is None:
             raise ValueError("a cost target needs costs")
         if self.max_escalation is not None and not 0 <= self.max_escalation <= 1:
@@ -270,10 +272,16 @@ def n_min(alpha: float, delta: float) -> int:
 
 def n_start(alpha: float, delta: float) -> int:
     """Where the walk starts: the fewest items at which an error rate of alpha / 2 would
-    still pass. About 40 for alpha = 0.25 and 600 for alpha = 0.02 (delta = 0.05)."""
-    ns = np.arange(n_min(alpha, delta), 10 * n_min(alpha, delta) + 10_000)
-    passes = stats.binom.cdf(np.floor(alpha * ns / 2), ns, alpha) <= delta
-    return int(ns[np.argmax(passes)]) if passes.any() else int(ns[-1])
+    still pass (23 for alpha = 0.25, 386 for alpha = 0.02, delta = 0.05). The condition
+    is a sawtooth in n, so it is scanned from n_min upward, in chunks of 4,096: memory
+    stays flat, and Target's floors on alpha and delta keep the scan short."""
+    low = n_min(alpha, delta)
+    while True:
+        ns = np.arange(low, low + 4096)
+        passes = stats.binom.cdf(np.floor(alpha * ns / 2), ns, alpha) <= delta
+        if passes.any():
+            return int(ns[np.argmax(passes)])
+        low += 4096
 
 
 def _candidates(values: Floats, rule: Rule) -> Floats:

@@ -114,8 +114,8 @@
           "description": "risk only. false_pass: wrong among ACCEPTed. error_budget: every rule held to alpha.",
           "enum": ["false_pass", "error_budget"]
         },
-        "alpha": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
-        "delta": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "alpha": { "type": "number", "minimum": 0.0001, "exclusiveMaximum": 1, "description": "Below 0.0001 a target needs millions of labeled items." },
+        "delta": { "type": "number", "minimum": 0.000001, "exclusiveMaximum": 1 },
         "max_escalation": { "$ref": "common.schema.json#/$defs/probability" },
         "costs": {
           "type": "object",

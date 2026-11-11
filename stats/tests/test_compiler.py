@@ -235,6 +235,8 @@ def test_targets_are_checked() -> None:
         {"kind": "risk", "metric": "false_pass"},
         {"kind": "risk", "metric": "false_pass", "alpha": 1.5},
         {"kind": "risk", "metric": "false_pass", "alpha": 0.1, "delta": 0},
+        {"kind": "risk", "metric": "false_pass", "alpha": 1e-9},  # needs billions of items
+        {"kind": "risk", "metric": "false_pass", "alpha": 0.1, "delta": 1e-12},
         {"kind": "cost"},
         {"kind": "cost", "costs": Costs(1, {}), "max_escalation": 2},
     ):
