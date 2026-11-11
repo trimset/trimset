@@ -1,0 +1,299 @@
+"""The client: gate() (sdk.md §2-3) and the policy cache (§4), against a local fake server."""
+
+import copy
+import json
+import logging
+import os
+import threading
+import time
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from trimset import Client, GateResult, policy
+from trimset.client import Snapshot, build_snapshot
+from trimset.hashing import fingerprint, question_id
+
+EXAMPLES = Path(__file__).parents[3] / "docs" / "03-api" / "examples"
+BUNDLE = json.loads((EXAMPLES / "bundle.json").read_text())
+MODEL = "jev-1.14.0"
+QID = BUNDLE["questions"]["refund_fraud"]["question_id"]
+
+
+def _not_audited() -> str:
+    """A decision id the example policy's 1% audit sampling leaves alone."""
+    for i in range(100):
+        did = f"019a6f4e-0000-7000-8000-{i:012d}"
+        if not policy.audited(did, 0.01):
+            return did
+    raise AssertionError("unreachable")
+
+
+DID = _not_audited()
+
+
+class FakeServer:
+    """Serves a bundle at /v1/policies with ETag and 304, and counts the polls."""
+
+    def __init__(self, bundle: dict[str, Any]) -> None:
+        self.bundle, self.seen = bundle, []
+        server = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                server.seen.append({k.lower(): v for k, v in self.headers.items()})
+                etag = f'"{server.bundle["etag"]}"'
+                if self.headers.get("If-None-Match") == etag:
+                    self.send_response(304)
+                    self.send_header("ETag", etag)
+                    self.end_headers()
+                    return
+                data = json.dumps(server.bundle).encode()
+                self.send_response(200)
+                self.send_header("ETag", etag)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, *args: Any) -> None:
+                pass
+
+        self.http = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.http.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self.http.server_port}"
+
+
+@pytest.fixture
+def server() -> Iterator[FakeServer]:
+    fake = FakeServer(copy.deepcopy(BUNDLE))
+    yield fake
+    fake.http.shutdown()
+
+
+def _client(url: str = "http://127.0.0.1:1", **options: Any) -> Client:
+    options.setdefault("poll_interval", 3600)
+    return Client(url, "tsi_test", **options)
+
+
+def _loaded(bundle: dict[str, Any] = BUNDLE, **options: Any) -> Client:
+    """A client whose snapshot is `bundle`, without the network."""
+    client = _client(**options)
+    client.close()
+    client._snapshot = build_snapshot(bundle, Snapshot(), time.time())
+    return client
+
+
+def _bundle(definition: dict[str, Any], **policy_fields: Any) -> dict[str, Any]:
+    """A bundle with one question and one policy for MODEL, fingerprinted."""
+    qid = question_id(definition)
+    body = copy.deepcopy(BUNDLE["policies"][0]["policy"])
+    body |= {"question_id": qid, "question_name": "q", "type": definition["type"]} | policy_fields
+    body["fingerprint"] = fingerprint(body)
+    return BUNDLE | {
+        "questions": {"q": {"question_id": qid, "definition": definition}},
+        "policies": [{"policy": body, "guarantee_status": "certified"}],
+    }
+
+
+@pytest.mark.req("FR-32")
+@pytest.mark.req("FR-33")
+def test_the_sdk_md_example_escalates_with_policy_v7() -> None:
+    d = _loaded().gate("refund_fraud", p=0.83, model_served=MODEL, decision_id=DID)
+    assert isinstance(d, GateResult)
+    assert (d.action, d.source, d.reason, d.policy_version, d.audit) == (
+        "ESCALATE", "policy", None, 7, False,
+    )  # fmt: skip
+    assert d.scalar == pytest.approx(0.6695, abs=1e-4)
+    assert d.policy_fingerprint == BUNDLE["policies"][0]["policy"]["fingerprint"]
+    assert d.decision_id == DID
+    client = _loaded()
+    assert (
+        client.gate("refund_fraud", p=0.1, model_served=MODEL, decision_id=DID).action == "ACCEPT"
+    )
+    assert (
+        client.gate("refund_fraud", p=0.99, model_served=MODEL, decision_id=DID).action == "BLOCK"
+    )
+    by_id = client.gate(QID, p=0.83, model_served=MODEL, decision_id=DID)
+    assert by_id.action == "ESCALATE" and by_id.source == "policy"
+
+
+def test_answers_in_either_wire_format() -> None:
+    client = _loaded()
+    systemone = {"type": "noul", "noul": 0.83}
+    openai = {"type": "predicate", "probability": 0.83}
+    for answer in (systemone, openai):
+        d = client.gate("refund_fraud", answer=answer, model_served=MODEL, decision_id=DID)
+        assert (d.action, d.source) == ("ESCALATE", "policy")
+    refused = client.gate("refund_fraud", answer={"type": "refusal"}, model_served=MODEL)
+    assert (refused.source, refused.reason) == ("default", "refusal")
+
+
+@pytest.mark.req("FR-35")
+def test_every_default_says_why() -> None:
+    client = _loaded(defaults={"refund_fraud": "ACCEPT"})
+
+    def reason(question: str = "refund_fraud", **kw: Any) -> str | None:
+        kw.setdefault("model_served", MODEL)
+        d = client.gate(question, **kw)
+        assert d.source == "default" and d.decision_id
+        return d.reason
+
+    assert reason("nope", p=0.5) == "no_policy"
+    assert reason(p=0.5, model_served=None) == "model_unknown"
+    assert reason(p=0.5, model_served="jev-1.15.0") == "model_mismatch"
+    assert reason(p=1.5) == "invalid_probabilities"
+    assert reason(p=float("nan")) == "invalid_probabilities"
+    assert reason(p=0.5, answer={"type": "noul", "noul": 0.5}) == "invalid_probabilities"
+    assert reason() == "invalid_probabilities"
+    assert reason(probabilities=[0.5, 0.5]) == "invalid_probabilities"  # noul takes p
+    assert reason(answer={"type": "noul", "noul": "high"}) == "invalid_probabilities"
+    assert reason(answer=object()) == "invalid_probabilities"
+    changed = dict(BUNDLE["questions"]["refund_fraud"]["definition"], instructions="Is it fraud?")
+    assert reason(p=0.5, question_def=changed) == "question_changed"
+    same = BUNDLE["questions"]["refund_fraud"]["definition"]
+    assert client.gate("refund_fraud", p=0.83, model_served=MODEL, question_def=same,
+                       decision_id=DID).source == "policy"  # fmt: skip
+    assert client.gate("nope", p=0.5).action == "ESCALATE"  # no default: the library's
+    assert client.gate("refund_fraud", p=0.5, model_served="x").action == "ACCEPT"
+    assert client.gate("refund_fraud", p=0.5, model_served="x", default="BLOCK").action == "BLOCK"
+
+    pinned = _loaded(default_model=MODEL)
+    assert pinned.gate("refund_fraud", p=0.83, decision_id=DID).source == "policy"
+    stale = _loaded(max_policy_age=60)
+    stale._snapshot = build_snapshot(BUNDLE, Snapshot(), time.time() - 120)
+    assert stale.gate("refund_fraud", p=0.83, model_served=MODEL).reason == "stale_policy"
+
+
+def test_the_library_default_warns_once_per_question(caplog: pytest.LogCaptureFixture) -> None:
+    client = _loaded()
+    with caplog.at_level(logging.WARNING, logger="trimset"):
+        for _ in range(3):
+            client.gate("nope", p=0.5)
+    assert [r.getMessage() for r in caplog.records].count(
+        "trimset: no default for nope; using ESCALATE"
+    ) == 1
+    with pytest.raises(ValueError, match="must be one of"):
+        _client(defaults={"refund_fraud": "MAYBE"})
+
+
+@pytest.mark.req("FR-37")
+def test_audit_sampling_escalates_by_the_decision_ids_hash() -> None:
+    full = _bundle(BUNDLE["questions"]["refund_fraud"]["definition"], audit_fraction=0.5)
+    client = _loaded(full)
+    results = [client.gate("q", p=0.01, model_served=MODEL) for _ in range(400)]
+    audited = [d for d in results if d.source == "audit"]
+    assert 150 < len(audited) < 250
+    assert all(d.action == "ESCALATE" and d.audit and d.policy_version == 7 for d in audited)
+    assert all(d.action == "ACCEPT" for d in results if d.source == "policy")
+    did = audited[0].decision_id  # the same id is always audited
+    assert client.gate("q", p=0.01, model_served=MODEL, decision_id=did.upper()).audit
+
+
+def test_choice_selects_the_top_option_unless_it_is_blocked() -> None:
+    definition = {
+        "schema": "question/1", "type": "choice", "instructions": "Which team?",
+        "options": [{"value": v, "description": None} for v in ("billing", "tech", True)],
+    }  # fmt: skip
+    rule = {"id": "select", "action": "SELECT", "scalar": "top", "op": "ge", "threshold": 0.6}
+    bundle = _bundle(
+        definition,
+        calibration={"method": "temperature", "temperature": 1.0},
+        rules=[rule | {"per_option": [{"value": "tech", "threshold": 0.9}]}],
+        option_actions=["billing"],
+        audit_fraction=0,
+    )
+    client = _loaded(bundle)
+
+    def gate(probs: list[float]) -> GateResult:
+        return client.gate("q", probabilities=probs, model_served=MODEL)
+
+    assert (gate([0.1, 0.2, 0.7]).action, gate([0.1, 0.2, 0.7]).label) == ("SELECT:true", True)
+    assert gate([0.7, 0.2, 0.1]).action == "BLOCK"  # billing is blocked
+    assert gate([0.1, 0.8, 0.1]).action == "ESCALATE"  # tech needs 0.9
+    assert gate([0.05, 0.95, 0.0]).action == "SELECT:tech"
+    assert gate([0.4, 0.4, 0.2]).label is None  # a tie goes to the first: billing, < 0.6
+    assert gate([0.5, 0.5]).reason == "invalid_probabilities"
+    assert gate([0.5, 0.6, 0.1]).reason == "invalid_probabilities"  # sums to 1.2
+
+
+def test_score_rules_read_tail_probabilities() -> None:
+    definition = {
+        "schema": "question/1", "type": "score", "instructions": "How hard?",
+        "levels": [{"label": str(i), "description": None} for i in range(4)],
+    }  # fmt: skip
+    rules = [
+        {"id": "accept", "action": "ACCEPT", "scalar": {"tail_ge": 2}, "op": "lt",
+         "threshold": 0.1},
+        {"id": "block", "action": "BLOCK", "scalar": {"tail_ge": 3}, "op": "ge",
+         "threshold": 0.5},
+    ]  # fmt: skip
+    client = _loaded(_bundle(definition, calibration={"method": "identity"}, rules=rules,
+                             audit_fraction=0))  # fmt: skip
+
+    def gate(probs: list[float]) -> GateResult:
+        return client.gate("q", probabilities=probs, model_served=MODEL)
+
+    assert gate([0.6, 0.35, 0.04, 0.01]).action == "ACCEPT"
+    assert gate([0.1, 0.1, 0.2, 0.6]).action == "BLOCK"
+    middle = gate([0.3, 0.3, 0.3, 0.1])
+    assert middle.action == "ESCALATE" and middle.scalar == pytest.approx(0.4)
+
+
+@pytest.mark.req("FR-34")
+def test_a_tampered_policy_is_dropped_and_the_last_good_one_kept() -> None:
+    tampered = copy.deepcopy(BUNDLE)
+    tampered["policies"][0]["policy"]["rules"][0]["threshold"] = 0.9  # accept almost all
+    fresh = build_snapshot(tampered, Snapshot(), time.time())
+    assert (QID, MODEL) in fresh.broken and not fresh.policies
+    client = _loaded()
+    client._snapshot = fresh
+    d = client.gate("refund_fraud", p=0.5, model_served=MODEL)
+    assert (d.source, d.reason) == ("default", "fingerprint_mismatch")
+    kept = build_snapshot(tampered, build_snapshot(BUNDLE, Snapshot(), 0), time.time())
+    assert kept.policies[(QID, MODEL)] == BUNDLE["policies"][0]
+    with pytest.raises(ValueError):
+        build_snapshot({"schema": "bundle/2"}, Snapshot(), 0)
+
+
+@pytest.mark.req("FR-32")
+def test_polling_with_etag_and_a_disk_cache(server: FakeServer, tmp_path: Path) -> None:
+    cache = tmp_path / "bundle.json"
+    client = _client(server.url, cache_path=cache)
+    assert client.wait_for_policies(5)
+    assert (
+        client.gate("refund_fraud", p=0.83, model_served=MODEL, decision_id=DID).source == "policy"
+    )
+    assert server.seen[0]["authorization"] == "Bearer tsi_test"
+    assert "if-none-match" not in server.seen[0]
+    client.refresh()  # unchanged: a 304, and the policies count as confirmed again
+    assert server.seen[-1]["if-none-match"] == f'"{BUNDLE["etag"]}"'
+    assert client.policy_age_seconds is not None and client.policy_age_seconds < 5
+    client.close()
+    assert json.loads(cache.read_text()) == BUNDLE
+    assert not [p for p in os.listdir(tmp_path) if p.startswith(".trimset-")]
+
+    offline = _client(cache_path=cache)  # the server is unreachable; the cache is enough
+    assert offline.wait_for_policies(0)
+    assert (
+        offline.gate("refund_fraud", p=0.83, model_served=MODEL, decision_id=DID).source == "policy"
+    )
+    offline.close()
+    cache.write_text("{broken")
+    broken = _client(cache_path=cache)
+    assert not broken.wait_for_policies(0)
+    broken.close()
+
+
+def test_unreachable_server_never_reaches_gate() -> None:
+    client = _client()
+    assert not client.wait_for_policies(0.2)
+    d = client.gate("refund_fraud", p=0.83, model_served=MODEL)
+    assert (d.action, d.reason) == ("ESCALATE", "no_policy")
+    client.close()
+    with pytest.raises(ValueError):
+        Client("file:///etc/passwd", "tsi_x")
+    with pytest.raises(ValueError):
+        Client("http://x", "")

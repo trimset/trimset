@@ -122,6 +122,13 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     a new proposal rejects the refits' older one. Never activates. Fits store their
     tuning labels' mix by source and key; `policy diff` shows it (threat T1). The
     "proposal ready" alert waits for T4.1.
+  - T3.4, the SDK's gate (`trimset.Client`, `client.py`; `policy.py` for sdk.md §3 in
+    pure Python): a poller keeps a verified bundle (fingerprints, ETag, 304, backoff,
+    an optional disk cache, restarts after fork); `gate()` never raises or touches
+    the network, and every default names its reason. `test_gate_agreement.py`
+    checks gate() against the compiler on random policies. The compiler now moves
+    thresholds off the tune values (`off_data`), so an ulp can't flip a decision.
+    Sending records, actions and outcomes is T3.5.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

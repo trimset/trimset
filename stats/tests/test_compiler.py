@@ -307,3 +307,39 @@ def test_one_early_error_doesnt_end_certification() -> None:
     split = Split(tuple(map(str, range(n))), probs, labels, np.zeros(n, bool))
     out = _compile(split, Target("risk", "error_budget", alpha=0.25), kind="choice")
     assert isinstance(out, Compiled) and out.metrics["tune"]["automated"] > 0.5
+
+
+def test_thresholds_move_off_the_data_but_fire_on_the_same_items() -> None:
+    """Answers rounded to 4 decimals repeat, so a quantile often lands on one. Moved to the
+    middle of its gap, a threshold fires on the same tune items, and no answer sits on it
+    for an ulp of difference between SDKs to flip (sdk.md §3)."""
+    rng = np.random.default_rng(3)
+    values = np.round(rng.beta(0.5, 4, 5000), 4)  # many duplicates, a mass near 0
+    candidates = np.unique(
+        np.concatenate([np.quantile(values, np.linspace(0, 1, 51)), [0.0, 1.0], values[:50]])
+    )
+    moved = compiler.off_data(candidates, values)
+    inner = (moved > 0) & (moved < 1)  # 0 and 1 fire on everything, in any language
+    assert inner.sum() > 40 and not np.isin(moved[inner], values).any()
+    for c, m in zip(candidates, moved, strict=True):
+        assert ((values < c) == (values < m)).all() and ((values >= c) == (values >= m)).all()
+    assert compiler.off_data(candidates, np.empty(0)) is candidates
+    a = 0.5
+    b = np.nextafter(a, 1.0)  # adjacent floats: nothing between them, so nothing moves
+    assert compiler.off_data(np.array([b]), np.array([a, b]))[0] == b
+
+
+def test_compiled_thresholds_never_sit_on_a_tune_value() -> None:
+    rng = np.random.default_rng(5)
+    n = 4000
+    y = rng.random(n) < 0.05
+    p = np.round(np.clip(np.where(y, rng.beta(5, 2, n), rng.beta(1, 12, n)), 0, 1), 4)
+    split = Split(tuple(map(str, range(n))), np.column_stack([1 - p, p]), y.astype(np.intp),
+                  np.zeros(n, bool))  # fmt: skip
+    out = compiler.compile_policy(
+        "noul", Calibrator("identity"), split, split, Actions(),
+        Target("risk", "false_pass", alpha=0.05, max_escalation=0.1), window={},
+    )  # fmt: skip
+    assert isinstance(out, Compiled), out
+    tune = np.clip(p, 1e-6, 1 - 1e-6)
+    assert all(r.threshold not in set(tune.tolist()) for r in out.rules)
