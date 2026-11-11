@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, api, DEMO, type Bin, type Costs, type Fit, type Job, type PolicyMetrics, q, type Question, type Rule, type SimulateResult, type Target, waitJob } from "../api.ts";
-import { candidate, count, prob, sameScalar, scalarName, simView, startThreshold } from "../format.ts";
-import { ErrorState, href, Load, Skeleton, Tile, TooFew, useLoad } from "../ui.tsx";
+import { candidate, count, prob, ruleText, type SimView, sameScalar, scalarName, simView, startThreshold } from "../format.ts";
+import { ErrorState, href, Icon, Load, Skeleton, Tile, TooFew, useLoad } from "../ui.tsx";
 import { FitNow, useLatestFit } from "./Calibration.tsx";
 
 // FR-26. The browser never computes a rate, an interval or a guarantee: every number
@@ -51,6 +51,8 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
   const [t, setT] = useState(() => shapes.map(startThreshold));
   const [costs, setCosts] = useState(() => (DEMO ? demoCosts : costsFrom(question.settings.target)));
   const [metrics, setMetrics] = useState<PolicyMetrics | null>(null);
+  // Candidates kept to compare: this page only, nothing is saved anywhere.
+  const [kept, setKept] = useState<{ key: string; rules: string[]; costs: string; view: SimView }[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
@@ -102,6 +104,15 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
   };
 
   const view = metrics && simView(metrics);
+  const costText = hasCosts(costs)
+    ? [`escalation $${costs.escalation ?? 0}`, ...Object.entries(costs.wrong ?? {}).map(([a, v]) => `wrong ${a} $${v ?? 0}`)].join(" · ")
+    : "none";
+  const keyNow = JSON.stringify([t, costs]);
+  const keep = () => {
+    if (!view) return;
+    const row = { key: keyNow, rules: candidate(shapes, t).map(ruleText), costs: costText, view };
+    setKept((k) => [...k.filter((x) => x.key !== keyNow), row].slice(-10));
+  };
   const yes = question.type === "noul" ? ["yes", "no"] : ["top option wrong", "top option right"];
 
   return (
@@ -161,9 +172,76 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
                 </div>
               ))}
             </div>
+            <div className="row">
+              <button className="btn" type="button" onClick={keep} disabled={busy || kept.some((k) => k.key === keyNow)}>
+                Keep this to compare
+              </button>
+              <span className="mu small">Kept candidates stay on this page only; nothing is saved.</span>
+            </div>
           </>
         )}
       </section>
+
+      {kept.length > 0 && (
+        <section className="card" aria-labelledby="kept-h">
+          <div className="sec-h">
+            <h2 id="kept-h" className="h">Kept candidates</h2>
+            <button className="btn" type="button" onClick={() => setKept([])}>
+              Clear
+            </button>
+          </div>
+          <div className="tw">
+            <table className="t">
+              <thead>
+                <tr>
+                  <th>Thresholds</th>
+                  <th className="r">Automated</th>
+                  <th className="r">Escalated</th>
+                  {shapes.map((r) => (
+                    <th key={r.id} className="r">Wrong when {r.id} fires (95% interval)</th>
+                  ))}
+                  <th className="r">Cost per 1,000</th>
+                  <th>Costs</th>
+                  <th className="r"><span className="sr">Remove</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {kept.map((k) => (
+                  <tr key={k.key}>
+                    <td className="m small">
+                      {k.rules.map((r) => (
+                        <div key={r}>{r}</div>
+                      ))}
+                    </td>
+                    <td className="m r">{k.view.automated}</td>
+                    <td className="m r">{k.view.escalated}</td>
+                    {shapes.map((r) => {
+                      const m = k.view.rules.find((x) => x.id === r.id);
+                      return (
+                        <td key={r.id} className="m r">
+                          {m && m.rate !== "–" ? `${m.rate} (${m.ci95})` : "–"}
+                        </td>
+                      );
+                    })}
+                    <td className="m r">{k.view.cost ?? "–"}</td>
+                    <td className="t2 small">{k.costs}</td>
+                    <td className="r">
+                      <button
+                        className="btn icon"
+                        type="button"
+                        aria-label={`Remove ${k.rules.join(", ")}`}
+                        onClick={() => setKept((all) => all.filter((x) => x !== k))}
+                      >
+                        <Icon d="M5 5l8 8M13 5l-8 8" size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="card pad row" aria-label="Costs" style={{ gap: 16 }}>
         <h2 className="h" style={{ fontSize: 16 }}>Costs</h2>
