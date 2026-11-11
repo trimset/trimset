@@ -1,0 +1,18 @@
+# The load test's machine (NFR-02, NFR-03): trimset (Postgres, server, worker) gets two
+# CPUs and 4 GB between them, like the 2 vCPU / 4 GB VM in the requirements. The mock
+# upstream and k6 run on the runner's other CPUs, so they never take trimset's.
+# Used by .github/workflows/load.yml on top of compose.yaml and compose.mock.yaml.
+services:
+  postgres:
+    cpuset: "0,1"
+    mem_limit: 2g
+  server:
+    cpuset: "0,1"
+    mem_limit: 1536m
+    environment:
+      TRIMSET_WORKERS: ${TRIMSET_WORKERS:-1}
+  worker:
+    cpuset: "0,1"
+    mem_limit: 512m
+  mock-upstream:
+    cpuset: "2,3"

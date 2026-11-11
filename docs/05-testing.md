@@ -28,7 +28,7 @@ the coverage gate exist from the first line of product code.
 | Chaos | Integration tests that stop Postgres or the server mid-test | NFR-06 (the proxy keeps forwarding) and NFR-07 (the SDK never raises or blocks) | Every push, from T1.8 and T3.6 |
 | Experiments | pytest, marker `slow`; the data generator (FR-60) | NFR-09 (guarantees hold in ≥ 95% of 200 seeds), SM-1, SM-3, SM-4 | Nightly, from T2.5 |
 | Demos | `examples/*` scripts | Each milestone's end-to-end story still works | Nightly, from T1.15 |
-| Load | k6, from a separate machine, against a 2 vCPU / 4 GB VM | NFR-02, NFR-03, NFR-10 | At the end of each milestone and before releases; never on a laptop |
+| Load | k6 (`tools/load/`, workflow `load`), on a GitHub runner with Postgres, server and worker pinned to 2 CPUs and 4 GB, k6 and the mock upstream on the other CPUs | NFR-02, NFR-03, NFR-10 | Started by hand at the end of each milestone and before releases; never on a laptop. A rented 2 vCPU VM only when a result is close to its limit |
 
 Property-test invariants, as examples of the kind:
 - probabilities that are accepted sum to 1 after renormalising;

@@ -16,3 +16,4 @@ build/
 .env.*
 .DS_Store
 .playwright-mcp/
+tools/load/out/

@@ -1,0 +1,12 @@
+{
+  "question_id": "q_534a3508f2d81f8c35d11ba5cde4fcc3",
+  "definition": {
+    "schema": "question/1",
+    "type": "noul",
+    "instructions": "Is this refund request fraudulent?",
+    "noul": {
+      "true": null,
+      "false": null
+    }
+  }
+}

@@ -54,7 +54,9 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T1.12, contract tests (`server/tests/test_contract_integration.py`): every route is in
     `openapi.yaml`, and real responses match their documented status and schema. A new
     endpoint gets a `check(...)` call there.
-- Next: T1.13 (the load test), then the rest of M1.
+- In progress: T1.13, the load test (`tools/load/`, `.github/workflows/load.yml`, started
+  by hand: `gh workflow run load.yml --repo trimset/trimset`).
+- Next: T1.14 (real calls, needs the user's keys), T1.15 (the demo).
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
@@ -189,6 +191,7 @@ uv run --frozen ruff check . && uv run --frozen ruff format --check .
 uv run --frozen mypy
 uv run --frozen pytest stats/tests/test_x.py    # one file at a time locally
 gh run list --repo trimset/trimset              # the real test results
+gh workflow run load.yml --repo trimset/trimset # load test, ~30 min; results in the run summary
 TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
 uv run trimset-mock-upstream --port 9000        # the mock upstream, for trying the proxy
 uv run trimset-datagen refund-fraud --out data/ # synthetic data; --url to send it
