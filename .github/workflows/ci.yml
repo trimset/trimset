@@ -156,3 +156,20 @@ jobs:
               --schemafile schemas/$s.schema.json examples/$s.json
           done
       - run: uv run --no-project --with rfc8785==0.1.4 python vectors/generate.py --check
+
+  dashboard:
+    name: dashboard (types, tests, build)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      # package-lock.json pins every package; they were resolved with --before, the same
+      # 7-day hold as UV_EXCLUDE_NEWER. No dependency needs an install script.
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run build
