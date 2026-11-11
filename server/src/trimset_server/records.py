@@ -143,3 +143,68 @@ class QuestionIn(BaseModel):
         if self.type == "noul":
             return 1
         return len(self.options or self.levels or [])
+
+
+Label = StrictBool | Annotated[StrictStr, Field(min_length=1, max_length=256)] | StrictInt
+
+
+def fits(question: QuestionIn, label: Any) -> bool:
+    """Whether `label` is a possible answer to `question`: a boolean for noul, one of the
+    options for choice (true and "true" are different options), a level index for score."""
+    if question.type == "noul":
+        return isinstance(label, bool)
+    if question.type == "choice":
+        return any(
+            type(o.value) is type(label) and o.value == label for o in question.options or []
+        )
+    levels = len(question.levels or [])
+    return isinstance(label, int) and not isinstance(label, bool) and 0 <= label < levels
+
+
+class OutcomeIn(BaseModel):
+    """outcome/1 (FR-10): names a decision by decision_id, or by external_ref and question."""
+
+    model_config = ConfigDict(strict=True, extra="forbid", populate_by_name=True)
+
+    schema_: Literal["outcome/1"] = Field(alias="schema")
+    outcome_id: Uuid | None = None
+    decision_id: Uuid | None = None
+    external_ref: Text | None = None
+    question: Annotated[StrictStr, Field(min_length=1, max_length=128)] | None = None
+    label: Label
+    source: Literal["human_review", "downstream", "rule"]
+    observed_at: Timestamp
+
+    @model_validator(mode="after")
+    def _one_reference(self) -> "OutcomeIn":
+        by_id = self.decision_id is not None
+        by_ref = self.external_ref is not None and self.question is not None
+        if by_id == by_ref or (by_id and (self.external_ref or self.question)):
+            raise ValueError("name the decision by decision_id, or by external_ref and question")
+        return self
+
+
+class ActionIn(BaseModel):
+    """An action report (FR-33): what the app did with a decision logged earlier."""
+
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    decision_id: Uuid
+    action_taken: Annotated[StrictStr, Field(pattern=r"^(ACCEPT|BLOCK|ESCALATE|SELECT:.{1,256})$")]
+    action_source: Literal["policy", "audit", "default"]
+    reason: (
+        Literal[
+            "no_policy",
+            "model_mismatch",
+            "model_unknown",
+            "question_changed",
+            "invalid_probabilities",
+            "fingerprint_mismatch",
+            "stale_policy",
+            "refusal",
+        ]
+        | None
+    ) = None
+    policy_version: Annotated[StrictInt, Field(ge=1)] | None = None
+    policy_fingerprint: Annotated[StrictStr, Field(pattern=r"^sha256:[0-9a-f]{64}$")] | None = None
+    audit: StrictBool = False

@@ -37,8 +37,15 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     - forwards unchanged, never follows redirects, never sends a trimset key upstream;
     - errors in the upstream's format;
     - keys and project settings stay stale while the database is down (NFR-06).
-- Next: T1.9 (outcomes, the default-by-rule job, `POST /v1/decisions:actions`), then the
-  rest of M1.
+  - T1.9, outcomes and actions (`0003_outcomes`, `outcomes.py`, `actions.py`,
+    `questions.py`):
+    - `POST /v1/outcomes`, matched by decision id, or by external_ref and a question name
+      that covers its earlier wordings;
+    - early outcomes held 30 days and early action reports one hour, joined by the worker
+      every minute;
+    - the last label received wins (enforced in SQL), and `outcome_history` keeps every one;
+    - default labels by rule, hourly; `GET/PATCH /v1/admin/questions/{question}`.
+- Next: T1.10 (the mock upstream), then the rest of M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
   every milestone, from actual hours.
 - Repository: `github.com/trimset/trimset` (public).

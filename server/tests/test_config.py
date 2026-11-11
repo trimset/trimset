@@ -16,6 +16,8 @@ def test_values_come_from_the_environment() -> None:
             "TRIMSET_DB_POOL_MAX": "4",
             "TRIMSET_AUTO_MIGRATE": "true",
             "TRIMSET_MAINTENANCE_INTERVAL_S": "60",
+            "TRIMSET_JOIN_INTERVAL_S": "5",
+            "TRIMSET_RULES_INTERVAL_S": "600",
         }
     )
     assert s == Settings(
@@ -24,6 +26,8 @@ def test_values_come_from_the_environment() -> None:
         db_pool_max=4,
         auto_migrate=True,
         maintenance_interval_s=60.0,
+        join_interval_s=5.0,
+        rules_interval_s=600.0,
     )
 
 

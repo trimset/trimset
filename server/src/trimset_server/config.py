@@ -13,7 +13,9 @@ class Settings:
     log_level: str = "INFO"
     db_pool_max: int = 10
     auto_migrate: bool = False  # compose turns it on; operators may run `migrate` instead
-    maintenance_interval_s: float = 3600.0
+    maintenance_interval_s: float = 3600.0  # partitions
+    join_interval_s: float = 60.0  # held outcomes and action reports (FR-11, FR-33)
+    rules_interval_s: float = 3600.0  # default labels by rule (FR-13)
     key_cache_ttl_s: float = 30.0  # a revoked key is refused everywhere within this (FR-52)
     secret: bytes | None = field(default=None, repr=False)  # derives state-hash keys (ADR 0009)
     upstreams: Mapping[str, Upstream] = field(default_factory=dict)
@@ -33,6 +35,8 @@ class Settings:
             db_pool_max=int(env.get("TRIMSET_DB_POOL_MAX", "10")),
             auto_migrate=env.get("TRIMSET_AUTO_MIGRATE", "false").lower() in ("1", "true", "yes"),
             maintenance_interval_s=float(env.get("TRIMSET_MAINTENANCE_INTERVAL_S", "3600")),
+            join_interval_s=float(env.get("TRIMSET_JOIN_INTERVAL_S", "60")),
+            rules_interval_s=float(env.get("TRIMSET_RULES_INTERVAL_S", "3600")),
             key_cache_ttl_s=min(float(env.get("TRIMSET_KEY_CACHE_TTL_S", "30")), 60.0),
             secret=secret.encode("utf-8") if secret else None,
             upstreams=upstreams_from_env(env),

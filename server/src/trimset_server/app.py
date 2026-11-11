@@ -12,7 +12,17 @@ import httpx2
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from trimset_server import admin, errors, ingest, keys, projects, proxy
+from trimset_server import (
+    actions,
+    admin,
+    errors,
+    ingest,
+    keys,
+    outcomes,
+    projects,
+    proxy,
+    questions,
+)
 from trimset_server.auth import KeyCache
 from trimset_server.config import Settings
 from trimset_server.recorder import Recorder
@@ -75,6 +85,9 @@ def create_app(
     app.include_router(admin.router)
     app.include_router(projects.router)
     app.include_router(ingest.router)
+    app.include_router(outcomes.router)
+    app.include_router(actions.router)
+    app.include_router(questions.router)
     app.include_router(proxy.router)
 
     # Public, no key: liveness and readiness never return project data.
