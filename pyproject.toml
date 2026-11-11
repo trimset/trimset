@@ -16,6 +16,7 @@ dev = [
   "pytest>=9.1",
   "pytest-cov>=7.0",
   "ruff>=0.16",
+  "scikit-learn>=1.9.1",
 ]
 
 [tool.uv]
@@ -52,7 +53,7 @@ strict = true
 packages = ["trimset", "trimset_stats", "trimset_server", "trimset_tools"]
 
 [[tool.mypy.overrides]]
-module = ["asyncpg", "asyncpg.*"] # ships no type information
+module = ["asyncpg", "asyncpg.*", "scipy", "scipy.*"] # ship no type information
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

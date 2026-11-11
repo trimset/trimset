@@ -58,7 +58,12 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     passed in Python; the proxy didn't, so its hot path is now Rust (ADR 0015).
   - T1.15, the demo `examples/m1-capture/run.sh`: refund fraud through the proxy, a
     silent upgrade, generated history, held and default-rule labels. CI runs it.
-- Next: T1.14 (real calls, needs the user's keys), then the M1 re-plan.
+- Waiting: T1.14 (real successful calls) needs the user's TypeSafe and OpenAI keys; then
+  the M1 re-plan from actual hours.
+- **M2 Calibrate and compile, in progress** (2026-11-11):
+  - T2.1, metrics (`stats/.../metrics.py`): log loss, Brier, ECE with equal-width and
+    equal-mass bins, reliability bins with Clopper-Pearson intervals, all on one event's
+    (p, y); golden-tested against scikit-learn and scipy. scikit-learn is test-only.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
