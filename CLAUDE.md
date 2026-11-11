@@ -74,7 +74,14 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T2.3, datasets: `stats/.../dataset.py` (window, maturity, latest per external_ref,
     40/40/20 split by hash of seed and decision id, minimum and shortfall, coverage per
     action path) and `server/.../datasets.py` (loads one group, skips refusals and
-    shadows, renormalises probabilities, labels to class indices).
+    shadows, renormalises probabilities, labels to class indices). Unlabeled matured
+    items stay in the splits with label -1, with their audit flags, for the compiler.
+  - T2.4, the compiler (`stats/.../compiler.py`): rules per type (FR-20), Learn-then-Test
+    with exact binomial p-values from the first threshold that could pass, false_pass
+    (accept rule certified, block rule within the escalation cap), error_budget (every
+    rule, delta split), cost (grid, no guarantee), unlabeled fired items as wrong,
+    audited_only paths, Declined with the labels needed or the binding constraint, and
+    `simulate` for FR-26. Calibration maps follow sdk.md §3 exactly.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

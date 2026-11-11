@@ -67,7 +67,10 @@ against the thresholds.
    - At each candidate, let n be the items the rule fires on and k the wrong ones among
      them. The p-value is P(Binomial(n, α) ≤ k).
 3. **Fixed-sequence testing:** walk the order, keep thresholds while p ≤ δ_rule, and stop
-   at the first that fails. The chosen threshold is the loosest one kept. The confidence
+   at the first that fails. **The walk starts at the first threshold that fires on at
+   least n_min = ⌈ln δ / ln(1−α)⌉ items** (Phase 5): with fewer, even no errors can't
+   pass, so starting earlier would stop the walk at once. The cut reads only the scalars,
+   never the labels; the coverage experiment (NFR-09) checks the result. The chosen threshold is the loosest one kept. The confidence
    budget δ is split across rules by Bonferroni (δ/2 for two rules, δ/K for per-option
    thresholds). This is valid whether or not risk rises steadily with the threshold;
    when it doesn't, the walk just stops earlier.

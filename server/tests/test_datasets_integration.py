@@ -64,6 +64,7 @@ async def test_a_refund_fraud_group_loads_splits_and_shows_its_starved_path(dsn:
     assert not paths["ESCALATE"].starved  # the risk team reviews every one
     built = dataset.build(items, now=now.timestamp(), seed=1, minimum=50)
     assert built.labeled == len({i.external_ref for i in labeled})
+    assert built.labeled == sum(int(s.labeled.sum()) for s in (built.fit, built.tune, built.eval))
     assert min(len(built.fit.ids), len(built.tune.ids), len(built.eval.ids)) > 0
 
 

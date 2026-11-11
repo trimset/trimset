@@ -45,14 +45,16 @@ def test_window_maturity_labels_and_one_decision_per_reference() -> None:
     ]
     data = dataset.build(items, now=NOW, seed=1, horizon_days=2, minimum=3)
     kept = sorted(data.fit.ids + data.tune.ids + data.eval.ids)
-    assert kept == sorted(str(uuid.UUID(int=n)) for n in (1, 6, 7))
+    assert kept == sorted(str(uuid.UUID(int=n)) for n in (1, 4, 6, 7))  # 4 has no label
     assert (data.labeled, data.needed) == (3, 0)
     assert data.dropped == {
         "outside the window": 1,
         "not matured": 1,
-        "no label": 1,
         "an older decision for the same external_ref": 1,
     }
+    unlabeled = next(p for p in (data.fit, data.tune, data.eval) if str(uuid.UUID(int=4)) in p.ids)
+    at = unlabeled.ids.index(str(uuid.UUID(int=4)))
+    assert unlabeled.labels[at] == dataset.NO_LABEL and not unlabeled.labeled[at]
 
 
 @pytest.mark.req("FR-19")
@@ -128,11 +130,12 @@ def test_splits_are_disjoint_and_cover_what_was_kept(
     data = dataset.build(items, now=NOW, seed=seed, horizon_days=horizon)
     parts = [set(data.fit.ids), set(data.tune.ids), set(data.eval.ids)]
     assert not (parts[0] & parts[1]) and not (parts[0] & parts[2]) and not (parts[1] & parts[2])
-    assert sum(map(len, parts)) == data.labeled
-    assert data.labeled + sum(data.dropped.values()) == len(items)
+    assert sum(map(len, parts)) + sum(data.dropped.values()) == len(items)
+    assert data.labeled == sum(int(p.labeled.sum()) for p in (data.fit, data.tune, data.eval))
     again = dataset.build(items, now=NOW, seed=seed, horizon_days=horizon)
     for name in dataset.SPLITS:
         ours, theirs = getattr(data, name), getattr(again, name)
         assert ours.ids == theirs.ids
         assert np.array_equal(ours.probs, theirs.probs)
         assert np.array_equal(ours.labels, theirs.labels)
+        assert np.array_equal(ours.audit, theirs.audit)

@@ -3,8 +3,9 @@
 The rules, for one group (question, served model, type; never pooled, FR-15):
 - **Window:** decisions from the last `window_days` (90 by default).
 - **Matured:** older than the question's label horizon, so slow outcomes had time to come.
-- **Labeled:** an outcome exists. Refusals and shadows never reach here (the loader skips
-  them).
+- **Labels:** matured items without an outcome stay, with label -1: a policy that fires
+  on one counts it as wrong (ADR 0006), and the minimum counts only labeled ones.
+  Refusals and shadows never reach here (the loader skips them).
 - **One per reference:** where `external_ref` is set, only the latest decision for it.
 - **Split** 40 / 40 / 20 into fit, tune and eval by a hash of (seed, decision_id): the
   same item lands in the same split every time, and a fit never sees tune or eval items.
@@ -50,11 +51,19 @@ def split_of(decision_id: str, seed: int) -> str:
     return SPLITS[0] if u < _CUTS[0] else SPLITS[1] if u < _CUTS[1] else SPLITS[2]
 
 
+NO_LABEL = -1
+
+
 @dataclass(frozen=True)
 class Split:
     ids: tuple[str, ...]
     probs: npt.NDArray[np.float64]  # (n, k)
-    labels: npt.NDArray[np.intp]  # (n,)
+    labels: npt.NDArray[np.intp]  # (n,); NO_LABEL where there is no outcome
+    audit: npt.NDArray[np.bool_]  # (n,); sent to review at random (FR-14)
+
+    @property
+    def labeled(self) -> npt.NDArray[np.bool_]:
+        return np.asarray(self.labels != NO_LABEL)
 
 
 @dataclass(frozen=True)
@@ -77,8 +86,9 @@ class Dataset:
 
 def _split(items: Sequence[Item], k: int) -> Split:
     probs = np.array([i.probs for i in items], dtype=np.float64).reshape(len(items), k)
-    labels = np.array([i.label for i in items], dtype=np.intp)
-    return Split(tuple(i.decision_id for i in items), probs, labels)
+    labels = np.array([NO_LABEL if i.label is None else i.label for i in items], dtype=np.intp)
+    audit = np.array([i.audit for i in items], dtype=np.bool_)
+    return Split(tuple(i.decision_id for i in items), probs, labels, audit)
 
 
 def build(
@@ -101,8 +111,6 @@ def build(
             dropped["outside the window"] += 1
         elif item.ts > matured_by:
             dropped["not matured"] += 1
-        elif item.label is None:
-            dropped["no label"] += 1
         elif item.external_ref is None:
             kept.append(item)
         else:
@@ -120,12 +128,13 @@ def build(
     by_split: dict[str, list[Item]] = {s: [] for s in SPLITS}
     for item in kept:
         by_split[split_of(item.decision_id, seed)].append(item)
+    labeled = sum(i.label is not None for i in kept)
     return Dataset(
         fit=_split(by_split["fit"], k),
         tune=_split(by_split["tune"], k),
         eval=_split(by_split["eval"], k),
-        labeled=len(kept),
-        needed=max(0, minimum - len(kept)),
+        labeled=labeled,
+        needed=max(0, minimum - labeled),
         dropped=dict(dropped),
     )
 
