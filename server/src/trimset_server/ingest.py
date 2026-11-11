@@ -20,7 +20,7 @@ from trimset_server.auth import require
 from trimset_server.bodies import TooLarge, parse_json, read_body
 from trimset_server.errors import Problem
 from trimset_server.keys import Principal
-from trimset_server.partitions import DEFAULT_RETENTION_DAYS
+from trimset_server.projects import ProjectSettings, load_settings
 from trimset_server.records import SUM_TOLERANCE, QuestionIn, RecordIn
 from trimset_server.store import store
 
@@ -130,20 +130,12 @@ async def log_decisions(request: Request, principal: Ingest) -> JSONResponse:
 
     batch = _shape(records)
     async with request.app.state.pool.acquire() as conn:
-        settings = json.loads(
-            await conn.fetchval(
-                "SELECT settings FROM projects WHERE project_id = $1", principal.project_id
-            )
-            or "{}"
-        )
+        settings = await load_settings(conn, principal.project_id) or ProjectSettings()
         wanted = {r.question_id for _, r in batch.valid}
         known, new, problems = await _definitions(conn, principal.project_id, wanted, sent)
 
         now = datetime.now(UTC)
-        retention = settings.get("retention_days")
-        days = retention if isinstance(retention, int) else DEFAULT_RETENTION_DAYS
-        oldest = now - timedelta(days=days)
-        allowed = (settings.get("privacy") or {}).get("tag_allowlist")
+        oldest = now - timedelta(days=settings.retention_days)
         good: list[tuple[int, RecordIn]] = []
         names: dict[str, str] = {}
         for i, r in batch.valid:
@@ -163,9 +155,8 @@ async def log_decisions(request: Request, principal: Ingest) -> JSONResponse:
                 batch.reject(i, "probabilities must sum to 1", "probabilities")
             elif not oldest <= r.ts <= now + FUTURE_SLACK:
                 batch.reject(i, "ts is outside the project's retention or in the future", "ts")
-            elif isinstance(allowed, list) and not r.tags.keys() <= set(allowed):
-                bad = sorted(r.tags.keys() - set(allowed))[0]
-                batch.reject(i, f"tag key {bad!r} is not on the project's allow-list", "tags")
+            elif bad := settings.disallowed_tags(r.tags):
+                batch.reject(i, f"tag key {bad[0]!r} is not on the project's allow-list", "tags")
             else:
                 good.append((i, r))
                 if r.question_name and r.question_id in new:

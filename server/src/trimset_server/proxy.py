@@ -161,6 +161,9 @@ def _record(
     except ValueError:
         hashed = None  # a state JSON can't carry exactly (huge integers): no hash
     ref, tags = _metadata(request)
+    if dropped := settings.disallowed_tags(tags):
+        tags = {k: v for k, v in tags.items() if k not in dropped}
+        log.info("dropped %d tags not on the project's allow-list", len(dropped))
     ids = [uuid7() for _ in exchange.decisions]
     records = to_records(
         exchange,

@@ -54,6 +54,12 @@ class ProjectSettings(BaseModel):
     privacy: Privacy = Privacy()
     refit_schedule: Annotated[str, Field(min_length=9, max_length=100)] = "0 3 * * *"
 
+    def disallowed_tags(self, tags: Mapping[str, str]) -> list[str]:
+        """Tag keys the project's allow-list doesn't permit (FR-09); none without a list.
+        The log API rejects such records; the proxy strips the tags. Both ask here."""
+        allowed = self.privacy.tag_allowlist
+        return [] if allowed is None else sorted(k for k in tags if k not in allowed)
+
     def price_for(self, model: str) -> dict[str, float] | None:
         price = self.prices.get(model)
         return price.model_dump(exclude_none=True) if price else None

@@ -311,3 +311,19 @@ def test_a_full_buffer_drops_the_oldest_and_counts(proxy: Any) -> None:
         c.post(f"/p/{keys['proxy']}/v1/systemone", json=REQUEST)  # 2 records each
     assert recorder.pending == 3
     assert recorder.dropped == 3
+
+
+@pytest.mark.req("FR-09")
+def test_the_tag_allow_list_holds_on_the_proxy_too(proxy: Any) -> None:
+    c, _, keys, project = proxy
+    project["settings"] = ProjectSettings.model_validate(
+        {"privacy": {"tag_allowlist": ["channel"]}}
+    )
+    r = c.post(
+        f"/p/{keys['proxy']}/v1/systemone",
+        json=REQUEST,
+        headers={"X-Trimset-Tags": "channel=web,customer_email=ann%40example.com"},
+    )
+    assert r.status_code == 200  # the app's call never suffers for its tags
+    assert {p.record.tags["channel"] for p in _pending(c)} == {"web"}
+    assert all("customer_email" not in p.record.tags for p in _pending(c))
