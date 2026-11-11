@@ -52,6 +52,11 @@ maintainer chose the stack, and the screens are an interactive app, not pages.
 - **Raw state:** the drawer shows a locked placeholder unless the project stores raw state
   (ADR 0009). Links from data (the review link template) render only if they are http(s)
   (threat E3 in the architecture).
+- **A public demo, not a hosted dashboard:** `npm run build:demo` builds the same app with
+  no sign-in and no backend, served at demo.trimset.dev. It answers from a recording
+  that CI's image job makes after the M2 demo (`demo/record.py`: the dashboard's own
+  calls against that real server, the simulator on a 0.05 grid, three compiles and a
+  lifecycle walk). Writes are refused. It never sees a key, so it can't leak one.
 - **Checks:** Node's own test runner (`node --test`, type stripping, no test framework):
   the formatting and the simulate mapping, and a contract check that every `/v1` path in
   `dashboard/src` is a path in `openapi.yaml`. CI job `dashboard` runs them, `tsc` and the
@@ -61,10 +66,13 @@ maintainer chose the stack, and the screens are an interactive app, not pages.
 
 - Each new endpoint retires a part of `src/mock.ts`; the Questions list, Outcomes, Drift,
   Shadow, Review queue, Alerts and the Overview tiles are sample data until then.
-- Policy approval, rejection and rollback are shown but disabled until the lifecycle
-  ships in M3 (FR-27 to FR-29).
+- Policies use the lifecycle from T3.1 (FR-27 to FR-29): each action has a confirm that
+  names the change, and reject, retire and rollback take the reason the server requires.
+- The recording goes stale when the API changes; CI records on every run that touches
+  the server, so re-recording is downloading the `demo-recording` artifact.
 - Serving under `/ui` is still to do: the server mounts the built files, and the image
   gets a Node build stage (or CI builds `dashboard/dist` and the image copies it). Until
   then, `npm run dev` proxies `/v1` to compose's port 8800.
-- The dashboard is never hosted on trimset.dev: each install serves its own, and a hosted
-  copy would ask people to paste admin keys into a third-party page.
+- A working dashboard is never hosted on trimset.dev: each install serves its own, and a
+  hosted copy would ask people to paste admin keys into a third-party page. Only the
+  demo build is.
