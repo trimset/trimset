@@ -369,6 +369,8 @@ def cmd_simulate(client: Client, args: argparse.Namespace) -> None:
         body["candidates"] = [rules]
     if args.fit:
         body["fit_id"] = args.fit
+    if args.split:
+        body["split"] = args.split
     if costs := _costs(args):
         body["costs"] = costs
     out = client.call("POST", f"/v1/admin/questions/{_q(args.question)}/simulate", body)
@@ -376,7 +378,8 @@ def cmd_simulate(client: Client, args: argparse.Namespace) -> None:
         say(json.dumps(out, indent=2))
         return
     rows = sorted(out["rows"], key=lambda r: -r["metrics"]["automated"])[: args.top]
-    say(f"on the eval split of fit {out['fit_id']}:")
+    say(f"on the {out.get('split', 'eval')} split of fit {out['fit_id']} (exploration: a threshold")
+    say("picked here looks better than it is; only a compiled policy's guarantee is a promise):")
     shown = []
     for row in rows:
         m = row["metrics"]
@@ -610,6 +613,9 @@ def parser() -> argparse.ArgumentParser:
     simulate.add_argument("--t", type=float, help="choice: the top option's threshold")
     simulate.add_argument("--fit", help="a fit id (default: the latest)")
     simulate.add_argument("--top", type=int, default=15, help="rows to show from a grid")
+    simulate.add_argument(
+        "--split", choices=["tune", "eval"], help="the fit's split to explore (default: tune)"
+    )
     simulate.add_argument("--cost-escalation", type=float)
     simulate.add_argument("--cost-wrong", action="append", metavar="ACTION=COST")
 

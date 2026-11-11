@@ -5,7 +5,7 @@ its arithmetic in a thread."""
 import asyncio
 import json
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -50,6 +50,9 @@ class SimulateRequest(BaseModel):
         | None
     ) = None
     costs: dict[str, Any] | None = None
+    # Thresholds are explored on the tune split by default: numbers for a threshold picked
+    # by looking at them are optimistic, so the eval split stays for compiled policies.
+    split: Literal["tune", "eval"] = "tune"
 
 
 async def _json(request: Request) -> Any:
@@ -151,19 +154,21 @@ async def simulate(question: str, request: Request, admin: Admin) -> dict[str, A
             if body.costs
             else None
         )
-        _, evaluation = fitting.unpack(fit["splits"])
+        tune, evaluation = fitting.unpack(fit["splits"])
+        split = tune if body.split == "tune" else evaluation
+        cal = Calibrator.from_json(fit_body["calibration"])
         rows = await asyncio.to_thread(
-            fitting.simulate_rows,
-            definition,
-            Calibrator.from_json(fit_body["calibration"]),
-            evaluation,
-            actions,
-            candidates,
-            costs,
+            fitting.simulate_rows, definition, cal, split, actions, candidates, costs
         )
+        reliability = await asyncio.to_thread(fitting.calibrated_bins, definition, cal, split)
     except (fitting.JobError, KeyError, TypeError, ValueError) as e:
         raise Problem(422, "invalid-request", f"Can't simulate these candidates: {e}") from None
-    return {"fit_id": fit_body["fit_id"], "rows": rows}
+    return {
+        "fit_id": fit_body["fit_id"],
+        "split": body.split,
+        "reliability": reliability,
+        "rows": rows,
+    }
 
 
 @router.get("/questions/{question}/coverage")
