@@ -120,6 +120,9 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
 - **Phase 5:** the proxy's hot path is Rust, measured before it was kept (ADR 0015);
   nothing else moves to Rust. Rust is installed here by Homebrew's rustup
   (`/opt/homebrew/opt/rustup/bin`); build with `-j 2`, as RAM is tight.
+- **Phase 5:** decision models run in the app's own process (a Hugging Face
+  `pipeline("decision")`) are captured by the SDK, not the proxy: `instrument()` in T3.5
+  (FR-36), the served model named `<repo>@<revision>` (wire-formats.md §2).
 - **Phase 5:** agents and a chat assistant wait until the guarantees exist (ADR 0014):
   an MCP server and agent hook (TV.1, v0.2 or earlier if M3 leaves room) and an
   assistant in the v2 dashboard (TV.2). No model playground.

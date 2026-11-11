@@ -529,6 +529,7 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
   - The library's own default when none is configured is set in the fail-open ADR (Phase 2).
   - `gate()` never raises.
 - **FR-36 `log()` and `outcome()`** (v0.1, M3). Both are non-blocking and batched on a background thread, and retry with exponential backoff and jitter. Their buffer is bounded: when full, the oldest record is dropped, and drop counts are reported to the server.
+  - `instrument(model_callable, model=...)` wraps a decision model that runs in the app's own process, such as a Hugging Face `pipeline("decision")`, which the proxy can't see. Every call is logged as `log_exchange` would, with the served model given by the caller as `<repo>@<revision>` (wire-formats.md §2).
 - **FR-37 Audit sampling in the gate** (v0.1, M3). The SDK applies the policy's audit fraction, decided deterministically by a hash of `decision_id`. Audited decisions return `ESCALATE` with source `audit`.
 
 ### G. Drift and health

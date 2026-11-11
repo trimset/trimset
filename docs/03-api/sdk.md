@@ -50,6 +50,7 @@ ts.flush(timeout=2.0); ts.close()
 |---|---|---|
 | `gate(question, *, p=None, probabilities=None, answer=None, model_served=None, decision_id=None, question_def=None, default=None)` | `GateResult` | raises, or touches the network. |
 | `log_exchange(request, response, *, format, gates=None, external_ref=None, tags=None, latency_ms=None)` | `list[str]`: decision ids, in question order | sends raw state: the state is hashed on the calling thread, then dropped. |
+| `instrument(model_callable, *, model, format="systemone")` | the same callable, logging every call as `log_exchange` would | changes the model's answers; a logging failure never reaches the caller. Bare answers (wire-formats.md §2) are wrapped, and `model` is the served model, `<repo>@<revision>`. |
 | `log(record)` | `None` | blocks. |
 | `outcome(*, decision_id=None, external_ref=None, question=None, label, source, observed_at=None, outcome_id=None)` | `None` | blocks. |
 
@@ -175,6 +176,15 @@ d = ts.gate("refund_fraud", answer=resp.json()["answers"]["fraud"],
 ```python
 d = ts.gate("refund_fraud", answer=answers["fraud"], model_served=model)
 ts.log_exchange(req, resp, format="systemone", gates={"fraud": d}, external_ref=refund.id)
+```
+
+**In-process mode** (the model runs in the app, for example a Hugging Face pipeline):
+
+```python
+decide = ts.instrument(pipeline("decision", model="autotrust/GEV-26B-Decide", revision=REV),
+                       model=f"autotrust/GEV-26B-Decide@{REV}")
+answers = decide({"state": message, "questions": QUESTIONS})   # logged on a background thread
+d = ts.gate("department", answer=answers["department"], model_served=f"autotrust/GEV-26B-Decide@{REV}")
 ```
 
 ## 8. TypeScript (v0.2)

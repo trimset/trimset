@@ -32,12 +32,12 @@
 |---|---|---|---|---|
 | M1 Capture | 107 | 134 | 14 + 2 off | 2026-11-16 → 2027-03-07 |
 | M2 Calibrate and compile | 69 | 86 | 9 | 2027-03-08 → 2027-05-09 |
-| M3 Gate | 47 | 59 | 6 | 2027-05-10 → 2027-06-20 |
+| M3 Gate | 49 | 61 | 6 | 2027-05-10 → 2027-06-20 |
 | Alpha release | 16 | 20 | 2 | 2027-06-21 → 2027-07-04 |
 | M4 Watch | 38 | 48 | 5 | 2027-07-05 → 2027-08-08 |
 | M5 Compare and review | 34 | 43 | 5 | 2027-08-09 → 2027-09-12 |
 | M7 Launch | 38 | 48 | 5 | 2027-09-13 → 2027-10-17 |
-| **Total** | **349** | **438** | **46 + 2 off** | **v0.1.0 ≈ 2027-10-18** |
+| **Total** | **351** | **440** | **46 + 2 off** | **v0.1.0 ≈ 2027-10-18** |
 
 At 20 hours a week, the same plan reaches the alpha around 2027-03 and v0.1.0 around
 2027-05.
@@ -104,7 +104,7 @@ T2.4 covers:
 | T3.2 | Policy bundle with ETag; guarantee status | FR-32, ADR 0008 | 4 |
 | T3.3 | Scheduled refits that create proposals, with a diff and the label-source mix | FR-30 | 6 |
 | T3.4 | SDK: client, policy cache, the gate algorithm, audit sampling, defaults and reasons | FR-31–35, FR-37 | 12 |
-| T3.5 | SDK transport: `log`, `log_exchange`, `outcome`, action reports, buffers, backoff | FR-36 | 8 |
+| T3.5 | SDK transport: `log`, `log_exchange`, `outcome`, action reports, buffers, backoff; `instrument()` for in-process models such as Hugging Face pipelines | FR-36 | 10 |
 | T3.6 | SDK tests: vectors, gate examples, chaos, gate benchmark, propagation time | NFR-04, NFR-05, NFR-07 | 6 |
 | T3.7 | Demo `examples/m3-ticket-triage` | UC-2 | 3 |
 
@@ -143,7 +143,7 @@ T2.4 covers:
 
 | ID | Task | Covers | Hours |
 |---|---|---|---|
-| T7.1 | Docs site: concepts, an API reference built from `openapi.yaml`, integration guides (Jev, Ollaya, Ollama, OpenAI, LangGraph, decision-circuits) | NFR-20 | 14 |
+| T7.1 | Docs site: concepts, an API reference built from `openapi.yaml`, integration guides (Jev, Ollaya, Ollama, OpenAI, Hugging Face transformers, LangGraph, decision-circuits) | NFR-20 | 14 |
 | T7.2 | Security: dependency audit, secret scan, license check in CI; threat-model review | NFR-11, NFR-18 | 4 |
 | T7.3 | `docs/06-operations.md`: runbooks, SLOs | Brief, Phase 8 | 5 |
 | T7.4 | Community files, issue labels, `ROADMAP.md` | — | 5 |

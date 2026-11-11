@@ -29,6 +29,15 @@ The upstream's format, set by the operator with the upstream
 serves the systemone format at `/v1/decisions` too. The proxy forwards the path it
 received, unchanged.
 
+**Models in the app's own process.** A decision model run locally, for example a Hugging
+Face `pipeline("decision")`, takes the systemone request without `model` and returns the
+answers object bare: no `answers` wrapper and no `model`. No HTTP call is made, so the
+proxy can't see it; the SDK records it (`instrument()` or `log_exchange()`,
+[sdk.md](sdk.md) §2). The caller names the served model as `<repo>@<revision>`, for
+example `autotrust/GEV-26B-Decide@<commit>`: a pinned revision can't change underneath
+the app, and when someone updates the weights, the new revision shows up as a new served
+model (FR-39).
+
 ## 3. From a response to records
 
 One record per answered question. In systemone, answers are matched to questions by
