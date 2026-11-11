@@ -16,6 +16,7 @@ class Settings:
     maintenance_interval_s: float = 3600.0  # partitions
     join_interval_s: float = 60.0  # held outcomes and action reports (FR-11, FR-33)
     rules_interval_s: float = 3600.0  # default labels by rule (FR-13)
+    jobs_interval_s: float = 1.0  # fits and compiles (T2.6)
     key_cache_ttl_s: float = 30.0  # a revoked key is refused everywhere within this (FR-52)
     secret: bytes | None = field(default=None, repr=False)  # derives state-hash keys (ADR 0009)
     upstreams: Mapping[str, Upstream] = field(default_factory=dict)
@@ -37,6 +38,7 @@ class Settings:
             maintenance_interval_s=float(env.get("TRIMSET_MAINTENANCE_INTERVAL_S", "3600")),
             join_interval_s=float(env.get("TRIMSET_JOIN_INTERVAL_S", "60")),
             rules_interval_s=float(env.get("TRIMSET_RULES_INTERVAL_S", "3600")),
+            jobs_interval_s=float(env.get("TRIMSET_JOBS_INTERVAL_S", "1")),
             key_cache_ttl_s=min(float(env.get("TRIMSET_KEY_CACHE_TTL_S", "30")), 60.0),
             secret=secret.encode("utf-8") if secret else None,
             upstreams=upstreams_from_env(env),

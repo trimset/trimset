@@ -14,9 +14,11 @@ from fastapi.responses import JSONResponse
 from trimset_server import (
     actions,
     admin,
+    analysis,
     errors,
     ingest,
     internal,
+    jobs,
     keys,
     outcomes,
     projects,
@@ -79,6 +81,8 @@ def create_app(
     app.include_router(outcomes.router)
     app.include_router(actions.router)
     app.include_router(questions.router)
+    app.include_router(analysis.router)
+    app.include_router(jobs.router)
     app.include_router(internal.router)
 
     # Public, no key: liveness and readiness never return project data.

@@ -7,11 +7,11 @@ docs/03-api/openapi.yaml arrives with the tasks that use it.
 import json
 import re
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import asyncpg
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, ValidationError
 
 from trimset_server.auth import require
 from trimset_server.bodies import TooLarge, parse_json, read_body
@@ -63,10 +63,40 @@ class DefaultRule(BaseModel):
     label: Label
 
 
+class ActionSettings(BaseModel):
+    """How probabilities become actions (FR-20): each field belongs to one type."""
+
+    model_config = ConfigDict(strict=True, extra="forbid")
+    high_means: Literal["block", "accept"] | None = None  # noul
+    block_options: list[StrictStr | StrictBool] | None = None  # choice
+    block_from_level: Annotated[int, Field(ge=1, le=9)] | None = None  # score
+    accept_below_level: Annotated[int, Field(ge=1, le=9)] | None = None  # score
+
+    def problem(self, question: QuestionIn) -> str | None:
+        """Why these settings don't fit the question, or None."""
+        kind = question.type
+        if kind != "noul" and self.high_means is not None:
+            return "high_means is for noul questions"
+        if kind != "choice" and self.block_options is not None:
+            return "block_options is for choice questions"
+        levels = (self.block_from_level, self.accept_below_level)
+        if kind != "score" and any(v is not None for v in levels):
+            return "block_from_level and accept_below_level are for score questions"
+        if any(v is not None and v >= question.size() for v in levels):
+            return f"a level must be below {question.size()}"
+        options = question.options or []
+        for value in self.block_options or []:
+            if not any(type(o.value) is type(value) and o.value == value for o in options):
+                return f"block_options names {value!r}, which isn't an option"
+        return None
+
+
 class QuestionSettings(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
     default_rule: DefaultRule | None = None
     label_horizon_days: Annotated[int, Field(ge=0, le=400)] | None = None
+    actions: ActionSettings | None = None
+    audit_fraction: Annotated[float, Field(ge=0, le=0.5, strict=False)] | None = None
 
 
 async def _row(conn: Any, project_id: uuid.UUID, ref: str) -> Any:
@@ -145,11 +175,12 @@ async def update_question(question: str, request: Request, admin: Admin) -> dict
             raise Problem(
                 422, "invalid-request", "Unknown or invalid settings", errors=errors
             ) from None
+        definition = QuestionIn.model_validate(json.loads(row["definition"]))
         rule = checked.default_rule
-        if rule is not None:
-            definition = QuestionIn.model_validate(json.loads(row["definition"]))
-            if not fits(definition, rule.label):
-                raise Problem(422, "invalid-request", "The default label doesn't fit the question")
+        if rule is not None and not fits(definition, rule.label):
+            raise Problem(422, "invalid-request", "The default label doesn't fit the question")
+        if checked.actions is not None and (why := checked.actions.problem(definition)):
+            raise Problem(422, "invalid-request", why)
 
         name = patch.get("name", row["name"])
         if name is not None and not (isinstance(name, str) and 1 <= len(name) <= 128):

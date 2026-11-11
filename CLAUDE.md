@@ -86,6 +86,13 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     `nightly`): 200 seeds of refund fraud, triage and routing; each certified rule's
     true error on fresh traffic must be within alpha in >= 95% of seeds (NFR-09).
     Slow tests are left out of every push (`-m "not slow"` in pytest's addopts).
+  - T2.6, fits and compiles as jobs (`jobs.py`: a `jobs` table claimed with SKIP LOCKED,
+    3 tries with backoff, run by the worker every second; `fitting.py`; `analysis.py`
+    for the routes): a fit stores fit/1 and the tune/eval arrays (no ids); a compile
+    stores a draft policy/1 with its fingerprint, or reports not_enough_labels or
+    infeasible; the simulator and label coverage answer at once. Question settings take
+    `actions` and `audit_fraction`. Tests: the `check` and `conforms` fixtures
+    (conftest.py) validate any response or body against the contract.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

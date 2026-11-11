@@ -6,21 +6,17 @@ doesn't list must still be a Problem (RFC 9457). The proxy's routes are Rust's, 
 proxy/src/main.rs; this file covers the Python server.
 """
 
-import json
 import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import asyncpg
-import httpx2
 import pytest
 import yaml
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
-from referencing.jsonschema import DRAFT202012
 
 from trimset_server import keys
 from trimset_server.app import create_app
@@ -31,54 +27,7 @@ from trimset_tools.datagen import generate
 
 API = Path(__file__).resolve().parents[2] / "docs" / "03-api"
 SPEC = yaml.safe_load((API / "openapi.yaml").read_text())
-BASE = "https://contract.trimset.test/"
-REGISTRY: Registry = Registry().with_resources(
-    [(BASE + "openapi.yaml", Resource.from_contents(SPEC, default_specification=DRAFT202012))]
-    + [
-        (
-            BASE + "schemas/" + f.name,
-            Resource.from_contents(json.loads(f.read_text()), default_specification=DRAFT202012),
-        )
-        for f in (API / "schemas").glob("*.json")
-    ]
-)
 PARAM = re.compile(r"\{[^}]+\}")
-
-
-def _escape(part: str) -> str:
-    return part.replace("~", "~0").replace("/", "~1")
-
-
-def check(response: httpx2.Response, method: str, template: str) -> None:
-    """The response against what the contract says `method template` returns."""
-    op = SPEC["paths"][template][method.lower()]
-    status = str(response.status_code)
-    listed = op["responses"]
-    key = next((k for k in (status, status[0] + "XX", "default") if k in listed), None)
-    where = f"{method} {template} answered {status}"
-    if key is None:
-        assert response.status_code >= 400, f"{where}, which the contract doesn't list"
-        assert "proxy" not in op["tags"], f"{where}, which the contract doesn't list"
-        pointer = "/components/schemas/Problem"
-        media = "application/problem+json"
-    else:
-        spec = listed[key]
-        path = ["paths", template, method.lower(), "responses", key]
-        if "$ref" in spec:
-            name = spec["$ref"].rsplit("/", 1)[1]
-            spec, path = SPEC["components"]["responses"][name], ["components", "responses", name]
-        if not spec.get("content"):
-            return  # nothing promised about the body
-        media = response.headers["content-type"].split(";")[0]
-        assert media in spec["content"], f"{where} as {media}"
-        pointer = "/" + "/".join(_escape(p) for p in [*path, "content", media, "schema"])
-    assert response.headers["content-type"].split(";")[0] == media, where
-    validator = Draft202012Validator({"$ref": f"{BASE}openapi.yaml#{pointer}"}, registry=REGISTRY)
-    errors = [
-        f"{'/'.join(map(str, e.absolute_path))}: {e.message}"
-        for e in validator.iter_errors(response.json())
-    ]
-    assert not errors, f"{where}: {errors}"
 
 
 def test_every_route_the_app_serves_is_in_the_contract() -> None:
@@ -119,7 +68,7 @@ def _auth(key: str) -> dict[str, str]:
 
 @pytest.mark.anyio
 @pytest.mark.integration
-async def test_ops_admin_and_errors_match_the_contract(dsn: str) -> None:
+async def test_ops_admin_and_errors_match_the_contract(dsn: str, check: Any) -> None:
     k = await _keys(dsn)
     admin = _auth(k["admin"])
     with _client(dsn) as c:
@@ -153,7 +102,9 @@ async def test_ops_admin_and_errors_match_the_contract(dsn: str) -> None:
 
 @pytest.mark.anyio
 @pytest.mark.integration
-async def test_ingest_outcomes_actions_and_questions_match_the_contract(dsn: str) -> None:
+async def test_ingest_outcomes_actions_and_questions_match_the_contract(
+    dsn: str, check: Any
+) -> None:
     k = await _keys(dsn)
     ingest, admin = _auth(k["ingest"]), _auth(k["admin"])
     data = generate("refund-fraud", seed=1, end=datetime.now(UTC), days=200, per_day=5)

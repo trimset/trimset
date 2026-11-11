@@ -9,7 +9,7 @@ from typing import Any
 
 import asyncpg
 
-from trimset_server import actions, outcomes
+from trimset_server import actions, jobs, outcomes
 from trimset_server.auth import DB_ERRORS
 from trimset_server.config import Settings
 from trimset_server.partitions import ensure_partitions
@@ -37,11 +37,16 @@ async def _rules(conn: Any) -> None:
         log.info("default rules labelled %d decisions", labelled)
 
 
+async def _jobs(conn: Any) -> None:
+    await jobs.work(conn)
+
+
 async def run_worker(settings: Settings, stop: asyncio.Event) -> None:
     jobs: list[tuple[str, float, Job]] = [
         ("partitions", settings.maintenance_interval_s, _partitions),
         ("joins", settings.join_interval_s, _joins),
         ("rules", settings.rules_interval_s, _rules),
+        ("jobs", settings.jobs_interval_s, _jobs),
     ]
     pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=2, timeout=5)
     loop = asyncio.get_running_loop()
