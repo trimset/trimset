@@ -95,6 +95,11 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     infeasible; the simulator and label coverage answer at once. Question settings take
     `actions` and `audit_fraction`. Tests: the `check` and `conforms` fixtures
     (conftest.py) validate any response or body against the contract.
+  - T2.7, the CLI (`sdk/python/src/trimset/cli.py`, stdlib only, `trimset` on PATH):
+    config (0600 file; TRIMSET_URL/TRIMSET_KEY win), calibrate, simulate, policy
+    compile/show/diff, coverage, decisions tail; tables or `--json`. The server gained
+    read views: GET /v1/admin/policies, /policies/{id}, /policies/{id}/diff and
+    /v1/admin/decisions. Export (FR-58) stays in M5.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
@@ -249,6 +254,7 @@ python3 tools/crate_ages.py 2026-11-04          # crates against the 7-day hold
 TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
 uv run trimset-mock-upstream --port 9000        # the mock upstream, for trying the proxy
 uv run trimset-datagen refund-fraud --out data/ # synthetic data; --url to send it
+uv run trimset --help                           # the CLI (config set --url URL, then calibrate, ...)
 # The image is built and smoke-tested in CI (job "image"), not locally.
 
 # Contract checks (also in CI)

@@ -111,6 +111,52 @@ async def test_fit_then_compile_then_simulate(dsn: str, check: Any, conforms: An
         assert {"SELECT", "ESCALATE"} <= set(paths)
         assert all(p["labeled"] <= p["decisions"] for p in paths.values())
 
+        listed = c.get(
+            "/v1/admin/policies",
+            params={"question": "team", "model_served": "jev-1.14.0"},
+            headers=auth,
+        )
+        check(listed, "GET", "/v1/admin/policies")
+        newest, oldest = listed.json()["items"]
+        assert (newest["policy"]["version"], newest["state"]) == (2, "draft")
+        assert newest["guarantee_status"] == "certified" and newest["events"] == []
+        second, first = newest["policy"]["policy_id"], oldest["policy"]["policy_id"]
+        check(
+            c.get(f"/v1/admin/policies/{second}", headers=auth),
+            "GET",
+            "/v1/admin/policies/{policy_id}",
+        )
+        diff = c.get(f"/v1/admin/policies/{second}/diff", params={"against": first}, headers=auth)
+        check(diff, "GET", "/v1/admin/policies/{policy_id}/diff")
+        assert diff.json()["against"] == first and [r["id"] for r in diff.json()["rules"]] == [
+            "select"
+        ]
+        alone = c.get(f"/v1/admin/policies/{second}/diff", headers=auth).json()
+        assert alone["against"] is None and alone["metrics"]["before"] is None
+        assert c.get(f"/v1/admin/policies/{uuid.uuid4()}", headers=auth).status_code == 404
+        assert (
+            c.get("/v1/admin/policies", params={"state": "nope"}, headers=auth).status_code == 422
+        )
+
+        latest = c.get("/v1/admin/decisions", params={"question": "team", "limit": 5}, headers=auth)
+        check(latest, "GET", "/v1/admin/decisions")
+        items = latest.json()["items"]
+        assert len(items) == 5 and [d["ts"] for d in items] == sorted(
+            (d["ts"] for d in items), reverse=True
+        )
+        newer = c.get("/v1/admin/decisions", params={"from": items[1]["ts"]}, headers=auth).json()
+        assert [d["decision_id"] for d in newer["items"]] == [items[0]["decision_id"]]
+        selected = c.get(
+            "/v1/admin/decisions", params={"action": "SELECT", "limit": 3}, headers=auth
+        )
+        assert all(d["action_taken"].startswith("SELECT:") for d in selected.json()["items"])
+        pending = c.get("/v1/admin/decisions", params={"outcome": "pending"}, headers=auth)
+        check(pending, "GET", "/v1/admin/decisions")
+        assert (
+            c.get("/v1/admin/decisions", params={"outcome": "right"}, headers=auth).status_code
+            == 422
+        )
+
     conn = await asyncpg.connect(dsn)
     try:
         rows = await conn.fetch(

@@ -15,6 +15,9 @@ classifiers = [
   "Typing :: Typed",
 ]
 
+[project.scripts]
+trimset = "trimset.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/trimset/trimset"
 
