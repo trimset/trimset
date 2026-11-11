@@ -51,7 +51,10 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T1.11, the data generator (`tools/.../datagen.py`, `trimset-datagen`): all six use
     cases with their outcome channels; planted miscalibration, drift, a silent model
     swap, missing labels and slower delays; JSONL (with ground truth) or through the API.
-- Next: T1.12 (contract and integration tests), then the rest of M1.
+  - T1.12, contract tests (`server/tests/test_contract_integration.py`): every route is in
+    `openapi.yaml`, and real responses match their documented status and schema. A new
+    endpoint gets a `check(...)` call there.
+- Next: T1.13 (the load test), then the rest of M1.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

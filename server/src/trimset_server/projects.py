@@ -145,7 +145,7 @@ def _view(
     return {
         "project_id": str(project_id),
         "name": name,
-        "settings": settings.model_dump(mode="json"),
+        "settings": settings.model_dump(mode="json", exclude_none=True),  # unset is absent
         "available": {
             "upstreams": [
                 {"name": u.name, "format": u.format, "server_key": u.key is not None}
