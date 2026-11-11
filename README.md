@@ -29,13 +29,12 @@ recorded data: [demo.trimset.dev](https://demo.trimset.dev)
 | Calibration | Temperature, Platt and isotonic fits per question and model, chosen by cross-validation, with log loss, Brier and ECE on held-out data. |
 | Thresholds | A simulator for any thresholds, and a compiler that certifies a target with Learn-then-Test and exact binomial tests, or says why it can't. |
 | Policies | Versions with diffs, propose → approve → activate, rollback, an audit log, and scheduled refits that only propose. |
-| SDK | `trimset.Client` and `gate()` in Python 3.11+: a verified policy cache that never blocks or raises. |
+| SDK | `trimset.Client` in Python 3.11+: `gate()` applies the policy from a verified cache and never blocks or raises; `log_exchange`, `log` and `outcome` send records and outcomes in the background, and the state itself is never sent; `instrument()` captures a model run in your own process, such as a Hugging Face pipeline. |
 | CLI | `trimset calibrate`, `simulate`, `policy compile/show/diff/approve/…`, `coverage`, `decisions tail`. |
 
-**Not yet:** sending records and outcomes from the SDK, and capturing in-process models
-such as Hugging Face pipelines (next, M3); drift and silent-upgrade alerts (M4); shadow
-models and the review queue (M5); the web dashboard served by your install (v0.2; the
-demo above is a preview). The plan is in [docs/04-plan.md](docs/04-plan.md).
+**Not yet:** drift and silent-upgrade alerts (M4); shadow models and the review queue
+(M5); the web dashboard served by your install (v0.2; the demo above is a preview); a
+PyPI release. The plan is in [docs/04-plan.md](docs/04-plan.md).
 
 ## Quickstart
 
