@@ -1,0 +1,11 @@
+// The homepage (site/) on trimset.dev: static files only, no Worker script.
+// Deploy: npx wrangler@4.157.0 deploy
+{
+  "name": "trimset-site",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./site",
+    "not_found_handling": "404-page"
+  },
+  "routes": [{ "pattern": "trimset.dev", "custom_domain": true }]
+}
