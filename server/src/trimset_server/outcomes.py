@@ -253,7 +253,8 @@ async def post_outcomes(request: Request, principal: Ingest) -> JSONResponse:
             # One request at a time per project from here to commit, so two can't both
             # see room and overshoot the limit.
             await conn.execute(
-                "SELECT pg_advisory_xact_lock(hashtext('unmatched_outcomes'), hashtext($1::uuid::text))",
+                "SELECT pg_advisory_xact_lock(hashtext('unmatched_outcomes'), "
+                "hashtext($1::uuid::text))",
                 principal.project_id,
             )
             waiting = await conn.fetchval(

@@ -85,7 +85,8 @@ async def report_actions(request: Request, principal: Ingest) -> JSONResponse:
             # One request at a time per project from here to commit, so two can't both
             # see room and overshoot the limit.
             await conn.execute(
-                "SELECT pg_advisory_xact_lock(hashtext('pending_actions'), hashtext($1::uuid::text))",
+                "SELECT pg_advisory_xact_lock(hashtext('pending_actions'), "
+                "hashtext($1::uuid::text))",
                 principal.project_id,
             )
             held = await conn.fetchval(
