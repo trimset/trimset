@@ -20,8 +20,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from trimset_server import keys, projects
 from trimset_server.auth import DB_ERRORS, Unavailable
+from trimset_server.capture import capture, metadata
 from trimset_server.errors import Problem
-from trimset_server.proxy import capture, metadata
 
 TOKEN_CONTEXT = b"trimset-internal/1"
 
@@ -122,7 +122,7 @@ async def exchanges(body: ExchangesIn, request: Request) -> JSONResponse:
         except ValueError:
             continue
         ref, tags = metadata(ex.external_ref, ex.tags)
-        ids = capture(
+        stored = capture(
             state,
             ex.project_id,
             settings,
@@ -130,10 +130,10 @@ async def exchanges(body: ExchangesIn, request: Request) -> JSONResponse:
             sent,
             ex.response.encode(),
             ex.latency_ms,
+            ids=ex.decision_ids,
+            ts=datetime.fromtimestamp(ex.ts_ms / 1000, UTC),
             ref=ref,
             tags=tags,
-            given_ids=ex.decision_ids,
-            ts=datetime.fromtimestamp(ex.ts_ms / 1000, UTC),
         )
-        queued += ids is not None
+        queued += stored is not None
     return JSONResponse({"queued": queued}, status_code=202)

@@ -54,8 +54,8 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T1.12, contract tests (`server/tests/test_contract_integration.py`): every route is in
     `openapi.yaml`, and real responses match their documented status and schema. A new
     endpoint gets a `check(...)` call there.
-- In progress: T1.13, the load test (`tools/load/`, `.github/workflows/load.yml`, started
-  by hand: `gh workflow run load.yml --repo trimset/trimset`).
+  - T1.13, the load test (`tools/load/`, workflow `load`, started by hand). Ingest
+    passed in Python; the proxy didn't, so its hot path is now Rust (ADR 0015).
   - T1.15, the demo `examples/m1-capture/run.sh`: refund fraud through the proxy, a
     silent upgrade, generated history, held and default-rule labels. CI runs it.
 - Next: T1.14 (real calls, needs the user's keys), then the M1 re-plan.
@@ -83,6 +83,9 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - Privacy: the state hash is a keyed HMAC.
   - SDK: when nothing is configured it falls back to ESCALATE, and never raises. It
     stays pure Python for 3.11 and newer, with no numpy or scipy.
+- **Phase 5:** the proxy's hot path is Rust, measured before it was kept (ADR 0015);
+  nothing else moves to Rust. Rust is installed here by Homebrew's rustup
+  (`/opt/homebrew/opt/rustup/bin`); build with `-j 2`, as RAM is tight.
 - **Phase 5:** agents and a chat assistant wait until the guarantees exist (ADR 0014):
   an MCP server and agent hook (TV.1, v0.2 or earlier if M3 leaves room) and an
   assistant in the v2 dashboard (TV.2). No model playground.
@@ -139,6 +142,10 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
   yet.
 - `stats/`: package `trimset-stats`. Pure functions, no I/O.
 - `server/`: package `trimset-server` (server and worker).
+- `proxy/`: `trimset-proxy`, the front door in Rust (ADR 0015). It forwards proxy calls,
+  gives decision ids and passes everything else to the server. It never parses answers
+  or touches the database: it hands exchanges to the server's `/internal/proxy/*`
+  (`internal.py`, `capture.py`). One file, `src/main.rs`, with its tests.
 - `tools/`: package `trimset-tools`, never published and never in the server image. The
   mock upstream (`trimset-mock-upstream`) and the data generator (`trimset-datagen`). Tests
   use the mock in-process: `create_app(transport=httpx2.ASGITransport(mock_upstream.create_app()))`.
@@ -151,11 +158,12 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
 - `site/`: the homepage.
 - `.github/workflows/ci.yml`: lint, types, tests per package with coverage gates, SDK on
   Python 3.11, contract checks, and an image and compose smoke test.
-- `Dockerfile`: one image for server and worker.
+- `Dockerfile`: one image for the proxy, the server and the worker.
   - Base images and uv are pinned by digest.
   - It runs as uid 10001.
   - Entrypoint `trimset-server`.
-- `compose.yaml`: Postgres 18.6 and the server on :8800. It needs `TRIMSET_DB_PASSWORD` in
+- `compose.yaml`: Postgres 18.6, the proxy on :8800, the server behind it on :8810 (two
+  processes), and the worker. It needs `TRIMSET_DB_PASSWORD` in
   `.env`; there is no default password.
 - `compose.mock.yaml`: adds the mock upstream on :9000 (Dockerfile target
   `mock-upstream`) and points the server at it. CI's image job uses both files.
@@ -196,7 +204,9 @@ uv run --frozen ruff check . && uv run --frozen ruff format --check .
 uv run --frozen mypy
 uv run --frozen pytest stats/tests/test_x.py    # one file at a time locally
 gh run list --repo trimset/trimset              # the real test results
-gh workflow run load.yml --repo trimset/trimset # load test, ~30 min; results in the run summary
+gh workflow run load.yml --repo trimset/trimset # load test, ~20 min; results in the log and summary
+cd proxy && cargo clippy -j 2 --all-targets -- -D warnings && cargo test -j 2  # the Rust proxy
+python3 tools/crate_ages.py 2026-11-04          # crates against the 7-day hold
 TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
 uv run trimset-mock-upstream --port 9000        # the mock upstream, for trying the proxy
 uv run trimset-datagen refund-fraud --out data/ # synthetic data; --url to send it

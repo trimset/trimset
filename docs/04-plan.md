@@ -255,7 +255,7 @@ gantt
 | R2 | **The decision-model category fades.** | Low–medium. OpenAI went generally available, and TypeSafe, Ollaya and Ollama all moved within two months. | High | The core (calibration, thresholds, guarantees, drift) works on any probabilities, through the `direct` record format. Wire adapters stay thin and isolated. |
 | R3 | **Solo-maintainer bandwidth.** | High | High | 25% buffer; re-plan after each milestone; every milestone ships something usable; the cut list below; good-first-issues from M3. |
 | R4 | Vendor wire formats change (TypeSafe's spec is at 0.2.0). | Medium | Medium | Recorded fixtures and contract tests per vendor; a monthly changelog check; versioned adapters. |
-| R5 | Python misses the ingest or proxy latency targets. | Medium | Medium | Measured in M1 (T1.13), with the Rust hot-path escape hatch from ADR 0001. |
+| R5 | Python misses the ingest or proxy latency targets. | Medium | Medium | Measured in M1 (T1.13): ingest held, the proxy didn't, and its hot path is now Rust (ADR 0015). |
 | R6 | A bug makes a guarantee false. | Low | High (trust) | Golden tests; the coverage experiment in CI (NFR-09); a statistician reviews the compiler before the alpha. |
 | R7 | Synthetic numbers mislead. | Medium | Medium | Label every synthetic figure as such. Find 1–2 design partners with real traffic before v0.1.0. |
 | R8 | A security flaw in the proxy or the key handling. | Medium | High | Threat model; operator allowlists; dependency and secret scans in CI; `SECURITY.md` with a contact at the alpha. |

@@ -20,11 +20,11 @@ the coverage gate exist from the first line of product code.
 
 | Kind | Tool | What it proves | Runs |
 |---|---|---|---|
-| Unit | pytest | One function or module behaves as specified | Every push |
+| Unit | pytest; `cargo test` for the Rust proxy | One function or module behaves as specified | Every push |
 | Property | Hypothesis | Invariants hold for any input (see below) | Every push |
 | Golden | pytest, marker `golden`; scikit-learn and scipy as test-only references | Our statistics match reference implementations to a stated tolerance, and reproduce one published result per method ([research.md](research.md) §3) | Every push |
 | Contract | `openapi-spec-validator`, `check-jsonschema`, `vectors/generate.py --check`, plus a fixture that validates every request and response in integration tests against `openapi.yaml` | The API, the payloads and the hashes match [03-api](03-api/README.md); the SDK sends what the server accepts | Every push |
-| Integration | pytest, marker `integration`; Postgres 18 as a CI service container; the mock upstream (FR-59) | Server, worker and database together: ingest, proxy, joins, jobs | Every push, from T1.4 |
+| Integration | pytest, marker `integration`; Postgres 18 as a CI service container; the mock upstream (FR-59). The Rust proxy's own end-to-end tests run it between a fake upstream and a fake server; the image job runs the real stack | Server, worker and database together: ingest, the proxy's records, joins, jobs | Every push, from T1.4 |
 | Chaos | Integration tests that stop Postgres or the server mid-test | NFR-06 (the proxy keeps forwarding) and NFR-07 (the SDK never raises or blocks) | Every push, from T1.8 and T3.6 |
 | Experiments | pytest, marker `slow`; the data generator (FR-60) | NFR-09 (guarantees hold in ≥ 95% of 200 seeds), SM-1, SM-3, SM-4 | Nightly, from T2.5 |
 | Demos | `examples/*` scripts | Each milestone's end-to-end story still works | Nightly, from T1.15 |
@@ -83,3 +83,6 @@ it is found, and fix it within the milestone.
   together.
 - **Pinned actions:** GitHub Actions are pinned to commit SHAs.
 - **One-off tools:** `uvx` tools are pinned to exact versions.
+- **Rust:** the toolchain is pinned in `proxy/rust-toolchain.toml`, crates to exact
+  versions, and `python3 tools/crate_ages.py <cutoff>` checks every crate in
+  `Cargo.lock` against the hold. Run it after any `cargo update`.

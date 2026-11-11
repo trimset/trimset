@@ -79,15 +79,17 @@ flowchart TB
   ch["Alert channels"]
 
   subgraph sys["trimset deployment"]
-    server["server<br/>[Python, FastAPI]<br/>ingest · proxy · outcomes ·<br/>policies · admin · review · reports"]
+    proxy["proxy<br/>[Rust, ADR 0015]<br/>front door: forwards, decision ids,<br/>passes the rest to the server"]
+    server["server<br/>[Python, FastAPI]<br/>ingest · records from the proxy · outcomes ·<br/>policies · admin · review · reports"]
     worker["worker<br/>[Python]<br/>scheduler · joiner · refit and compiler ·<br/>drift and health · alerts · shadow reports · retention"]
     db[("Postgres 18<br/>decisions partitioned by month,<br/>outcomes, fits, policies, jobs")]
     dash["dashboard<br/>[v2, static web app]"]
   end
 
-  app -- "proxy: /p/key/v1/systemone, /v1/decisions" --> server
-  app -- "log(), outcome(), GET /v1/policies" --> server
-  server -- "forward" --> up
+  app -- "proxy: /p/key/v1/systemone, /v1/decisions" --> proxy
+  app -- "log(), outcome(), GET /v1/policies" --> proxy
+  proxy -- "forward" --> up
+  proxy -- "every other path; keys and exchanges (internal)" --> server
   server -. "sampled copy, after the response" .-> cand
   src -- "POST /v1/outcomes" --> server
   cli -- "admin and review API" --> server
@@ -520,14 +522,15 @@ stateDiagram-v2
 flowchart TB
   subgraph vm["One VM (2 vCPU, 4 GB): docker compose"]
     rp["reverse proxy (optional)<br/>Caddy or nginx, TLS"]
-    s1["server<br/>uvicorn, one process per core<br/>:8800"]
+    px["proxy<br/>Rust, :8800"]
+    s1["server<br/>uvicorn, one process per core<br/>:8810, internal"]
     w1["worker"]
     pg[("postgres:18<br/>volume pgdata")]
   end
-  apps["Apps + SDKs"] --> rp --> s1
+  apps["Apps + SDKs"] --> rp --> px --> s1
   s1 --> pg
   w1 --> pg
-  s1 --> up["Upstream: Jev on the internet,<br/>or Ollaya on the host at :11435"]
+  px --> up["Upstream: Jev on the internet,<br/>or Ollaya on the host at :11435"]
   w1 --> ch["Slack · SMTP · webhooks"]
   s1 & w1 -. OTLP .-> otel["OTel collector (optional)"]
   bk["Backups: nightly pg_dump<br/>or volume snapshots"] -.-> pg

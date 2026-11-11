@@ -87,7 +87,7 @@ headers are passed through, not recorded.
 | Direction | Rule |
 |---|---|
 | App → upstream | Forward every end-to-end header unchanged, including `Authorization` (passthrough mode) and `TypeSafe-Danger-Zone-*`. Remove hop-by-hop headers (`Connection`, `Keep-Alive`, `TE`, `Trailer`, `Transfer-Encoding`, `Upgrade`, `Proxy-*`) and every `X-Trimset-*`. Rewrite `Host`. |
-| Upstream → app | Forward every end-to-end header. Add `X-Trimset-Decision-Id`: one id per question, comma-separated, in question order (systemone: the order of the `questions` keys). |
+| Upstream → app | Forward every end-to-end header. Add `X-Trimset-Decision-Id`: one id per question, comma-separated, in question order (systemone: the order of the `questions` keys). A question trimset can't read still gets an id, which never gets a record ([ADR 0015](../adr/0015-rust-proxy.md)). |
 
 Optional request headers read by trimset:
 - `X-Trimset-Key`: header mode ([ADR 0011](../adr/0011-proxy-design.md)).

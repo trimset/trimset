@@ -35,6 +35,8 @@ gate is only threshold arithmetic.
 
 ## Consequences
 
+- **Outcome (2026-11-11):** NFR-02 held in Python; NFR-03 didn't, so the proxy's hot
+  path is Rust ([ADR 0015](0015-rust-proxy.md)).
 - The M1 load test decides whether NFR-02 and NFR-03 hold. If they don't, only the
   ingest and proxy hot path is rewritten in Rust, as a separate binary using the same
   database schema and wire contract. Nothing else changes.

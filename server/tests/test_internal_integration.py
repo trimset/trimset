@@ -130,3 +130,36 @@ async def test_exchanges_are_recorded_with_the_proxys_ids(dsn: str) -> None:
     assert json.loads(rows[0]["tags"]) == {"channel": "web"}
     assert rows[0]["latency_ms"] == pytest.approx(12.5)
     assert rows[0]["model_served"] == "jev-1.14.0"
+
+
+@pytest.mark.req("FR-09")
+async def test_the_tag_allow_list_holds_for_proxied_exchanges(dsn: str) -> None:
+    pid, _ = await _setup(dsn)
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute(
+            "UPDATE projects SET settings = $2::jsonb WHERE project_id = $1",
+            pid,
+            json.dumps({"privacy": {"tag_allowlist": ["channel"]}}),
+        )
+    finally:
+        await conn.close()
+    exchange = {
+        "project_id": str(pid),
+        "format": "systemone",
+        "request": json.dumps(REQUEST),
+        "response": json.dumps(ANSWER),
+        "decision_ids": [uuid7(), uuid7()],
+        "latency_ms": 1.0,
+        "ts_ms": int(datetime.now(UTC).timestamp() * 1000),
+        "tags": "channel=web,customer_email=ann%40example.com",
+    }
+    with TestClient(_app(dsn)) as c:
+        r = c.post("/internal/proxy/exchanges", json={"exchanges": [exchange]}, headers=TOKEN)
+        assert r.json() == {"queued": 1}
+    conn = await asyncpg.connect(dsn)
+    try:
+        tags = await conn.fetch("SELECT tags FROM decisions")
+    finally:
+        await conn.close()
+    assert [json.loads(t["tags"]) for t in tags] == [{"channel": "web"}] * 2

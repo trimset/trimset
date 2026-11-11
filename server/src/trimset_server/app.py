@@ -8,7 +8,6 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import asyncpg
-import httpx2
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -21,7 +20,6 @@ from trimset_server import (
     keys,
     outcomes,
     projects,
-    proxy,
     questions,
 )
 from trimset_server.auth import KeyCache
@@ -33,9 +31,8 @@ log = logging.getLogger("trimset.server")
 
 
 def create_app(
-    settings: Settings | None = None, transport: httpx2.AsyncBaseTransport | None = None
+    settings: Settings | None = None,
 ) -> FastAPI:
-    """`transport` lets tests stand in for the upstream; production leaves it None."""
     settings = settings or Settings.from_env()
 
     @asynccontextmanager
@@ -54,17 +51,11 @@ def create_app(
             async with pool.acquire() as conn:
                 return await projects.load_settings(conn, project_id)
 
-        http = httpx2.AsyncClient(
-            transport=transport,
-            follow_redirects=False,  # ADR 0011: redirects are never followed
-            limits=httpx2.Limits(max_connections=200, max_keepalive_connections=50),
-        )
         recorder = Recorder(pool.acquire, capacity=settings.proxy_buffer)
         stop = asyncio.Event()
 
         app.state.settings = settings
         app.state.pool = pool
-        app.state.http = http
         app.state.keys = KeyCache(load_key, settings.key_cache_ttl_s)
         app.state.projects = projects.ProjectCache(load_project, settings.key_cache_ttl_s)
         app.state.recorder = recorder
@@ -77,7 +68,6 @@ def create_app(
             with contextlib.suppress(asyncio.CancelledError):
                 await writer
             await recorder.drain(timeout_s=5)
-            await http.aclose()
             await pool.close()
 
     # The contract is docs/03-api/openapi.yaml, so FastAPI's generated docs stay off.
@@ -89,7 +79,6 @@ def create_app(
     app.include_router(outcomes.router)
     app.include_router(actions.router)
     app.include_router(questions.router)
-    app.include_router(proxy.router)
     app.include_router(internal.router)
 
     # Public, no key: liveness and readiness never return project data.

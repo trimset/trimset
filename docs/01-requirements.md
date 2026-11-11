@@ -630,7 +630,7 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
 |---|---|---|
 | NFR-01 | `docker compose up -d` on a machine with Docker gives `/ready` 200 within 2 minutes of the images being pulled. No account and no outside service are needed. | Install test in CI |
 | NFR-02 | Ingestion: `POST /v1/decisions:log` p99 < 20 ms per request, at 2,000 decisions/s sustained for 10 minutes (batches of 1–100), on a 2 vCPU / 4 GB VM with Postgres on the same VM. An acknowledged record is committed. | Load test |
-| NFR-03 | The proxy adds < 5 ms at p99 compared with calling the mock upstream directly, at 500 requests/s with logging on. | Load test |
+| NFR-03 | The proxy adds < 5 ms at p99 compared with calling the mock upstream directly, at 500 requests/s with logging on. Met by the Rust proxy ([ADR 0015](adr/0015-rust-proxy.md)). | Load test |
 | NFR-04 | `gate()` p99 < 1 ms with 1,000 policies cached, and no network call on that path. | Benchmark |
 | NFR-05 | An activation or rollback reaches every running SDK within 60 seconds. | Integration test |
 | NFR-06 | The proxy keeps forwarding when Postgres is slow or down. Records are buffered up to a limit, then dropped, counted and alerted on; they never hold up a response. | Chaos test |

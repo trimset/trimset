@@ -2,8 +2,8 @@
 
 Every route the app serves is in the contract. Every response below uses a status its
 operation lists, with a body that matches the listed schema. An error an operation
-doesn't list must still be a Problem (RFC 9457), except on the proxy, whose errors use
-the upstream's format.
+doesn't list must still be a Problem (RFC 9457). The proxy's routes are Rust's, tested in
+proxy/src/main.rs; this file covers the Python server.
 """
 
 import json
@@ -27,7 +27,6 @@ from trimset_server.app import create_app
 from trimset_server.config import Settings
 from trimset_server.migrate import run_migrations
 from trimset_server.upstreams import Upstream
-from trimset_tools import mock_upstream
 from trimset_tools.datagen import generate
 
 API = Path(__file__).resolve().parents[2] / "docs" / "03-api"
@@ -111,13 +110,7 @@ async def _keys(dsn: str) -> dict[str, str]:
 
 def _client(dsn: str) -> TestClient:
     upstreams = {"mock": Upstream("mock", "http://mock.test", "systemone")}
-    app = create_app(
-        Settings(
-            database_url=dsn, secret=b"contract-secret-0123456789abcdefgh", upstreams=upstreams
-        ),
-        transport=httpx2.ASGITransport(mock_upstream.create_app()),
-    )
-    return TestClient(app)
+    return TestClient(create_app(Settings(database_url=dsn, upstreams=upstreams)))
 
 
 def _auth(key: str) -> dict[str, str]:
@@ -221,28 +214,3 @@ async def test_ingest_outcomes_actions_and_questions_match_the_contract(dsn: str
             "PATCH",
             template,
         )
-
-
-@pytest.mark.anyio
-@pytest.mark.integration
-async def test_the_proxy_matches_the_contract(dsn: str) -> None:
-    k = await _keys(dsn)
-    request = {
-        "model": "mock-latest",
-        "state": {"ticket": "t-1"},
-        "questions": {"fraud": {"type": "noul", "instructions": "Is this fraud?"}},
-    }
-    with _client(dsn) as c:
-        ok = c.post(f"/p/{k['proxy']}/v1/systemone", json=request)
-        assert ok.headers["x-trimset-decision-id"]
-        check(ok, "POST", "/p/{proxyKey}/v1/systemone")
-        header = c.post("/v1/systemone", json=request, headers={"X-Trimset-Key": k["proxy"]})
-        check(header, "POST", "/v1/systemone")
-        check(
-            c.post("/p/tsp_" + "x" * 32 + "/v1/systemone", json=request),
-            "POST",
-            "/p/{proxyKey}/v1/systemone",
-        )
-        check(c.post("/v1/systemone", json=request), "POST", "/v1/systemone")  # no key
-        check(c.get(f"/p/{k['proxy']}/v1/models"), "GET", "/p/{proxyKey}/v1/models")
-        check(c.get("/v1/models", headers={"X-Trimset-Key": k["proxy"]}), "GET", "/v1/models")

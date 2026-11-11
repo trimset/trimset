@@ -10,6 +10,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::convert::Infallible;
 use std::env;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -585,10 +586,15 @@ fn capture(
         .get(CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    if content_type.to_ascii_lowercase().starts_with("multipart/") {
-        return None; // ponytail: image requests aren't recorded by the Rust proxy yet
-    }
-    let request = std::str::from_utf8(body).ok()?;
+    let sent_bytes: &[u8] = if content_type
+        .to_ascii_lowercase()
+        .starts_with("multipart/form-data")
+    {
+        request_part(content_type, body)?
+    } else {
+        body
+    };
+    let request = std::str::from_utf8(sent_bytes).ok()?;
     let sent: Value = serde_json::from_str(request).ok()?;
     let questions = match format {
         Format::Systemone => sent.get("questions")?.as_object()?.len(),
@@ -619,6 +625,62 @@ fn capture(
         external_ref: header("x-trimset-external-ref"),
         tags: header("x-trimset-tags"),
     })
+}
+
+fn find(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+    haystack
+        .get(from..)?
+        .windows(needle.len())
+        .position(|w| w == needle)
+        .map(|i| i + from)
+}
+
+/// The `name` parameter of a Content-Disposition line, unquoted.
+fn disposition_name(line: &str) -> Option<&str> {
+    let (header, params) = line.split_once(':')?;
+    if !header.trim().eq_ignore_ascii_case("content-disposition") {
+        return None;
+    }
+    params.split(';').find_map(|param| {
+        let (key, value) = param.split_once('=')?;
+        key.trim()
+            .eq_ignore_ascii_case("name")
+            .then(|| value.trim().trim_matches('"'))
+    })
+}
+
+/// The `request` part of a multipart image request (wire-formats.md §5). The image parts
+/// are forwarded but never read here.
+fn request_part<'a>(content_type: &str, body: &'a [u8]) -> Option<&'a [u8]> {
+    let boundary = content_type.split(';').skip(1).find_map(|param| {
+        let (key, value) = param.split_once('=')?;
+        key.trim()
+            .eq_ignore_ascii_case("boundary")
+            .then(|| value.trim().trim_matches('"'))
+    })?;
+    if boundary.is_empty() {
+        return None;
+    }
+    let delimiter = format!("--{boundary}");
+    let delimiter = delimiter.as_bytes();
+    let mut at = find(body, delimiter, 0)? + delimiter.len();
+    loop {
+        if body.get(at..at + 2) == Some(b"--".as_slice()) {
+            return None; // the closing delimiter: no request part
+        }
+        let next = find(body, delimiter, at)?;
+        let part = body[at..next].strip_prefix(b"\r\n")?;
+        let part = part.strip_suffix(b"\r\n").unwrap_or(part);
+        let blank = find(part, b"\r\n\r\n", 0)?;
+        let head = std::str::from_utf8(&part[..blank]).ok()?;
+        if head
+            .split("\r\n")
+            .any(|line| disposition_name(line) == Some("request"))
+        {
+            return Some(&part[blank + 4..]);
+        }
+        at = next + delimiter.len();
+    }
 }
 
 /// Everything that isn't the proxy goes to the Python server, unchanged.
@@ -710,60 +772,45 @@ fn setting<T: std::str::FromStr>(name: &str, default: T) -> T {
         .unwrap_or(default)
 }
 
-#[tokio::main]
-async fn main() -> Result<(), BoxError> {
-    let secret = env::var("TRIMSET_SECRET").unwrap_or_default();
-    if secret.len() < 32 {
-        log(
-            "error",
-            "TRIMSET_SECRET must be at least 32 characters (openssl rand -hex 32)",
-        );
-        std::process::exit(1);
-    }
-    let api_base = setting("TRIMSET_API_URL", "http://127.0.0.1:8810".to_owned());
-    let host = setting("TRIMSET_PROXY_HOST", "0.0.0.0".to_owned());
-    let port: u16 = setting("TRIMSET_PROXY_PORT", 8800);
-    let ttl_s: f64 = setting("TRIMSET_KEY_CACHE_TTL_S", 30.0_f64).clamp(0.0, 60.0);
+struct Config {
+    api_base: String,
+    secret: String,
+    key_ttl: Duration,
+    capacity: usize,
+    upstream_keys: HashMap<String, String>,
+}
 
+fn build_app(config: Config) -> Result<Arc<App>, BoxError> {
     let tls = rustls::crypto::ring::default_provider();
     let https = hyper_rustls::HttpsConnectorBuilder::new()
         .with_provider_and_webpki_roots(tls)?
         .https_or_http()
         .enable_http1()
         .build();
-    let app = Arc::new(App {
-        api_base: api_base.trim_end_matches('/').to_owned(),
-        api: Client::builder(TokioExecutor::new()).build_http(),
+    Ok(Arc::new(App {
+        api_base: config.api_base.trim_end_matches('/').to_owned(),
+        // No idle connections to the server: each request opens its own, so the kernel
+        // spreads them over the server's processes. Kept-alive ones funnelled everything
+        // into one process, and ingest's p99 went from 17 ms to 24 ms.
+        api: Client::builder(TokioExecutor::new())
+            .pool_max_idle_per_host(0)
+            .build_http(),
         upstream: Client::builder(TokioExecutor::new())
             .pool_idle_timeout(Duration::from_secs(60))
             .build(https),
-        token: HeaderValue::from_str(&internal_token(secret.as_bytes()))?,
-        upstream_keys: upstream_keys(),
-        key_ttl: Duration::from_secs_f64(ttl_s),
+        token: HeaderValue::from_str(&internal_token(config.secret.as_bytes()))?,
+        upstream_keys: config.upstream_keys,
+        key_ttl: config.key_ttl,
         keys: Mutex::new(HashMap::new()),
         queue: Mutex::new(VecDeque::new()),
-        capacity: setting("TRIMSET_PROXY_BUFFER", 50_000_usize).max(BATCH),
+        capacity: config.capacity.max(BATCH),
         dropped: AtomicU64::new(0),
         wake: Notify::new(),
         stopping: AtomicBool::new(false),
-    });
-    let writer = tokio::spawn(Arc::clone(&app).write_batches());
+    }))
+}
 
-    let address: SocketAddr = format!("{host}:{port}").parse()?;
-    let listener = TcpListener::bind(address).await?;
-    log(
-        "info",
-        &format!("trimset proxy on {address}, API at {}", app.api_base),
-    );
-
-    let shutdown = async {
-        let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("SIGTERM handler");
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {}
-            _ = term.recv() => {}
-        }
-    };
+async fn serve(listener: TcpListener, app: Arc<App>, shutdown: impl Future<Output = ()>) {
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
@@ -781,6 +828,46 @@ async fn main() -> Result<(), BoxError> {
             () = &mut shutdown => break,
         }
     }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), BoxError> {
+    let secret = env::var("TRIMSET_SECRET").unwrap_or_default();
+    if secret.len() < 32 {
+        log(
+            "error",
+            "TRIMSET_SECRET must be at least 32 characters (openssl rand -hex 32)",
+        );
+        std::process::exit(1);
+    }
+    let host = setting("TRIMSET_PROXY_HOST", "0.0.0.0".to_owned());
+    let port: u16 = setting("TRIMSET_PROXY_PORT", 8800);
+    let app = build_app(Config {
+        api_base: setting("TRIMSET_API_URL", "http://127.0.0.1:8810".to_owned()),
+        secret,
+        key_ttl: Duration::from_secs_f64(
+            setting("TRIMSET_KEY_CACHE_TTL_S", 30.0_f64).clamp(0.0, 60.0),
+        ),
+        capacity: setting("TRIMSET_PROXY_BUFFER", 50_000),
+        upstream_keys: upstream_keys(),
+    })?;
+    let writer = tokio::spawn(Arc::clone(&app).write_batches());
+
+    let address: SocketAddr = format!("{host}:{port}").parse()?;
+    let listener = TcpListener::bind(address).await?;
+    log(
+        "info",
+        &format!("trimset proxy on {address}, API at {}", app.api_base),
+    );
+    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    serve(listener, Arc::clone(&app), async move {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = term.recv() => {}
+        }
+    })
+    .await;
+
     // Stop taking requests; give the writer a few seconds to hand over what it holds.
     app.stopping.store(true, Ordering::Relaxed);
     app.wake.notify_one();
@@ -1029,5 +1116,620 @@ mod tests {
             rfc3339(Duration::from_millis(1_762_867_200_123)),
             "2025-11-11T13:20:00.123+00:00"
         );
+    }
+
+    // -------------------------------------------------------------- end to end
+    //
+    // The real proxy on a local port, between a fake upstream and a fake Python server.
+
+    use std::sync::atomic::AtomicU64;
+
+    const SECRET: &str = "end-to-end-secret-0123456789abcdef";
+    const PROXY_KEY: &str = "tsp_0123456789abcdefghijABCDEFGHIJ01";
+    const REVIEW_KEY: &str = "tsr_0123456789abcdefghijABCDEFGHIJ01";
+    const LOST_KEY: &str = "tsp_upstreamIsDownabcdefghijABCDEFG1";
+    const SYSTEMONE: &str = r#"{"model":"m-latest","state":{"x":1},"questions":{"a":{"type":"noul"},"b":{"type":"noul"}}}"#;
+    const ANSWER: &str = r#"{"model":"m-1.0.0","answers":{"a":{"type":"noul","noul":0.8}}}"#;
+
+    type Seen = Arc<Mutex<Vec<(Method, String, HeaderMap, Bytes)>>>;
+
+    struct World {
+        proxy: SocketAddr,
+        upstream_seen: Seen,
+        api_seen: Seen,
+        exchanges: Arc<Mutex<Vec<Value>>>,
+        principal_calls: Arc<AtomicU64>,
+        api_down: Arc<AtomicBool>,
+    }
+
+    async fn fake<F, Fut>(handler: F) -> SocketAddr
+    where
+        F: Fn(Request<Incoming>) -> Fut + Clone + Send + Sync + 'static,
+        Fut: Future<Output = Response<Full<Bytes>>> + Send + 'static,
+    {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                let handler = handler.clone();
+                tokio::spawn(async move {
+                    let service = service_fn(move |request| {
+                        let handler = handler.clone();
+                        async move { Ok::<_, Infallible>(handler(request).await) }
+                    });
+                    let _ = http1::Builder::new()
+                        .serve_connection(TokioIo::new(stream), service)
+                        .await;
+                });
+            }
+        });
+        address
+    }
+
+    fn reply(status: u16, body: &str) -> Response<Full<Bytes>> {
+        let mut response = Response::new(Full::new(Bytes::from(body.to_owned())));
+        *response.status_mut() = StatusCode::from_u16(status).unwrap();
+        response
+            .headers_mut()
+            .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        response
+    }
+
+    async fn remember(
+        seen: &Seen,
+        request: Request<Incoming>,
+    ) -> (Method, String, HeaderMap, Bytes) {
+        let (parts, body) = request.into_parts();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        let entry = (parts.method, parts.uri.to_string(), parts.headers, bytes);
+        seen.lock().unwrap().push(entry.clone());
+        entry
+    }
+
+    async fn world(format: &'static str, server_key: bool, key_ttl: Duration) -> World {
+        let upstream_seen: Seen = Arc::default();
+        let seen = Arc::clone(&upstream_seen);
+        let upstream = fake(move |request: Request<Incoming>| {
+            let seen = Arc::clone(&seen);
+            async move {
+                let (_, path, headers, _) = remember(&seen, request).await;
+                match headers.get("x-test").and_then(|v| v.to_str().ok()) {
+                    Some("slow") => {
+                        tokio::time::sleep(Duration::from_millis(800)).await;
+                        reply(200, ANSWER)
+                    }
+                    Some("error") => reply(500, r#"{"detail":"the model failed"}"#),
+                    Some("redirect") => {
+                        let mut r = reply(302, "{}");
+                        r.headers_mut().insert(
+                            "location",
+                            HeaderValue::from_static("http://elsewhere.test/"),
+                        );
+                        r
+                    }
+                    _ if path.ends_with("/v1/models") => reply(200, r#"{"data":[]}"#),
+                    _ => {
+                        let mut r = reply(200, ANSWER);
+                        r.headers_mut()
+                            .insert("x-trimset-decision-id", HeaderValue::from_static("spoofed"));
+                        r.headers_mut()
+                            .insert("x-upstream", HeaderValue::from_static("yes"));
+                        r
+                    }
+                }
+            }
+        })
+        .await;
+
+        let api_seen: Seen = Arc::default();
+        let exchanges: Arc<Mutex<Vec<Value>>> = Arc::default();
+        let principal_calls = Arc::new(AtomicU64::new(0));
+        let api_down = Arc::new(AtomicBool::new(false));
+        let (seen, got, calls, down) = (
+            Arc::clone(&api_seen),
+            Arc::clone(&exchanges),
+            Arc::clone(&principal_calls),
+            Arc::clone(&api_down),
+        );
+        let api = fake(move |request: Request<Incoming>| {
+            let (seen, got, calls, down) = (
+                Arc::clone(&seen),
+                Arc::clone(&got),
+                Arc::clone(&calls),
+                Arc::clone(&down),
+            );
+            async move {
+                let (_, path, headers, body) = remember(&seen, request).await;
+                if !path.starts_with("/internal/") {
+                    return reply(200, &json!({"passed": path}).to_string());
+                }
+                let token = headers
+                    .get("x-trimset-internal")
+                    .and_then(|v| v.to_str().ok());
+                if token != Some(internal_token(SECRET.as_bytes()).as_str()) {
+                    return reply(404, "{}");
+                }
+                if down.load(Ordering::Relaxed) {
+                    return reply(503, "{}");
+                }
+                let sent: Value = serde_json::from_slice(&body).unwrap();
+                if path == "/internal/proxy/exchanges" {
+                    got.lock()
+                        .unwrap()
+                        .extend(sent["exchanges"].as_array().unwrap().iter().cloned());
+                    return reply(202, r#"{"queued":1}"#);
+                }
+                calls.fetch_add(1, Ordering::Relaxed);
+                let url = match sent["key"].as_str() {
+                    Some(PROXY_KEY) => format!("http://{upstream}"),
+                    Some(LOST_KEY) => "http://127.0.0.1:1".to_owned(),
+                    Some(REVIEW_KEY) => {
+                        let denied = json!({"denied": {"status": 403, "code": "forbidden",
+                            "message": "This trimset key can't use the proxy"}});
+                        return reply(200, &denied.to_string());
+                    }
+                    _ => {
+                        let denied = json!({"denied": {"status": 401, "code": "invalid_key",
+                            "message": "Unknown or revoked trimset key"}});
+                        return reply(200, &denied.to_string());
+                    }
+                };
+                let principal = json!({"principal": {
+                    "key_id": "k", "project_id": "p1", "max_body_bytes": 4096,
+                    "upstream": {"name": "up", "url": url, "format": format,
+                                 "server_key": server_key, "timeout_ms": 300}}});
+                reply(200, &principal.to_string())
+            }
+        })
+        .await;
+
+        let app = build_app(Config {
+            api_base: format!("http://{api}"),
+            secret: SECRET.to_owned(),
+            key_ttl,
+            capacity: 50_000,
+            upstream_keys: HashMap::from([("up".to_owned(), "sk-operator".to_owned())]),
+        })
+        .unwrap();
+        tokio::spawn(Arc::clone(&app).write_batches());
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy = listener.local_addr().unwrap();
+        tokio::spawn(serve(listener, Arc::clone(&app), std::future::pending()));
+        World {
+            proxy,
+            upstream_seen,
+            api_seen,
+            exchanges,
+            principal_calls,
+            api_down,
+        }
+    }
+
+    async fn send(
+        world: &World,
+        method: Method,
+        path: &str,
+        headers: &[(&'static str, &str)],
+        body: &str,
+    ) -> (StatusCode, HeaderMap, Bytes) {
+        let client: Client<HttpConnector, Full<Bytes>> =
+            Client::builder(TokioExecutor::new()).build_http();
+        let mut request = Request::new(Full::new(Bytes::from(body.to_owned())));
+        *request.method_mut() = method;
+        *request.uri_mut() = format!("http://{}{path}", world.proxy).parse().unwrap();
+        for (name, value) in headers {
+            request
+                .headers_mut()
+                .insert(*name, HeaderValue::from_str(value).unwrap());
+        }
+        let response = client.request(request).await.unwrap();
+        let (head, body) = response.into_parts();
+        (
+            head.status,
+            head.headers,
+            body.collect().await.unwrap().to_bytes(),
+        )
+    }
+
+    async fn recorded(world: &World, n: usize) -> Vec<Value> {
+        for _ in 0..100 {
+            if world.exchanges.lock().unwrap().len() >= n {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        world.exchanges.lock().unwrap().clone()
+    }
+
+    fn json_of(body: &Bytes) -> Value {
+        serde_json::from_slice(body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn path_mode_forwards_unchanged_and_records_the_exchange() {
+        let w = world("systemone", false, Duration::from_secs(30)).await;
+        let path = format!("/p/{PROXY_KEY}/v1/systemone?trace=1");
+        let headers = [
+            ("authorization", "Bearer sk-app-own"),
+            ("x-trimset-external-ref", "rf-1"),
+            ("x-trimset-tags", "channel=web"),
+            ("content-type", "application/json"),
+        ];
+        let (status, out, body) = send(&w, Method::POST, &path, &headers, SYSTEMONE).await;
+        assert_eq!(status, 200);
+        assert_eq!(
+            body,
+            Bytes::from(ANSWER),
+            "the upstream's body comes back unchanged"
+        );
+        assert_eq!(out.get("x-upstream").unwrap(), "yes");
+        let ids: Vec<&str> = out
+            .get("x-trimset-decision-id")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .split(',')
+            .collect();
+        assert_eq!(ids.len(), 2, "one id per question, never the upstream's");
+
+        let seen = w.upstream_seen.lock().unwrap().clone();
+        let (method, uri, sent_headers, sent_body) = &seen[0];
+        assert_eq!(
+            (method, uri.as_str()),
+            (&Method::POST, "/v1/systemone?trace=1")
+        );
+        assert_eq!(sent_body, &Bytes::from(SYSTEMONE));
+        assert_eq!(
+            sent_headers.get("authorization").unwrap(),
+            "Bearer sk-app-own"
+        );
+        assert!(
+            sent_headers
+                .keys()
+                .all(|k| !k.as_str().starts_with("x-trimset-"))
+        );
+
+        let exchanges = recorded(&w, 1).await;
+        assert_eq!(exchanges.len(), 1);
+        let ex = &exchanges[0];
+        assert_eq!(ex["project_id"], "p1");
+        assert_eq!(ex["format"], "systemone");
+        assert_eq!(ex["request"], SYSTEMONE);
+        assert_eq!(ex["response"], ANSWER);
+        assert_eq!(ex["decision_ids"], json!(ids));
+        assert_eq!(
+            (ex["external_ref"].as_str(), ex["tags"].as_str()),
+            (Some("rf-1"), Some("channel=web"))
+        );
+    }
+
+    #[tokio::test]
+    async fn header_mode_works_and_a_trimset_key_never_leaves() {
+        let w = world("openai-decisions", false, Duration::from_secs(30)).await;
+        let headers = [("x-trimset-key", PROXY_KEY), ("authorization", PROXY_KEY)];
+        let body = r#"{"model":"gpt","questions":[{"type":"predicate"}]}"#;
+        let (status, out, _) = send(&w, Method::POST, "/v1/decisions", &headers, body).await;
+        assert_eq!(status, 200);
+        assert_eq!(
+            out.get("x-trimset-decision-id")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .split(',')
+                .count(),
+            1
+        );
+        let seen = w.upstream_seen.lock().unwrap().clone();
+        assert!(seen[0].2.get("authorization").is_none());
+        assert!(seen[0].2.get("x-trimset-key").is_none());
+    }
+
+    #[tokio::test]
+    async fn the_operators_key_replaces_the_apps_end_to_end() {
+        let w = world("systemone", true, Duration::from_secs(30)).await;
+        let headers = [
+            ("x-trimset-key", PROXY_KEY),
+            ("authorization", "Bearer sk-app-own"),
+        ];
+        send(&w, Method::POST, "/v1/systemone", &headers, SYSTEMONE).await;
+        let seen = w.upstream_seen.lock().unwrap().clone();
+        assert_eq!(
+            seen[0].2.get("authorization").unwrap(),
+            "Bearer sk-operator"
+        );
+    }
+
+    #[tokio::test]
+    async fn trimsets_own_errors_use_the_upstreams_format() {
+        let w = world("openai-decisions", false, Duration::from_secs(30)).await;
+        let (status, _, body) = send(&w, Method::POST, "/v1/decisions", &[], "{}").await;
+        assert_eq!(status, 401);
+        assert_eq!(json_of(&body)["error"]["code"], "missing_key");
+        let (status, _, body) = send(&w, Method::POST, "/v1/systemone", &[], "{}").await;
+        assert_eq!(
+            (status, json_of(&body)),
+            (
+                StatusCode::UNAUTHORIZED,
+                json!({
+            "detail": "A trimset key is required: /p/<key> in the base URL, or X-Trimset-Key"})
+            )
+        );
+
+        let unknown = "tsp_unknownunknownunknownunknownun1";
+        let (status, _, body) = send(
+            &w,
+            Method::POST,
+            &format!("/p/{unknown}/v1/decisions"),
+            &[],
+            "{}",
+        )
+        .await;
+        assert_eq!(
+            (status, json_of(&body)["error"]["code"].clone()),
+            (StatusCode::UNAUTHORIZED, json!("invalid_key"))
+        );
+        let (status, _, _) = send(
+            &w,
+            Method::POST,
+            &format!("/p/{REVIEW_KEY}/v1/decisions"),
+            &[],
+            "{}",
+        )
+        .await;
+        assert_eq!(status, 403);
+        assert!(
+            w.upstream_seen.lock().unwrap().is_empty(),
+            "nothing reached the upstream"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_or_slow_upstream_gets_502_or_504() {
+        let w = world("systemone", false, Duration::from_secs(30)).await;
+        let (status, _, body) = send(
+            &w,
+            Method::POST,
+            &format!("/p/{LOST_KEY}/v1/systemone"),
+            &[],
+            SYSTEMONE,
+        )
+        .await;
+        assert_eq!(
+            (status, json_of(&body)),
+            (
+                StatusCode::BAD_GATEWAY,
+                json!({"detail": "The upstream could not be reached"})
+            )
+        );
+        let slow = [("x-test", "slow")];
+        let (status, _, body) = send(
+            &w,
+            Method::POST,
+            &format!("/p/{PROXY_KEY}/v1/systemone"),
+            &slow,
+            SYSTEMONE,
+        )
+        .await;
+        assert_eq!(
+            (status, json_of(&body)),
+            (
+                StatusCode::GATEWAY_TIMEOUT,
+                json!({"detail": "The upstream timed out"})
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn upstream_errors_and_redirects_pass_through_unrecorded() {
+        let w = world("systemone", false, Duration::from_secs(30)).await;
+        let path = format!("/p/{PROXY_KEY}/v1/systemone");
+        let (status, out, body) =
+            send(&w, Method::POST, &path, &[("x-test", "error")], SYSTEMONE).await;
+        assert_eq!(
+            (status, body),
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Bytes::from(r#"{"detail":"the model failed"}"#)
+            )
+        );
+        assert!(out.get("x-trimset-decision-id").is_none());
+        let (status, out, _) = send(
+            &w,
+            Method::POST,
+            &path,
+            &[("x-test", "redirect")],
+            SYSTEMONE,
+        )
+        .await;
+        assert_eq!(status, 302, "redirects are never followed (ADR 0011)");
+        assert_eq!(out.get("location").unwrap(), "http://elsewhere.test/");
+        assert_eq!(w.upstream_seen.lock().unwrap().len(), 2);
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        assert!(w.exchanges.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_body_over_the_projects_limit_is_refused_before_forwarding() {
+        let w = world("systemone", false, Duration::from_secs(30)).await;
+        let big = "x".repeat(5000);
+        let (status, _, body) = send(
+            &w,
+            Method::POST,
+            &format!("/p/{PROXY_KEY}/v1/systemone"),
+            &[],
+            &big,
+        )
+        .await;
+        assert_eq!(
+            (status, json_of(&body)),
+            (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                json!({"detail": "The body is over 4096 bytes"})
+            )
+        );
+        assert!(w.upstream_seen.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn models_pass_through_unrecorded() {
+        let w = world("systemone", false, Duration::from_secs(30)).await;
+        let (status, out, body) = send(
+            &w,
+            Method::GET,
+            &format!("/p/{PROXY_KEY}/v1/models"),
+            &[],
+            "",
+        )
+        .await;
+        assert_eq!(
+            (status, body),
+            (StatusCode::OK, Bytes::from(r#"{"data":[]}"#))
+        );
+        assert!(out.get("x-trimset-decision-id").is_none());
+    }
+
+    #[tokio::test]
+    async fn a_multipart_request_records_its_request_part_and_forwards_the_image() {
+        let w = world("systemone", false, Duration::from_secs(30)).await;
+        let image = "\u{1}\u{2}--not-the-boundary\r\n\r\nbinary";
+        let body = format!(
+            "--XyZ\r\nContent-Disposition: form-data; name=\"image\"; filename=\"a.png\"\r\nContent-Type: image/png\r\n\r\n{image}\r\n--XyZ\r\nContent-Disposition: form-data; name=\"request\"\r\nContent-Type: application/json\r\n\r\n{SYSTEMONE}\r\n--XyZ--\r\n"
+        );
+        let headers = [("content-type", "multipart/form-data; boundary=\"XyZ\"")];
+        let (status, out, _) = send(
+            &w,
+            Method::POST,
+            &format!("/p/{PROXY_KEY}/v1/systemone"),
+            &headers,
+            &body,
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert!(out.get("x-trimset-decision-id").is_some());
+        assert_eq!(
+            w.upstream_seen.lock().unwrap()[0].3,
+            Bytes::from(body),
+            "forwarded byte for byte"
+        );
+        assert_eq!(recorded(&w, 1).await[0]["request"], SYSTEMONE);
+    }
+
+    #[test]
+    fn multipart_without_a_request_part_records_nothing() {
+        let body = b"--b\r\nContent-Disposition: form-data; name=\"image\"\r\n\r\nxx\r\n--b--\r\n";
+        assert!(request_part("multipart/form-data; boundary=b", body).is_none());
+        assert!(request_part("multipart/form-data", body).is_none());
+        let named = b"--b\r\nContent-Disposition: form-data; filename=\"request\"; name=\"x\"\r\n\r\n{}\r\n--b--\r\n";
+        assert!(request_part("multipart/form-data; boundary=b", named).is_none());
+    }
+
+    #[tokio::test]
+    async fn everything_else_goes_to_the_server_and_internal_paths_never_do() {
+        let w = world("systemone", false, Duration::from_secs(30)).await;
+        let headers = [(
+            "authorization",
+            "Bearer tsa_0123456789abcdefghijABCDEFGHIJ01",
+        )];
+        let (status, _, body) = send(&w, Method::GET, "/v1/admin/keys?limit=5", &headers, "").await;
+        assert_eq!(
+            (status, json_of(&body)),
+            (StatusCode::OK, json!({"passed": "/v1/admin/keys?limit=5"}))
+        );
+        let api = w.api_seen.lock().unwrap().clone();
+        assert_eq!(
+            api.last().unwrap().2.get("authorization").unwrap(),
+            headers[0].1
+        );
+
+        let before = w.api_seen.lock().unwrap().len();
+        let (status, _, _) = send(
+            &w,
+            Method::POST,
+            "/internal/proxy/principal",
+            &[],
+            r#"{"key":"x"}"#,
+        )
+        .await;
+        assert_eq!(status, 404);
+        assert_eq!(w.api_seen.lock().unwrap().len(), before, "never forwarded");
+        let (status, _, body) = send(&w, Method::GET, "/health", &[], "").await;
+        assert_eq!(
+            (status, json_of(&body)),
+            (StatusCode::OK, json!({"status": "ok"}))
+        );
+    }
+
+    #[tokio::test]
+    async fn key_answers_are_cached_and_stand_while_the_server_is_down() {
+        let w = world("systemone", false, Duration::ZERO).await;
+        let path = format!("/p/{PROXY_KEY}/v1/systemone");
+        send(&w, Method::POST, &path, &[], SYSTEMONE).await;
+        w.api_down.store(true, Ordering::Relaxed);
+        let (status, _, _) = send(&w, Method::POST, &path, &[], SYSTEMONE).await;
+        assert_eq!(
+            status, 200,
+            "the last answer stands for up to ten minutes (NFR-06)"
+        );
+        let unknown = format!("/p/{LOST_KEY}/v1/systemone");
+        let (status, _, body) = send(&w, Method::POST, &unknown, &[], SYSTEMONE).await;
+        assert_eq!(
+            (status, json_of(&body)["detail"].clone()),
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                json!("trimset can't check this key right now")
+            )
+        );
+
+        let cached = world("systemone", false, Duration::from_secs(30)).await;
+        for _ in 0..3 {
+            send(&cached, Method::POST, &path, &[], SYSTEMONE).await;
+        }
+        assert_eq!(cached.principal_calls.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn exchanges_wait_while_the_server_is_down_and_a_full_buffer_drops_the_oldest() {
+        let w = world("systemone", false, Duration::from_secs(30)).await;
+        let path = format!("/p/{PROXY_KEY}/v1/systemone");
+        send(&w, Method::POST, &path, &[], SYSTEMONE).await; // caches the key
+        w.api_down.store(true, Ordering::Relaxed);
+        send(&w, Method::POST, &path, &[], SYSTEMONE).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let held = w.exchanges.lock().unwrap().len();
+        w.api_down.store(false, Ordering::Relaxed);
+        assert_eq!(
+            recorded(&w, 2).await.len(),
+            2,
+            "held ({held} went in), then sent"
+        );
+
+        let exchange = |n: u32| Exchange {
+            project_id: format!("p{n}"),
+            format: "systemone",
+            request: String::new(),
+            response: String::new(),
+            decision_ids: vec![],
+            latency_ms: 0.0,
+            ts_ms: 0,
+            external_ref: None,
+            tags: None,
+        };
+        let small = build_app(Config {
+            api_base: "http://127.0.0.1:1".into(),
+            secret: SECRET.into(),
+            key_ttl: Duration::ZERO,
+            capacity: 0, // raised to one batch
+            upstream_keys: HashMap::new(),
+        })
+        .unwrap();
+        for n in 0..=(BATCH as u32) {
+            small.enqueue(exchange(n));
+        }
+        let queue = small.queue.lock().unwrap();
+        assert_eq!(
+            (queue.len(), small.dropped.load(Ordering::Relaxed)),
+            (BATCH, 1)
+        );
+        assert_eq!(queue.front().unwrap().project_id, "p1", "the oldest went");
     }
 }
