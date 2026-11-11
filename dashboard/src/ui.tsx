@@ -323,6 +323,7 @@ export function Confirm({
   children,
   confirm,
   danger,
+  disabled,
   onConfirm,
   onClose,
 }: {
@@ -331,6 +332,7 @@ export function Confirm({
   children: ReactNode;
   confirm: string;
   danger?: boolean;
+  disabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -348,7 +350,7 @@ export function Confirm({
         <div className="col t2" style={{ gap: 8 }}>{children}</div>
         <div className="row" style={{ justifyContent: "flex-end" }}>
           <button className="btn" type="button" onClick={onClose}>Cancel</button>
-          <button className={`btn${danger ? "" : " p"}`} type="button" onClick={onConfirm} style={danger ? { borderColor: "var(--cr)", color: "var(--cr)" } : undefined}>
+          <button className={`btn${danger ? "" : " p"}`} type="button" onClick={onConfirm} disabled={disabled} style={danger ? { borderColor: "var(--cr)", color: "var(--cr)" } : undefined}>
             {confirm}
           </button>
         </div>

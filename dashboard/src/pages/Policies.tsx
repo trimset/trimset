@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { api, type PolicyDiff, type PolicyMetrics, type PolicyView } from "../api.ts";
-import { count, day, interval, pct, prob, usd } from "../format.ts";
-import { href, Load, PolicyBadge, Top, useLoad } from "../ui.tsx";
+import { api, type Key, type PolicyDiff, type PolicyMetrics, type PolicyState, type PolicyView, q } from "../api.ts";
+import { count, day, interval, pct, prob, ruleText, usd } from "../format.ts";
+import { Confirm, ErrorState, href, Load, PolicyBadge, Top, useLoad } from "../ui.tsx";
 
 export function Policies() {
   return (
@@ -21,6 +21,8 @@ export function PoliciesBody({ question }: { question?: string }) {
     (signal) => api<{ items: PolicyView[] }>(`/v1/admin/policies?${new URLSearchParams(question ? { question } : {})}`, { signal }),
     [question],
   );
+  const keys = useLoad((signal) => api<{ items: Key[] }>("/v1/admin/keys", { signal }), []);
+  const labels = new Map((keys.data?.items ?? []).map((k) => [k.key_id, k.label]));
   const [picked, setPicked] = useState<string | null>(null);
   return (
     <Load state={state}>
@@ -62,7 +64,7 @@ export function PoliciesBody({ question }: { question?: string }) {
                 </div>
               ))}
             </section>
-            <Detail key={current.policy.policy_id} view={current} siblings={siblings} />
+            <Detail key={current.policy.policy_id + current.state} view={current} siblings={siblings} keys={labels} onChanged={state.reload} />
           </div>
         );
       }}
@@ -76,17 +78,73 @@ function target(v: PolicyView): string {
   return `${t.metric === "false_pass" ? "false passes" : "errors"} ≤ ${pct(t.alpha ?? null)} at ${pct(1 - (t.delta ?? 0.05), 0)}`;
 }
 
-const LIFECYCLE = "Approve, reject and roll back arrive with the policy lifecycle in M3 (FR-27 to FR-29). Until then every policy stays a draft.";
+type Act = "submit" | "approve" | "reject" | "activate" | "retire" | "rollback";
 
-function Detail({ view, siblings }: { view: PolicyView; siblings: PolicyView[] }) {
+// FR-27 to FR-29: what each state can do next, as the server allows it.
+const NEXT: Record<PolicyState, Act[]> = {
+  draft: ["submit"],
+  proposed: ["reject", "approve"],
+  approved: ["activate"],
+  active: ["retire"],
+  retired: [],
+  rejected: [],
+};
+const LABEL: Record<Act, string> = {
+  submit: "Propose",
+  approve: "Approve",
+  reject: "Reject",
+  activate: "Activate",
+  retire: "Retire",
+  rollback: "Roll back",
+};
+const NEEDS_REASON: Act[] = ["reject", "retire", "rollback"];
+
+function Detail({ view, siblings, keys, onChanged }: { view: PolicyView; siblings: PolicyView[]; keys: Map<string, string>; onChanged: () => void }) {
   const p = view.policy;
   const [against, setAgainst] = useState("");
   const diff = useLoad(
     (signal) => api<PolicyDiff>(`/v1/admin/policies/${p.policy_id}/diff?${new URLSearchParams(against ? { against } : {})}`, { signal }),
     [p.policy_id, against],
   );
+  const [act, setAct] = useState<Act | null>(null);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<unknown>(null);
   const others = siblings.filter((s) => s.policy.policy_id !== p.policy_id);
   const before = siblings.find((s) => s.policy.policy_id === (against || diff.data?.against));
+  const active = siblings.find((s) => s.state === "active");
+  const name = p.question_name ?? p.question_id;
+
+  const run = async () => {
+    if (!act) return;
+    setError(null);
+    try {
+      if (act === "rollback") await api(`/v1/admin/questions/${q(name)}/rollback`, { body: { model_served: p.model_served, reason: reason.trim() } });
+      else await api(`/v1/admin/policies/${p.policy_id}/transitions`, { body: { action: act, ...(reason.trim() ? { reason: reason.trim() } : {}) } });
+      onChanged();
+    } catch (e) {
+      setError(e);
+    }
+    setAct(null);
+    setReason("");
+  };
+
+  const thresholds = (from: PolicyView) =>
+    p.rules.map((r) => {
+      const old = from.policy.rules.find((x) => x.id === r.id)?.threshold;
+      return `${r.action} ${r.op === "lt" ? "below" : "from"} ${prob(old)} → ${prob(r.threshold)}`;
+    });
+  const changes: Record<Act, string[]> = {
+    submit: [`v${p.version} goes to the approvers as proposed. It decides nothing yet.`],
+    approve: [`v${p.version} is approved. It decides nothing until someone activates it.`],
+    reject: [`v${p.version} is rejected and can't be activated.`],
+    activate: [
+      `v${p.version} decides ${name} on ${p.model_served}${active ? `; v${active.policy.version} is retired.` : "."}`,
+      ...(active ? thresholds(active) : p.rules.map(ruleText)),
+      "SDKs pick it up on their next poll.",
+    ],
+    retire: [`v${p.version} stops deciding. With no active policy, SDKs fall back to ESCALATE.`],
+    rollback: [`v${active?.policy.version} is retired, and the version active before it decides again.`],
+  };
 
   return (
     <div className="col" style={{ gap: 16, flex: "999 1 520px" }}>
@@ -102,10 +160,13 @@ function Detail({ view, siblings }: { view: PolicyView; siblings: PolicyView[] }
               {others.map((o) => <option key={o.policy.policy_id} value={o.policy.policy_id}>v{o.policy.version} ({o.state})</option>)}
             </select>
           </label>
-          <button className="btn" type="button" disabled title={LIFECYCLE}>Reject</button>
-          <button className="btn p" type="button" disabled title={LIFECYCLE}>Approve v{p.version}</button>
+          {NEXT[view.state].map((a) => (
+            <button key={a} className={`btn${a === "reject" || a === "retire" ? "" : " p"}`} type="button" onClick={() => setAct(a)}>
+              {LABEL[a]} v{p.version}
+            </button>
+          ))}
         </div>
-        <p className="mu small" style={{ margin: 0, padding: "0 18px 8px" }}>{LIFECYCLE}</p>
+        {error != null && <div style={{ padding: "0 18px 12px" }}><ErrorState error={error} /></div>}
         <Load state={diff} rows={4}>
           {(d) => (
             <>
@@ -139,19 +200,23 @@ function Detail({ view, siblings }: { view: PolicyView; siblings: PolicyView[] }
       <section className="card" aria-labelledby="au">
         <div className="sec-h">
           <h2 id="au" className="h">Audit trail</h2>
-          <button className="btn" type="button" disabled title={LIFECYCLE}>Roll back…</button>
+          {active && (
+            <button className="btn" type="button" onClick={() => setAct("rollback")}>
+              Roll back {name} on {p.model_served}…
+            </button>
+          )}
         </div>
         {view.events.length ? (
           <div className="tw">
             <table className="t">
-              <thead><tr><th>When (UTC)</th><th>Key</th><th>What</th><th>Note</th></tr></thead>
+              <thead><tr><th>When (UTC)</th><th>Who</th><th>What</th><th>Reason</th></tr></thead>
               <tbody>
                 {view.events.map((e, i) => (
                   <tr key={i}>
                     <td className="m">{e.at.slice(0, 16).replace("T", " ")}</td>
-                    <td className="m t2">{e.key_id.slice(0, 8)}…</td>
+                    <td className="t2">{e.key_id ? keys.get(e.key_id) ?? <span className="m">{e.key_id.slice(0, 8)}…</span> : "server CLI"}</td>
                     <td>{e.from_state ?? "new"} → {e.to_state}</td>
-                    <td className="t2">{e.reason ?? ""}</td>
+                    <td className="t2 text">{e.reason ?? ""}</td>
                   </tr>
                 ))}
               </tbody>
@@ -163,6 +228,23 @@ function Detail({ view, siblings }: { view: PolicyView; siblings: PolicyView[] }
           </p>
         )}
       </section>
+      <Confirm
+        open={act !== null}
+        title={act === "rollback" ? `Roll back ${name} on ${p.model_served}?` : `${act ? LABEL[act] : ""} v${p.version} of ${name}?`}
+        confirm={act === "rollback" ? "Roll back" : act ? `${LABEL[act]} v${p.version}` : ""}
+        danger={act === "reject" || act === "retire" || act === "rollback"}
+        disabled={act !== null && NEEDS_REASON.includes(act) && !reason.trim()}
+        onConfirm={run}
+        onClose={() => (setAct(null), setReason(""))}
+      >
+        <ul style={{ margin: 0, paddingLeft: 18 }}>
+          {act && changes[act].map((c) => <li key={c}>{c}</li>)}
+        </ul>
+        <label className="f">
+          {act && NEEDS_REASON.includes(act) ? "Reason (required, kept in the audit log)" : "Note for the audit log (optional)"}
+          <textarea className="in" rows={3} maxLength={1000} value={reason} onChange={(e) => setReason(e.target.value)} />
+        </label>
+      </Confirm>
     </div>
   );
 }
