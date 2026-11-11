@@ -14,7 +14,7 @@ from typing import Any
 import asyncpg
 import uvicorn
 
-from trimset_server import keys
+from trimset_server import audit, keys
 from trimset_server.config import Settings
 from trimset_server.logs import log_config
 from trimset_server.migrate import MigrationError, run_migrations
@@ -60,9 +60,14 @@ async def _admin_command(args: argparse.Namespace, dsn: str) -> dict[str, Any]:
             project_id = await keys.project_id_by_name(conn, args.project)
             if project_id is None:
                 raise CommandError(f"no project named {args.project!r}")
-            row, secret = await keys.create_key(conn, project_id, args.scope, args.label)
+            async with conn.transaction():
+                row, secret = await keys.create_key(conn, project_id, args.scope, args.label)
+                await audit.key_created(conn, project_id, None, row)
             return {"key_id": str(row["key_id"]), "scope": args.scope, "key": secret}
-        if not await keys.revoke_key(conn, args.key_id, None):
+        async with conn.transaction():
+            found = await keys.revoke_key(conn, args.key_id, None)
+            await audit.key_revoked(conn, args.key_id, None, found)
+        if found is None:
             raise CommandError(f"no key with id {args.key_id}")
         return {"revoked": str(args.key_id)}
     except asyncpg.UndefinedTableError:

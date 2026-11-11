@@ -103,7 +103,14 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     the key) and escapes control characters in everything it prints.
   - T2.8, the M2 demo (`examples/m2-refund-fraud/run.sh`, run in CI's image job): seven
     months of a miscalibrated refund model, then coverage, calibrate, simulate and a
-    certified compile, all through the CLI inside the server container.
+    certified compile, all through the CLI inside the server container. M2 is done.
+  - T3.1, the policy lifecycle (`policies.py`, migration 0006): submit, approve, reject,
+    activate (retires the group's active policy), retire, and rollback (re-activates the
+    version active before), under a lock per question and model, with a unique index for
+    one active policy. Each change is a `policy_events` row and an `audit_log` entry
+    (`audit.py`, GET /v1/admin/audit-log), as are keys created and revoked (API and
+    server CLI, key_id null) and project and question settings changes. CLI: `trimset
+    policy submit|approve|reject|activate|retire|rollback`; `policy show` prints history.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

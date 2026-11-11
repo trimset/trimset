@@ -189,7 +189,9 @@ def compute_fit(
     return body, _pack(data)
 
 
-async def run_fit(conn: Any, project_id: uuid.UUID, payload: Mapping[str, Any]) -> dict[str, Any]:
+async def run_fit(
+    conn: Any, project_id: uuid.UUID, payload: Mapping[str, Any], key_id: uuid.UUID | None = None
+) -> dict[str, Any]:
     question_id, model_served = payload["question_id"], payload["model_served"]
     window_days = int(payload.get("window_days", 90))
     settings, _ = await _settings(conn, project_id, question_id)
@@ -290,7 +292,7 @@ async def fit_row(
 
 
 async def run_compile(
-    conn: Any, project_id: uuid.UUID, payload: Mapping[str, Any]
+    conn: Any, project_id: uuid.UUID, payload: Mapping[str, Any], key_id: uuid.UUID | None = None
 ) -> dict[str, Any]:
     question_id, model_served = payload["question_id"], payload["model_served"]
     settings, name = await _settings(conn, project_id, question_id)
@@ -358,6 +360,13 @@ async def run_compile(
             uuid.UUID(body["fit_id"]),
             json.dumps(policy),
             policy["fingerprint"],
+        )
+        await conn.execute(  # FR-27: its first event, by whoever asked for the compile
+            "INSERT INTO policy_events (project_id, policy_id, from_state, to_state, key_id) "
+            "VALUES ($1, $2, NULL, 'draft', $3)",
+            project_id,
+            policy_id,
+            key_id,
         )
     return {"policy_id": str(policy_id), "version": version}
 

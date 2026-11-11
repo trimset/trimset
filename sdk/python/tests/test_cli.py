@@ -544,3 +544,61 @@ def test_a_job_that_never_finishes_is_left_to_check_later(
     api.routes[("POST", "/v1/admin/questions/q/fits")] = (202, {"job_id": 7, "status": "queued"})
     assert run("calibrate", "q", "--model", "m") == 1
     assert "job 7 is still queued" in capsys.readouterr().err
+
+
+@pytest.mark.req("FR-27")
+@pytest.mark.req("FR-29")
+def test_policy_lifecycle_commands_send_the_step_and_show_the_history(
+    api: FakeAPI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    events = [
+        {
+            "from_state": None,
+            "to_state": "draft",
+            "key_id": "1a2b3c4d-0000-4000-8000-000000000000",
+            "reason": None,
+            "at": "2026-11-11T10:00:00+00:00",
+        },
+        {
+            "from_state": "approved",
+            "to_state": "active",
+            "key_id": None,
+            "reason": "v8 escalates too much",
+            "at": "2026-11-11T11:00:00+00:00",
+        },
+    ]
+    moved = POLICY | {"state": "active", "events": events}
+    path = "/v1/admin/policies/p1/transitions"
+    api.routes[("POST", path)] = (200, moved)
+    assert run("policy", "activate", "p1") == 0
+    out = capsys.readouterr().out
+    assert "v3 active: refund_fraud" in out
+    assert "2026-11-11T10:00:00  compiled by key 1a2b3c4d" in out
+    assert "approved -> active by the server: v8 escalates too much" in out
+
+    with pytest.raises(SystemExit):  # reject and retire need a reason
+        run("policy", "reject", "p1")
+    capsys.readouterr()
+    assert run("policy", "reject", "p1", "--reason", "too strict") == 0
+    assert api.bodies("POST", path) == [
+        {"action": "activate"},
+        {"action": "reject", "reason": "too strict"},
+    ]
+
+    rollback = "/v1/admin/questions/refund_fraud/rollback"
+    api.routes[("POST", rollback)] = (200, moved)
+    args = ["policy", "rollback", "refund_fraud", "--model", "jev-1.14.0", "--reason", "v8 broke"]
+    assert run(*args) == 0
+    assert api.bodies("POST", rollback) == [{"model_served": "jev-1.14.0", "reason": "v8 broke"}]
+    capsys.readouterr()
+
+    refused = {
+        "title": "Can't approve a policy that is draft",
+        "status": 409,
+        "detail": "Only a proposed policy can be moved with approve.",
+    }
+    api.routes[("POST", path)] = (409, refused)
+    assert run("policy", "approve", "p1") == 1
+    assert "Can't approve a policy that is draft (409)" in capsys.readouterr().err
+    assert run("policy", "submit", "../keys") == 1  # an id can't step out of its path
+    assert api.seen[-1]["path"] == "/v1/admin/policies/..%2Fkeys/transitions"

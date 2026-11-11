@@ -76,5 +76,5 @@ grep -q "guarantee (certified)" /tmp/trimset-m2-policy.txt || {
   exit 1
 }
 
-step "Done. The draft policy waits for approval (M3). Stop with:
+step "Done. The draft waits for trimset policy submit, approve and activate. Stop with:
 docker compose -f compose.yaml -f compose.mock.yaml down -v"

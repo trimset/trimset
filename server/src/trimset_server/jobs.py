@@ -24,7 +24,7 @@ log = logging.getLogger("trimset.jobs")
 router = APIRouter(prefix="/v1/admin")
 Admin = Annotated[Principal, Depends(require("admin"))]
 MAX_ATTEMPTS = 3
-Handler = Callable[[Any, uuid.UUID, Mapping[str, Any]], Awaitable[dict[str, Any]]]
+Handler = Callable[[Any, uuid.UUID, Mapping[str, Any], uuid.UUID | None], Awaitable[dict[str, Any]]]
 HANDLERS: dict[str, Handler] = {"fit": run_fit, "compile": run_compile}
 
 _CLAIM = """
@@ -34,7 +34,7 @@ WHERE job_id = (
     WHERE (status = 'queued' AND run_at <= now())
        OR (status = 'running' AND started_at < now() - interval '15 minutes')
     ORDER BY job_id LIMIT 1 FOR UPDATE SKIP LOCKED)
-RETURNING job_id, project_id, kind, payload, attempts
+RETURNING job_id, project_id, kind, payload, attempts, key_id
 """
 
 
@@ -73,7 +73,8 @@ async def run_one(conn: Any) -> bool:
     if job is None:
         return False
     try:
-        result = await HANDLERS[job["kind"]](conn, job["project_id"], json.loads(job["payload"]))
+        handler = HANDLERS[job["kind"]]
+        result = await handler(conn, job["project_id"], json.loads(job["payload"]), job["key_id"])
     except JobError as e:
         await _finish(conn, job["job_id"], "failed", None, str(e))
     except Exception as e:

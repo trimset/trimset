@@ -92,15 +92,18 @@ async def list_keys(conn: Any, project_id: uuid.UUID) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-async def revoke_key(conn: Any, key_id: uuid.UUID, project_id: uuid.UUID | None) -> bool:
-    """Revoke a key. With a project_id, only that project's keys. False if not found."""
-    found = await conn.fetchval(
-        "UPDATE api_keys SET revoked_at = coalesce(revoked_at, now()) "
-        "WHERE key_id = $1 AND ($2::uuid IS NULL OR project_id = $2) RETURNING key_id",
+async def revoke_key(conn: Any, key_id: uuid.UUID, project_id: uuid.UUID | None) -> Any:
+    """Revoke a key. With a project_id, only that project's keys. None if not found;
+    otherwise the key's project_id, scope and label, and `was`, its revoked_at before."""
+    return await conn.fetchrow(
+        "UPDATE api_keys k SET revoked_at = coalesce(k.revoked_at, now()) "
+        "FROM (SELECT key_id, revoked_at FROM api_keys "
+        "      WHERE key_id = $1 AND ($2::uuid IS NULL OR project_id = $2) FOR UPDATE) old "
+        "WHERE k.key_id = old.key_id "
+        "RETURNING k.project_id, k.scope, k.label, old.revoked_at AS was",
         key_id,
         project_id,
     )
-    return found is not None
 
 
 async def principal_for(conn: Any, key_hash: bytes) -> Principal | None:

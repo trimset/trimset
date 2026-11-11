@@ -119,7 +119,10 @@ async def test_fit_then_compile_then_simulate(dsn: str, check: Any, conforms: An
         check(listed, "GET", "/v1/admin/policies")
         newest, oldest = listed.json()["items"]
         assert (newest["policy"]["version"], newest["state"]) == (2, "draft")
-        assert newest["guarantee_status"] == "certified" and newest["events"] == []
+        assert newest["guarantee_status"] == "certified"
+        (created,) = newest["events"]  # FR-27: compiled as a draft, by the key that asked
+        assert (created["from_state"], created["to_state"]) == (None, "draft")
+        assert created["key_id"] is not None and created["reason"] is None
         second, first = newest["policy"]["policy_id"], oldest["policy"]["policy_id"]
         check(
             c.get(f"/v1/admin/policies/{second}", headers=auth),

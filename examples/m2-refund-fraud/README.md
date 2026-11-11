@@ -42,7 +42,8 @@ It writes a `.env` with a random database password and secret if you don't have 
 
 The exact numbers vary a little from run to run: each run draws fresh splits.
 
-The policy stays a draft: approving and activating it, and the SDK's `gate()` that
-applies it, come in M3.
+The policy stays a draft. `trimset policy submit`, `approve` and `activate` move it on
+(each one recorded, with who and why), and the SDK's `gate()` that applies it comes later
+in M3.
 
 CI runs this script on every push, in the image job.
