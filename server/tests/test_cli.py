@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -63,6 +64,20 @@ def test_migrate_prints_what_it_applied(
     assert cli.main(["migrate"]) == 0
     assert calls == ["postgresql://x"]
     assert json.loads(capsys.readouterr().out) == {"applied": ["0001_capture"]}
+
+
+def test_one_shot_commands_keep_logs_off_stdout(
+    env: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def noisy(dsn: str) -> list[str]:
+        logging.getLogger("trimset.migrate").warning("applied migration 0001_capture")
+        return ["0001_capture"]
+
+    env.setattr(cli, "run_migrations", noisy)
+    assert cli.main(["migrate"]) == 0
+    out, err = capsys.readouterr()
+    assert json.loads(out) == {"applied": ["0001_capture"]}  # nothing but the result
+    assert "applied migration 0001_capture" in err
 
 
 def test_an_edited_migration_stops_the_command(

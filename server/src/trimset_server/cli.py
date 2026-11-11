@@ -86,7 +86,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as e:
         print(f"trimset-server: {e}", file=sys.stderr)
         return 2
-    logging.config.dictConfig(log_config(settings.log_level))
+    long_running = args.command in ("serve", "worker")
+    stream = "ext://sys.stdout" if long_running else "ext://sys.stderr"
+    logging.config.dictConfig(log_config(settings.log_level, stream))
 
     try:
         if args.command == "migrate":

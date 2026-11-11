@@ -46,8 +46,12 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(out, ensure_ascii=False)
 
 
-def log_config(level: str) -> dict[str, Any]:
-    """A logging.config dictConfig for the app and uvicorn, all JSON on stdout."""
+def log_config(level: str, stream: str = "ext://sys.stdout") -> dict[str, Any]:
+    """A logging.config dictConfig for the app and uvicorn, all JSON on one stream.
+
+    Long-running processes log to stdout (container convention). One-shot commands log to
+    stderr, so their stdout holds nothing but the result a script reads.
+    """
     return {
         "version": 1,
         "disable_existing_loggers": False,
@@ -56,7 +60,7 @@ def log_config(level: str) -> dict[str, Any]:
             "stdout": {
                 "class": "logging.StreamHandler",
                 "formatter": "json",
-                "stream": "ext://sys.stdout",
+                "stream": stream,
             }
         },
         "loggers": {
