@@ -30,6 +30,7 @@ jobs:
       code: ${{ steps.sort.outputs.code }}
       rust: ${{ steps.sort.outputs.rust }}
       api: ${{ steps.sort.outputs.api }}
+      dashboard: ${{ steps.sort.outputs.dashboard }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,25 +40,28 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           set -euo pipefail
-          code=false rust=false api=false
+          code=false rust=false api=false dashboard=false
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || ! git cat-file -e "${BASE:-none}^{commit}"; then
-            code=true rust=true api=true
+            code=true rust=true api=true dashboard=true
           else
             git diff --name-only "$BASE" HEAD > changed.txt
             while read -r f; do
               case "$f" in
                 *.md | site/* | wrangler.jsonc | LICENSE | NOTICE | .gitignore) ;;
-                docs/03-api/*) api=true code=true ;; # the server's and SDK's tests read them
+                docs/03-api/*) api=true code=true dashboard=true ;; # their tests read them
+                dashboard/demo/record.py) code=true dashboard=true ;; # the image job runs it
+                dashboard/*) dashboard=true ;;
                 docs/*) ;;
                 proxy/*) rust=true ;;
-                .github/workflows/ci.yml | Dockerfile | compose*.yaml) code=true rust=true api=true ;;
+                .github/workflows/ci.yml | Dockerfile | compose*.yaml) code=true rust=true api=true dashboard=true ;;
                 .github/workflows/*) ;; # nightly and load run on their own triggers
                 *) code=true ;;
               esac
             done < changed.txt
             sed 's/^/  /' changed.txt
           fi
-          printf 'code=%s\nrust=%s\napi=%s\n' "$code" "$rust" "$api" | tee -a "$GITHUB_OUTPUT"
+          printf 'code=%s\nrust=%s\napi=%s\ndashboard=%s\n' "$code" "$rust" "$api" "$dashboard" \
+            | tee -a "$GITHUB_OUTPUT"
 
   lint:
     name: lint and types
@@ -183,6 +187,19 @@ jobs:
         run: examples/m1-capture/run.sh
       - name: the M2 demo runs end to end (T2.8, examples/m2-refund-fraud)
         run: examples/m2-refund-fraud/run.sh
+      - name: the dashboard's calls answer on a real server; record them for the demo (ADR 0017)
+        run: |
+          project=$(docker compose exec -T postgres psql -U trimset -d trimset -tAc \
+            "SELECT name FROM projects WHERE name LIKE 'refunds-%' ORDER BY created_at DESC LIMIT 1")
+          TRIMSET_KEY=$(docker compose exec -T server trimset-server create-key "$project" \
+            --scope admin --label "demo recording" | sed -E 's/.*"key": ?"([^"]*)".*/\1/')
+          export TRIMSET_KEY
+          python3 dashboard/demo/record.py --out recorded.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-recording
+          path: recorded.json
+          retention-days: 7
       - name: every log line is JSON (NFR-13)
         run: |
           docker compose logs --no-log-prefix server worker proxy > stack.log
@@ -215,3 +232,22 @@ jobs:
               --schemafile schemas/$s.schema.json examples/$s.json
           done
       - run: uv run --no-project --with rfc8785==0.1.4 python vectors/generate.py --check
+
+  dashboard:
+    name: dashboard (types, tests, build)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.dashboard == 'true') }}
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      # package-lock.json pins every package; they were resolved with --before, the same
+      # 7-day hold as UV_EXCLUDE_NEWER. No dependency needs an install script.
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run build

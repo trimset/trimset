@@ -187,6 +187,9 @@ ul.rules { margin: 0; padding: 0; list-style: none; display: flex; flex-directio
 .timeline { margin: 0; padding: 0; list-style: none; }
 .timeline li { padding: 18px; gap: 8px; }
 .shot { flex: 1 1 380px; min-width: 0; min-height: 260px; border: 1px dashed var(--line-strong); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; text-align: center; }
+.shot-img { padding: 12px; gap: 10px; border-style: solid; text-decoration: none; color: var(--muted); }
+.shot-img img { width: 100%; height: auto; display: block; border-radius: 10px; }
+.shot-img:hover { border-color: var(--accent); }
 .cta { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
 .cta p { flex: 1 1 360px; min-width: 0; }
 
