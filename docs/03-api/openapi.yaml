@@ -1315,7 +1315,9 @@ components:
             properties:
               from_state: { oneOf: [{ $ref: "#/components/schemas/PolicyState" }, { type: "null" }] }
               to_state: { $ref: "#/components/schemas/PolicyState" }
-              key_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
+              key_id:
+                description: The admin key that made the change; null when the server did (a scheduled refit).
+                oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/uuid" }, { type: "null" }]
               reason: { type: [string, "null"] }
               at: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }
     PolicyDiff:
@@ -1421,9 +1423,13 @@ components:
       required: [id, key_id, action, at]
       properties:
         id: { type: integer }
-        key_id: { $ref: "./schemas/common.schema.json#/$defs/uuid" }
-        action: { type: string }
-        target: { type: string }
+        key_id:
+          description: The key that made the change; null for a command run on the server (`trimset-server create-key`).
+          oneOf: [{ $ref: "./schemas/common.schema.json#/$defs/uuid" }, { type: "null" }]
+        action:
+          type: string
+          description: "key.create, key.revoke, project.settings, question.update, or policy.<action>: submit, approve, reject, activate, retire, rollback."
+        target: { type: string, description: "What changed: key:<id>, project, question:<id> or policy:<id>." }
         before: {}
         after: {}
         at: { $ref: "./schemas/common.schema.json#/$defs/timestamp" }

@@ -10,6 +10,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from trimset_server import audit
 from trimset_server.auth import DB_ERRORS, MAX_STALE_S, Unavailable, require
 from trimset_server.bodies import TooLarge, parse_json, read_body
 from trimset_server.errors import Problem
@@ -200,10 +201,15 @@ async def update_project(request: Request, admin: Admin) -> dict[str, Any]:
             if settings.upstream.credentials == "server" and upstream.key is None:
                 raise Problem(422, "invalid-request", "The operator set no key for this upstream")
         stored = settings.model_dump(mode="json", exclude_defaults=True)
+        before = json.loads(row["settings"])
         await conn.execute(
             "UPDATE projects SET settings = $2::jsonb WHERE project_id = $1",
             admin.project_id,
             json.dumps(stored),
         )
+        if stored != before:
+            await audit.record(
+                conn, admin.project_id, admin.key_id, "project.settings", "project", before, stored
+            )
     request.app.state.projects.forget(admin.project_id)
     return _view(admin.project_id, row["name"], settings, request)

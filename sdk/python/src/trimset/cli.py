@@ -6,6 +6,8 @@ coverage and decisions on a trimset server. Readable tables by default; JSON wit
     trimset simulate refund_fraud --model jev-1.14.0 --lo 0.30 --hi 0.85
     trimset policy compile refund_fraud --model jev-1.14.0 --false-pass 0.02 --max-escalation 0.15
     trimset policy show --question refund_fraud --model jev-1.14.0
+    trimset policy submit POLICY_ID; trimset policy approve POLICY_ID; ... activate POLICY_ID
+    trimset policy rollback refund_fraud --model jev-1.14.0 --reason "v8 escalates too much"
     trimset coverage refund_fraud
     trimset decisions tail --question refund_fraud
 
@@ -27,6 +29,13 @@ from pathlib import Path
 from typing import Any
 
 JOB_TIMEOUT_S = 600.0
+TRANSITIONS = {  # the policy lifecycle (FR-27); the server checks the order
+    "submit": "propose a draft policy for approval",
+    "approve": "approve a proposed policy",
+    "reject": "reject a proposed policy (needs --reason)",
+    "activate": "make an approved policy the active one; the old one retires",
+    "retire": "retire the active policy (needs --reason)",
+}
 
 
 class CliError(Exception):
@@ -265,6 +274,13 @@ def print_policy(view: dict[str, Any]) -> None:
         say(f"guarantee ({view['guarantee_status']}): {g['statement']} (items: {n})")
     else:
         say(f"no guarantee: {g['reason']}. {g.get('detail', '')}".rstrip())
+    if view.get("events"):
+        say("history:")
+        for e in view["events"]:
+            who = f"key {e['key_id'][:8]}" if e["key_id"] else "the server"
+            step = f"{e['from_state']} -> {e['to_state']}" if e["from_state"] else "compiled"
+            why = f": {e['reason']}" if e.get("reason") else ""
+            say(f"  {e['at'][:19]}  {step} by {who}{why}")
     say()
     print_metrics(p["metrics"])
 
@@ -412,7 +428,7 @@ def cmd_compile(client: Client, args: argparse.Namespace) -> None:
 
 def cmd_show(client: Client, args: argparse.Namespace) -> None:
     if args.policy_id:
-        view = client.call("GET", f"/v1/admin/policies/{args.policy_id}")
+        view = client.call("GET", f"/v1/admin/policies/{_q(args.policy_id)}")
     else:
         if not args.question:
             raise CliError("give a policy id, or --question (and --model)")
@@ -429,7 +445,7 @@ def cmd_show(client: Client, args: argparse.Namespace) -> None:
 
 def cmd_diff(client: Client, args: argparse.Namespace) -> None:
     diff = client.call(
-        "GET", f"/v1/admin/policies/{args.policy_id}/diff", params={"against": args.against}
+        "GET", f"/v1/admin/policies/{_q(args.policy_id)}/diff", params={"against": args.against}
     )
     if args.json:
         say(json.dumps(diff, indent=2))
@@ -444,6 +460,26 @@ def cmd_diff(client: Client, args: argparse.Namespace) -> None:
     )
     say()
     print_metrics({"before": diff["metrics"]["before"], "after": diff["metrics"]["after"]})
+
+
+def cmd_transition(client: Client, args: argparse.Namespace) -> None:
+    body = {"action": args.policy_command}
+    if args.reason:
+        body["reason"] = args.reason
+    path = f"/v1/admin/policies/{_q(args.policy_id)}/transitions"
+    _show(client.call("POST", path, body), args)
+
+
+def cmd_rollback(client: Client, args: argparse.Namespace) -> None:
+    body = {"model_served": args.model, "reason": args.reason}
+    _show(client.call("POST", f"/v1/admin/questions/{_q(args.question)}/rollback", body), args)
+
+
+def _show(view: dict[str, Any], args: argparse.Namespace) -> None:
+    if args.json:
+        say(json.dumps(view, indent=2))
+    else:
+        print_policy(view)
 
 
 def cmd_coverage(client: Client, args: argparse.Namespace) -> None:
@@ -591,6 +627,17 @@ def parser() -> argparse.ArgumentParser:
     diff = policy.add_parser("diff", help="a policy against the active one, or --against")
     diff.add_argument("policy_id")
     diff.add_argument("--against")
+    for action, text in TRANSITIONS.items():
+        step = policy.add_parser(action, help=text)
+        step.add_argument("policy_id")
+        step.add_argument(
+            "--reason", required=action in ("reject", "retire"), help="kept with the change"
+        )
+    rollback = policy.add_parser(
+        "rollback", help="retire the active policy and re-activate the one before it"
+    )
+    group(rollback)
+    rollback.add_argument("--reason", required=True, help="kept with the change")
 
     coverage = sub.add_parser("coverage", help="labels per served model and action path")
     group(coverage, model_required=False)
@@ -614,6 +661,8 @@ COMMANDS: dict[str | tuple[str, str], Command] = {
     ("policy", "compile"): cmd_compile,
     ("policy", "show"): cmd_show,
     ("policy", "diff"): cmd_diff,
+    ("policy", "rollback"): cmd_rollback,
+    **{("policy", action): cmd_transition for action in TRANSITIONS},
     ("decisions", "tail"): cmd_tail,
 }
 

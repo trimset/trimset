@@ -15,6 +15,8 @@ from trimset_server import (
     actions,
     admin,
     analysis,
+    audit,
+    bundle,
     decisions,
     errors,
     ingest,
@@ -87,6 +89,8 @@ def create_app(
     app.include_router(jobs.router)
     app.include_router(policies.router)
     app.include_router(decisions.router)
+    app.include_router(audit.router)
+    app.include_router(bundle.router)
     app.include_router(internal.router)
 
     # Public, no key: liveness and readiness never return project data.

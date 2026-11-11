@@ -13,6 +13,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, ValidationError
 
+from trimset_server import audit
 from trimset_server.auth import require
 from trimset_server.bodies import TooLarge, parse_json, read_body
 from trimset_server.errors import Problem
@@ -185,6 +186,8 @@ async def update_question(question: str, request: Request, admin: Admin) -> dict
         name = patch.get("name", row["name"])
         if name is not None and not (isinstance(name, str) and 1 <= len(name) <= 128):
             raise Problem(422, "invalid-request", "`name` must be 1 to 128 characters")
+        before = {"name": row["name"], "settings": json.loads(row["settings"])}
+        after = {"name": name, "settings": checked.model_dump(mode="json", exclude_none=True)}
         try:
             await conn.execute(
                 "UPDATE questions SET name = $3, settings = $4::jsonb "
@@ -192,9 +195,19 @@ async def update_question(question: str, request: Request, admin: Admin) -> dict
                 admin.project_id,
                 row["question_id"],
                 name,
-                json.dumps(checked.model_dump(mode="json", exclude_none=True)),
+                json.dumps(after["settings"]),
             )
         except asyncpg.UniqueViolationError:
             raise Problem(409, "name-taken", "Another question already has this name") from None
+        if after != before:
+            await audit.record(
+                conn,
+                admin.project_id,
+                admin.key_id,
+                "question.update",
+                f"question:{row['question_id']}",
+                before,
+                after,
+            )
         updated = await _row(conn, admin.project_id, row["question_id"])
         return await _view(conn, admin.project_id, updated)
