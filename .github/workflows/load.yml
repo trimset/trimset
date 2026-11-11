@@ -47,6 +47,9 @@ jobs:
           echo "INGEST_KEY=$(new_key ingest)" >> "$GITHUB_ENV"
           echo "PROXY_KEY=$(new_key proxy)" >> "$GITHUB_ENV"
           mkdir -p tools/load/out && chmod 777 tools/load/out
+      - name: sample CPU per container every 5 s while the tests run
+        run: |
+          nohup bash -c 'while true; do docker stats --no-stream --format "{{.Name}},{{.CPUPerc}}" >> tools/load/out/cpu.csv; sleep 5; done' > /dev/null 2>&1 &
       - name: ingest at 2,000 decisions/s, p99 under 20 ms (NFR-02)
         run: >-
           docker run --rm --network trimset_default --cpuset-cpus 2,3
@@ -72,6 +75,15 @@ jobs:
       - name: results
         if: always()
         run: |
+          python3 - > tools/load/out/cpu.json <<'PY'
+          import collections, json
+          seen = collections.defaultdict(list)
+          for line in open("tools/load/out/cpu.csv"):
+              name, cpu = line.strip().split(",")
+              seen[name].append(float(cpu.rstrip("%")))
+          print(json.dumps({n: {"mean_pct": round(sum(v) / len(v)), "max_pct": round(max(v))}
+                            for n, v in sorted(seen.items())}, indent=2))
+          PY
           {
             echo "## Load test: ${{ inputs.workers }} server process(es)"
             for f in tools/load/out/*.json; do echo "### $(basename "$f")"; echo '```json'; cat "$f"; echo '```'; done

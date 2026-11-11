@@ -68,11 +68,12 @@ export function proxied() {
 }
 
 export function handleSummary(data) {
-  const p99 = (name) => data.metrics[`http_req_duration{scenario:${name}}`].values["p(99)"];
+  const at = (name, q) => data.metrics[`http_req_duration{scenario:${name}}`].values[q];
+  const p99 = (name) => at(name, "p(99)");
   const result = {
     rate: RATE,
-    direct_p99_ms: p99("direct"),
-    proxy_p99_ms: p99("proxy"),
+    direct_ms: { p50: at("direct", "p(50)"), p95: at("direct", "p(95)"), p99: p99("direct") },
+    proxy_ms: { p50: at("proxy", "p(50)"), p95: at("proxy", "p(95)"), p99: p99("proxy") },
     overhead_p99_ms: p99("proxy") - p99("direct"),
     requests: data.metrics.http_reqs.values.count,
     failed_rate: data.metrics.http_req_failed.values.rate,
