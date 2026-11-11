@@ -109,6 +109,8 @@ jobs:
           done
           echo "$n decisions"; test "$n" = 2
           curl -fsS http://127.0.0.1:9000/_mock/last | python3 -c "import json,sys; last = json.load(sys.stdin)['last']; assert last['path'] == '/v1/systemone', last; assert not [h for h in last['headers'] if h.startswith('x-trimset')], last"
+      - name: the M1 demo runs end to end (T1.15, examples/m1-capture)
+        run: examples/m1-capture/run.sh
       - name: every log line is JSON (NFR-13)
         run: |
           docker compose logs --no-log-prefix server worker > stack.log

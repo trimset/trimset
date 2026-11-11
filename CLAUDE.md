@@ -56,7 +56,9 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     endpoint gets a `check(...)` call there.
 - In progress: T1.13, the load test (`tools/load/`, `.github/workflows/load.yml`, started
   by hand: `gh workflow run load.yml --repo trimset/trimset`).
-- Next: T1.14 (real calls, needs the user's keys), T1.15 (the demo).
+  - T1.15, the demo `examples/m1-capture/run.sh`: refund fraud through the proxy, a
+    silent upgrade, generated history, held and default-rule labels. CI runs it.
+- Next: T1.14 (real calls, needs the user's keys), then the M1 re-plan.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
