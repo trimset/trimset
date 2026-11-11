@@ -128,7 +128,12 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     the network, and every default names its reason. `test_gate_agreement.py`
     checks gate() against the compiler on random policies. The compiler now moves
     thresholds off the tune values (`off_data`), so an ulp can't flip a decision.
-    Sending records, actions and outcomes is T3.5.
+  - T3.5, the SDK's transport (`sender.py`): one thread, one bounded queue per kind (the
+    oldest dropped and counted), batches by size or time, backoff with full jitter on
+    network errors, 429 and 5xx, any other 4xx dropped with one warning. `log_exchange`
+    hashes the state on the calling thread with the bundle's key and never sends it;
+    `gate()` with a decision id queues an action report; `outcome()` checks shape only;
+    `instrument()` wraps an in-process model. Flushes for 2 s at exit.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
