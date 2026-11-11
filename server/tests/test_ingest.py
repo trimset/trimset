@@ -72,3 +72,11 @@ def test_bad_envelopes_are_refused_before_any_work(
 ) -> None:
     c, auth = client
     _problem(_post(c, auth["ingest"], body), status, slug)
+
+
+def test_nul_anywhere_is_found() -> None:
+    from trimset_server.ingest import _has_nul
+
+    assert _has_nul({"a": ["x", {"b\x00": 1}]})
+    assert _has_nul(["ok", "no\x00"])
+    assert not _has_nul({"a": ["x", {"b": 1, "c": None}]})

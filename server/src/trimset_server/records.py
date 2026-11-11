@@ -91,10 +91,10 @@ class RecordIn(BaseModel):
                 raise ValueError(f"a {self.type} record has 1 to {limit} probabilities")
             if not all(math.isfinite(x) and 0 <= x <= 1 for x in p):
                 raise ValueError("probabilities must lie in [0, 1]")
-        for name in ("latency_ms", "cost_usd"):
+        for name, ceiling in (("latency_ms", 1e9), ("cost_usd", 1e9)):
             value = getattr(self, name)
-            if value is not None and not (math.isfinite(value) and value >= 0):
-                raise ValueError(f"{name} must be a non-negative number")
+            if value is not None and not (math.isfinite(value) and 0 <= value <= ceiling):
+                raise ValueError(f"{name} must be a number from 0 to {ceiling:g}")
         if (self.role == "shadow") != (self.shadow_of is not None):
             raise ValueError("a shadow decision needs shadow_of, and only a shadow has one")
         return self

@@ -122,7 +122,7 @@ async def test_bad_records_are_rejected_by_index_and_the_rest_stored(dsn: str) -
         body["records"][1] | {"decision_id": uuid7(), "probabilities": [1.0]},  # 5: count
         good | {"decision_id": uuid7(), "ts": (datetime.now(UTC) - timedelta(days=40)).isoformat()},
         good | {"decision_id": uuid7(), "ts": (datetime.now(UTC) + timedelta(hours=1)).isoformat()},
-        good | {"decision_id": uuid7(), "tags": {"customer_email": "x"}},  # 8: not on the list
+        good | {"decision_id": uuid7(), "tags": {"customer_email": "ann@example.com"}},  # 8
     ]
     body["records"] = [good, *bad]
     with TestClient(create_app(Settings(database_url=dsn))) as c:
@@ -136,7 +136,7 @@ async def test_bad_records_are_rejected_by_index_and_the_rest_stored(dsn: str) -
     assert errors[3]["pointer"] == "/records/3/type"
     assert errors[4]["message"] == "probabilities must sum to 1"
     assert errors[8]["message"] == "tag key 'customer_email' is not on the project's allow-list"
-    assert "x" not in json.dumps(errors[8])  # the tag value never comes back
+    assert "ann@example.com" not in json.dumps(errors)  # tag values never come back
 
 
 @pytest.mark.req("FR-03")
@@ -191,3 +191,34 @@ async def test_known_questions_need_no_definition_next_time(dsn: str) -> None:
         later = _batch()
         later["questions"] = {}
         assert _post(c, key, later).json()["stored"] == 2
+
+
+@pytest.mark.req("FR-02")
+async def test_values_postgres_cannot_hold_never_sink_a_batch(dsn: str) -> None:
+    key, _ = await _project(dsn)
+    body = _batch()
+    noul, choice = body["records"]
+    body["records"] = [
+        noul,
+        noul | {"decision_id": uuid7(), "external_ref": "rf\u0000-1"},  # NUL in text
+        noul | {"decision_id": uuid7(), "tags": {"k": "a\u0000b"}},  # NUL in a tag
+        choice | {"probabilities": [1.0, 1e-50, 0.0, 0.0]},  # too small for real: kept as 0
+    ]
+    with TestClient(create_app(Settings(database_url=dsn))) as c:
+        r = _post(c, key, body)
+    result = r.json()
+    assert (r.status_code, result["stored"], result["rejected"]) == (207, 2, 2)
+    assert [e["index"] for e in result["errors"]] == [1, 2]
+    rows = await _rows(dsn, "SELECT probs FROM decisions WHERE type = 'choice'")
+    assert rows[0]["probs"] == [1.0, 0.0, 0.0, 0.0]
+
+
+async def test_a_definition_with_a_nul_is_refused(dsn: str) -> None:
+    key, _ = await _project(dsn)
+    request = json.loads(json.dumps(REQUEST))
+    request["questions"]["refund_fraud"]["instructions"] = "Is this fraud?\u0000"
+    body = _batch(request=request)
+    with TestClient(create_app(Settings(database_url=dsn))) as c:
+        result = _post(c, key, body).json()
+    assert result["stored"] == 1
+    assert "NUL" in result["errors"][0]["message"]

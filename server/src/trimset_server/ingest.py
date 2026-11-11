@@ -63,9 +63,23 @@ class _Batch:
         self.errors.append({"index": index, "pointer": pointer, "message": message})
 
 
+def _has_nul(value: Any) -> bool:
+    """Postgres text and jsonb can't hold U+0000, so it's refused per record up front."""
+    if isinstance(value, str):
+        return "\x00" in value
+    if isinstance(value, list):
+        return any(_has_nul(v) for v in value)
+    if isinstance(value, dict):
+        return any(_has_nul(k) or _has_nul(v) for k, v in value.items())
+    return False
+
+
 def _shape(records: list[Any]) -> _Batch:
     batch = _Batch(errors=[], valid=[])
     for i, raw in enumerate(records):
+        if _has_nul(raw):
+            batch.reject(i, "text must not contain the NUL character")
+            continue
         try:
             batch.valid.append((i, RecordIn.model_validate(raw)))
         except ValidationError as e:
@@ -91,6 +105,9 @@ async def _definitions(
     for qid in wanted - known.keys():
         if qid not in sent:
             problems[qid] = "unknown question: send its definition in `questions`"
+            continue
+        if _has_nul(sent[qid]):
+            problems[qid] = "the question's definition contains the NUL character"
             continue
         try:
             definition = QuestionIn.model_validate(sent[qid])
@@ -164,12 +181,11 @@ RETURNING decision_id
 def _columns(records: list[RecordIn]) -> list[list[Any]]:
     # Ragged probability arrays can't go through unnest() as real[][], so each travels as
     # a Postgres array literal and is cast back to real[] inside the insert.
+    # Below 1e-37 a real (float4) can't hold the value; it is 0 for every purpose here.
     def probs(r: RecordIn) -> str | None:
-        return (
-            None
-            if r.probabilities is None
-            else "{" + ",".join(map(repr, map(float, r.probabilities))) + "}"
-        )
+        if r.probabilities is None:
+            return None
+        return "{" + ",".join(repr(0.0 if p < 1e-37 else float(p)) for p in r.probabilities) + "}"
 
     return [
         [r.ts for r in records],
@@ -197,16 +213,39 @@ def _columns(records: list[RecordIn]) -> list[list[Any]]:
     ]
 
 
-async def _insert(conn: Any, project_id: uuid.UUID, records: list[RecordIn]) -> int:
-    """Store records, ignoring ones already stored. Returns how many were new."""
-    columns = _columns(records)
+async def _store(conn: Any, project_id: uuid.UUID, records: list[RecordIn]) -> int:
+    return len(await conn.fetch(_INSERT, project_id, *_columns(records)))
+
+
+async def _insert(
+    conn: Any, project_id: uuid.UUID, records: list[tuple[int, RecordIn]], batch: _Batch
+) -> tuple[int, int]:
+    """Store records, ignoring ones already stored. Returns (new, refused).
+
+    One statement for the whole batch. If Postgres refuses it, a missing partition is
+    created first (a retention just raised, before the worker's next run); after that,
+    records go one at a time, so a record the database refuses is rejected alone and
+    never sinks the batch."""
+    rows = [r for _, r in records]
     try:
-        return len(await conn.fetch(_INSERT, project_id, *columns))
+        return await _store(conn, project_id, rows), 0
     except asyncpg.CheckViolationError:
-        # The only check left unvalidated is a missing partition (a retention just
-        # raised, before the worker's next run): create it and try once more.
         await ensure_partitions(conn)
-        return len(await conn.fetch(_INSERT, project_id, *columns))
+        try:
+            return await _store(conn, project_id, rows), 0
+        except (asyncpg.CheckViolationError, asyncpg.DataError):
+            pass
+    except asyncpg.DataError:
+        pass
+    stored = refused = 0
+    for i, r in records:
+        try:
+            stored += await _store(conn, project_id, [r])
+        except (asyncpg.CheckViolationError, asyncpg.DataError) as e:
+            log.warning("the database refused record %d (%s)", i, type(e).__name__)
+            batch.reject(i, "the database refused this record")
+            refused += 1
+    return stored, refused
 
 
 @router.post("/v1/decisions:log")
@@ -244,7 +283,7 @@ async def log_decisions(request: Request, principal: Ingest) -> JSONResponse:
             days=retention if isinstance(retention, int) else DEFAULT_RETENTION_DAYS
         )
         allowed = (settings.get("privacy") or {}).get("tag_allowlist")
-        good: list[RecordIn] = []
+        good: list[tuple[int, RecordIn]] = []
         names: dict[str, str] = {}
         for i, r in batch.valid:
             question = known.get(r.question_id)
@@ -268,18 +307,18 @@ async def log_decisions(request: Request, principal: Ingest) -> JSONResponse:
                 bad = sorted(r.tags.keys() - set(allowed))[0]
                 batch.reject(i, f"tag key {bad!r} is not on the project's allow-list", "tags")
             else:
-                good.append(r)
+                good.append((i, r))
                 if r.question_name and r.question_id in new:
                     names.setdefault(r.question_id, r.question_name)
 
-        stored = 0
+        stored = refused = 0
         if good:
-            used = {r.question_id for r in good}
+            used = {r.question_id for _, r in good}
             async with conn.transaction():
                 await _register(
                     conn, principal.project_id, {q: d for q, d in new.items() if q in used}, names
                 )
-                pairs = sorted({(r.model_requested, r.model_served) for r in good})
+                pairs = sorted({(r.model_requested, r.model_served) for _, r in good})
                 await conn.execute(
                     "INSERT INTO model_versions (project_id, model_requested, model_served) "
                     "SELECT $1, r, s FROM unnest($2::text[], $3::text[]) AS t(r, s) "
@@ -288,12 +327,12 @@ async def log_decisions(request: Request, principal: Ingest) -> JSONResponse:
                     [p[0] for p in pairs],
                     [p[1] for p in pairs],
                 )
-            stored = await _insert(conn, principal.project_id, good)
+            stored, refused = await _insert(conn, principal.project_id, good, batch)
 
     result: dict[str, Any] = {
         "stored": stored,
-        "duplicates": len(good) - stored,
-        "rejected": len(records) - len(good),
+        "duplicates": len(good) - stored - refused,
+        "rejected": len(records) - len(good) + refused,
     }
     if batch.errors:
         result["errors"] = sorted(batch.errors, key=lambda e: e["index"])

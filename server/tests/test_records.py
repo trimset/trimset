@@ -97,3 +97,9 @@ def test_question_sizes() -> None:
     }
     assert QuestionIn.model_validate(choice).size() == 2
     assert QuestionIn.model_validate(score).size() == 3
+
+
+@pytest.mark.parametrize("field", ["latency_ms", "cost_usd"])
+def test_numbers_beyond_any_real_use_are_refused(field: str) -> None:
+    with pytest.raises(ValidationError):
+        RecordIn.model_validate(RECORD | {field: 1e40})
