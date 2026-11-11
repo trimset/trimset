@@ -87,9 +87,9 @@ def test_every_route_the_app_serves_is_in_the_contract() -> None:
     served = {
         (method, PARAM.sub("{}", route.path))
         for route in app.routes
-        if isinstance(route, APIRoute)
+        if isinstance(route, APIRoute) and not route.path.startswith("/internal/")
         for method in route.methods
-    }
+    }  # /internal/* is the Rust proxy's private interface, refused from outside
     listed = {
         (method.upper(), PARAM.sub("{}", path))
         for path, ops in SPEC["paths"].items()

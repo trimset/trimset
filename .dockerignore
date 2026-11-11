@@ -11,3 +11,4 @@ docs
 site
 .env
 .env.*
+proxy/target

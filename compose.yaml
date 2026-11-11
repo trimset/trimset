@@ -34,8 +34,8 @@ services:
       TRIMSET_DATABASE_URL: postgresql://trimset:${TRIMSET_DB_PASSWORD}@postgres:5432/trimset
       TRIMSET_SECRET: ${TRIMSET_SECRET:?Set TRIMSET_SECRET in .env, at least 32 characters}
       TRIMSET_AUTO_MIGRATE: "true"
-    ports:
-      - "8800:8800"
+      TRIMSET_PORT: "8810" # behind the proxy, on the compose network only
+      TRIMSET_WORKERS: ${TRIMSET_WORKERS:-2} # server processes; the worker ignores it
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,7 +44,32 @@ services:
         - CMD
         - python
         - -c
-        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8800/ready', timeout=2)
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8810/ready', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  # The front door on :8800 (ADR 0015): the proxy in Rust; every other path goes to the
+  # server unchanged.
+  proxy:
+    image: ghcr.io/trimset/trimset:dev
+    entrypoint: ["trimset-proxy"]
+    env_file: *trimset-env-file
+    environment:
+      TRIMSET_SECRET: ${TRIMSET_SECRET:?Set TRIMSET_SECRET in .env, at least 32 characters}
+      TRIMSET_API_URL: http://server:8810
+    ports:
+      - "8800:8800"
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8800/health', timeout=2)
       interval: 5s
       timeout: 3s
       retries: 12

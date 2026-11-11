@@ -62,6 +62,19 @@ jobs:
           --cov=${{ matrix.module }} --cov-report=term-missing
           --cov-fail-under=${{ matrix.coverage }}
 
+  proxy:
+    name: proxy (Rust)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: proxy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup show active-toolchain # installs the one rust-toolchain.toml pins
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+
   sdk-oldest-python:
     name: SDK on Python 3.11
     runs-on: ubuntu-24.04
@@ -113,7 +126,7 @@ jobs:
         run: examples/m1-capture/run.sh
       - name: every log line is JSON (NFR-13)
         run: |
-          docker compose logs --no-log-prefix server worker > stack.log
+          docker compose logs --no-log-prefix server worker proxy > stack.log
           python3 -c "import json,sys; lines=[l for l in open('stack.log') if l.strip()]; [json.loads(l) for l in lines]; print(len(lines), 'JSON lines')"
           ! grep -qF "$PROXY_KEY" stack.log # the key in the proxy's path is redacted
       - name: runs as a non-root user

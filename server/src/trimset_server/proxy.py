@@ -11,6 +11,7 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import unquote
@@ -114,22 +115,22 @@ def _request_json(content_type: str, body: bytes) -> Any:
     return json.loads(body)
 
 
-def _metadata(request: Request) -> tuple[str | None, dict[str, str]]:
+def metadata(ref_header: str | None, tags_header: str | None) -> tuple[str | None, dict[str, str]]:
     """X-Trimset-External-Ref and X-Trimset-Tags ("k=v,k2=v2", URL-encoded)."""
-    ref = request.headers.get("x-trimset-external-ref") or None
+    ref = ref_header or None
     tags: dict[str, str] = {}
-    for pair in (request.headers.get("x-trimset-tags") or "").split(","):
+    for pair in (tags_header or "").split(","):
         key, sep, value = pair.partition("=")
         if sep and key.strip():
             tags[unquote(key.strip())] = unquote(value.strip())
     return ref, tags
 
 
-def _state_key(request: Request, project_id: uuid.UUID) -> bytes | None:
-    secret = request.app.state.settings.secret
+def _state_key(state: Any, project_id: uuid.UUID) -> bytes | None:
+    secret = state.settings.secret
     if secret is None:
         return None
-    cache: dict[uuid.UUID, bytes] = request.app.state.state_keys
+    cache: dict[uuid.UUID, bytes] = state.state_keys
     if project_id not in cache:
         cache[project_id] = project_state_key(secret, str(project_id))
     return cache[project_id]
@@ -148,26 +149,70 @@ def _record(
     the exchange couldn't be read (it is forwarded anyway, never logged)."""
     try:
         sent = _request_json(request.headers.get("content-type", ""), body)
-        exchange = parse_exchange(sent, json.loads(content), upstream.format)
+    except ValueError as e:
+        log.info("exchange not logged (%s)", type(e).__name__)
+        return None
+    ref, tags = metadata(
+        request.headers.get("x-trimset-external-ref"), request.headers.get("x-trimset-tags")
+    )
+    return capture(
+        request.app.state,
+        principal.project_id,
+        settings,
+        upstream.format,
+        sent,
+        content,
+        latency_ms,
+        ref=ref,
+        tags=tags,
+    )
+
+
+def capture(
+    state: Any,
+    project_id: uuid.UUID,
+    settings: ProjectSettings,
+    fmt: Format,
+    sent: Any,
+    content: bytes,
+    latency_ms: float,
+    *,
+    ref: str | None,
+    tags: dict[str, str],
+    given_ids: Sequence[str] | None = None,
+    ts: datetime | None = None,
+) -> str | None:
+    """Parse one exchange and queue its records, for this proxy and for the Rust one
+    (internal.py). The Rust proxy chose the ids already, one per question by position;
+    without them, ids are made here. Returns X-Trimset-Decision-Id, or None when the
+    exchange couldn't be read."""
+    try:
+        exchange = parse_exchange(sent, json.loads(content), fmt)
     except (ValueError, WireError) as e:
         log.info("exchange not logged (%s)", type(e).__name__)
         return None
     if exchange.skipped:
         log.info("%d questions not logged", len(exchange.skipped))
+    if given_ids is not None and any(d.position >= len(given_ids) for d in exchange.decisions):
+        log.warning("exchange not logged: %d ids for its questions", len(given_ids))
+        return None
 
-    key = _state_key(request, principal.project_id)
+    key = _state_key(state, project_id)
     try:
         hashed = state_hash(key, exchange.state) if key else None
     except ValueError:
         hashed = None  # a state JSON can't carry exactly (huge integers): no hash
-    ref, tags = _metadata(request)
     if dropped := settings.disallowed_tags(tags):
         tags = {k: v for k, v in tags.items() if k not in dropped}
         log.info("dropped %d tags not on the project's allow-list", len(dropped))
-    ids = [uuid7() for _ in exchange.decisions]
+    ids = (
+        [uuid7() for _ in exchange.decisions]
+        if given_ids is None
+        else [given_ids[d.position] for d in exchange.decisions]
+    )
     records = to_records(
         exchange,
-        ts=datetime.now(UTC),
+        ts=ts or datetime.now(UTC),
         request_id=uuid7(),
         decision_ids=ids,
         state_hash=hashed,
@@ -191,9 +236,9 @@ def _record(
                 log.info("ignored invalid X-Trimset-Tags or X-Trimset-External-Ref")
             except ValidationError:
                 continue
-        queued.append(Pending(principal.project_id, record, decision.definition, decision.name))
+        queued.append(Pending(project_id, record, decision.definition, decision.name))
         slots[decision.position] = str(record.decision_id)
-    request.app.state.recorder.add(queued)
+    state.recorder.add(queued)
     return ",".join(slots)
 
 

@@ -17,6 +17,7 @@ from trimset_server import (
     admin,
     errors,
     ingest,
+    internal,
     keys,
     outcomes,
     projects,
@@ -89,6 +90,7 @@ def create_app(
     app.include_router(actions.router)
     app.include_router(questions.router)
     app.include_router(proxy.router)
+    app.include_router(internal.router)
 
     # Public, no key: liveness and readiness never return project data.
     @app.get("/health")

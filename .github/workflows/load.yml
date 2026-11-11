@@ -61,7 +61,7 @@ jobs:
         if: matrix.test == 'ingest'
         run: |
           docker run --rm --network trimset_default --cpuset-cpus 2,3 \
-            -v "$PWD/tools/load:/scripts" -e TRIMSET_URL=http://server:8800 \
+            -v "$PWD/tools/load:/scripts" -e TRIMSET_URL=http://proxy:8800 \
             -e TRIMSET_INGEST_KEY="$KEY" -e DURATION="$INGEST_DURATION" \
             "$K6" run --quiet /scripts/ingest.js
       - name: every acknowledged record is committed (NFR-02)
@@ -75,7 +75,7 @@ jobs:
         if: matrix.test == 'proxy'
         run: |
           docker run --rm --network trimset_default --cpuset-cpus 2,3 \
-            -v "$PWD/tools/load:/scripts" -e TRIMSET_URL=http://server:8800 \
+            -v "$PWD/tools/load:/scripts" -e TRIMSET_URL=http://proxy:8800 \
             -e MOCK_URL=http://mock-upstream:9000 -e TRIMSET_PROXY_KEY="$KEY" \
             -e DURATION="$PROXY_DURATION" -e RATE="$PROXY_RATE" \
             "$K6" run --quiet /scripts/proxy.js

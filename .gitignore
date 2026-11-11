@@ -17,3 +17,4 @@ build/
 .DS_Store
 .playwright-mcp/
 tools/load/out/
+proxy/target/
