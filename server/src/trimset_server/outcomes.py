@@ -250,6 +250,12 @@ async def post_outcomes(request: Request, principal: Ingest) -> JSONResponse:
         results |= await process(conn, principal.project_id, claims)
         held = [c for c in claims if results[c.index].status == "held"]
         if held:
+            # One request at a time per project from here to commit, so two can't both
+            # see room and overshoot the limit.
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtext('unmatched_outcomes'), hashtext($1::uuid::text))",
+                principal.project_id,
+            )
             waiting = await conn.fetchval(
                 "SELECT count(*) FROM (SELECT 1 FROM unmatched_outcomes WHERE project_id = $1 "
                 "LIMIT $2) s",

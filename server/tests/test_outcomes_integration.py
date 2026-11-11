@@ -4,6 +4,7 @@ real Postgres (CI)."""
 import asyncio
 import json
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -450,3 +451,25 @@ async def test_a_project_can_hold_only_so_many(dsn: str, monkeypatch: pytest.Mon
         assert r.status_code == 207
         assert (r.json()["held"], r.json()["rejected"]) == (1, 1)
         assert r.json()["errors"][0]["index"] == 1
+
+
+async def test_requests_at_the_same_time_cant_overshoot_the_limit(
+    dsn: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ingest, _ = await _setup(dsn)
+    monkeypatch.setattr(outcomes, "MAX_HELD", 5)
+    monkeypatch.setattr(actions, "MAX_HELD", 5)
+    report = {"action_taken": "ACCEPT", "action_source": "default"}
+    with TestClient(create_app(Settings(database_url=dsn))) as c, ThreadPoolExecutor(10) as pool:
+
+        def outcome(_: int) -> Any:
+            return _send(c, ingest, _outcome(True, decision_id=uuid7()))
+
+        def action(_: int) -> Any:
+            body = {"actions": [report | {"decision_id": uuid7()}]}
+            return c.post("/v1/decisions:actions", json=body, headers=_auth(ingest))
+
+        assert sum(r.json()["held"] for r in pool.map(outcome, range(12))) == 5
+        assert sum(r.json()["held"] for r in pool.map(action, range(12))) == 5
+    assert len(await _rows(dsn, "SELECT id FROM unmatched_outcomes")) == 5
+    assert len(await _rows(dsn, "SELECT id FROM pending_actions")) == 5
