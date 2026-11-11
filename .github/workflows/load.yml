@@ -1,6 +1,7 @@
 # Load tests (NFR-02, NFR-03; docs/05-testing.md). Started by hand at the end of each
-# milestone and before releases: they take about half an hour and measure, so they never
-# run on every push. The results land in the run's summary.
+# milestone and before releases: they take about 20 minutes and measure, so they never
+# run on every push. Ingest and the proxy each get a fresh stack on their own runner, as
+# the two requirements are separate. Results are in the log and the run's summary.
 name: load
 
 on:
@@ -17,13 +18,12 @@ on:
         default: "500"
       workers:
         description: Server processes (TRIMSET_WORKERS)
-        default: "1"
+        default: "2"
 
 permissions:
   contents: read
 
 env:
-  UV_EXCLUDE_NEWER: "2026-11-03T00:00:00Z"
   TRIMSET_DB_PASSWORD: loadOnlyNotASecret
   TRIMSET_SECRET: load-only-not-a-secret-0123456789abcdef
   TRIMSET_WORKERS: ${{ inputs.workers }}
@@ -32,43 +32,47 @@ env:
 
 jobs:
   load:
+    name: ${{ matrix.test }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [ingest, proxy]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: four CPUs, two of them for trimset
         run: nproc && test "$(nproc)" -ge 4 && free -g
       - run: docker compose build
       - run: docker compose up -d --wait --wait-timeout 180
-      - name: keys
+      - name: a key, and CPU sampled per container every 5 s
         run: |
           docker compose exec -T server trimset-server create-project load > /dev/null
-          new_key() { docker compose exec -T server trimset-server create-key load --scope "$1" --label k6 | python3 -c "import json,sys; print(json.load(sys.stdin)['key'])"; }
-          echo "INGEST_KEY=$(new_key ingest)" >> "$GITHUB_ENV"
-          echo "PROXY_KEY=$(new_key proxy)" >> "$GITHUB_ENV"
+          scope=${{ matrix.test == 'ingest' && 'ingest' || 'proxy' }}
+          key=$(docker compose exec -T server trimset-server create-key load --scope "$scope" --label k6 | python3 -c "import json,sys; print(json.load(sys.stdin)['key'])")
+          echo "KEY=$key" >> "$GITHUB_ENV"
           mkdir -p tools/load/out && chmod 777 tools/load/out
-      - name: sample CPU per container every 5 s while the tests run
-        run: |
           nohup bash -c 'while true; do docker stats --no-stream --format "{{.Name}},{{.CPUPerc}}" >> tools/load/out/cpu.csv; sleep 5; done' > /dev/null 2>&1 &
       - name: ingest at 2,000 decisions/s, p99 under 20 ms (NFR-02)
-        run: >-
-          docker run --rm --network trimset_default --cpuset-cpus 2,3
-          -v "$PWD/tools/load:/scripts" -e TRIMSET_URL=http://server:8800
-          -e TRIMSET_INGEST_KEY="$INGEST_KEY" -e DURATION="${{ inputs.ingest_duration }}"
-          "$K6" run --quiet /scripts/ingest.js
+        if: matrix.test == 'ingest'
+        run: |
+          docker run --rm --network trimset_default --cpuset-cpus 2,3 \
+            -v "$PWD/tools/load:/scripts" -e TRIMSET_URL=http://server:8800 \
+            -e TRIMSET_INGEST_KEY="$KEY" -e DURATION="${{ inputs.ingest_duration }}" \
+            "$K6" run --quiet /scripts/ingest.js
       - name: every acknowledged record is committed (NFR-02)
-        if: always()
+        if: always() && matrix.test == 'ingest'
         run: |
           stored=$(python3 -c "import json; print(json.load(open('tools/load/out/ingest.json'))['records_stored'])")
           in_db=$(docker compose exec -T postgres psql -U trimset -d trimset -tAc "SELECT count(*) FROM decisions")
           echo "acknowledged $stored (+1 at setup), in the database $in_db"
           test "$in_db" = "$((stored + 1))"
-      - name: proxy overhead at 500 requests/s, under 5 ms at p99 (NFR-03)
-        if: always()
+      - name: proxy overhead, under 5 ms at p99 (NFR-03)
+        if: matrix.test == 'proxy'
         run: |
           docker run --rm --network trimset_default --cpuset-cpus 2,3 \
             -v "$PWD/tools/load:/scripts" -e TRIMSET_URL=http://server:8800 \
-            -e MOCK_URL=http://mock-upstream:9000 -e TRIMSET_PROXY_KEY="$PROXY_KEY" \
+            -e MOCK_URL=http://mock-upstream:9000 -e TRIMSET_PROXY_KEY="$KEY" \
             -e DURATION="${{ inputs.proxy_duration }}" -e RATE="${{ inputs.proxy_rate }}" \
             "$K6" run --quiet /scripts/proxy.js
           python3 -c "import json; r = json.load(open('tools/load/out/proxy.json')); assert r['overhead_p99_ms'] < 5, r"
@@ -85,12 +89,9 @@ jobs:
                             for n, v in sorted(seen.items())}, indent=2))
           PY
           {
-            echo "## Load test: ${{ inputs.workers }} server process(es)"
+            echo "## ${{ matrix.test }}: ${{ inputs.workers }} server process(es)"
             for f in tools/load/out/*.json; do echo "### $(basename "$f")"; echo '```json'; cat "$f"; echo '```'; done
-            echo '### Memory after the run'; echo '```'
-            docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc}}'
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       - if: failure()
         run: docker compose logs --tail 100 server worker
       - if: always()
