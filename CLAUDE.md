@@ -26,7 +26,12 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     - `trimset.hashing` reproduces every Phase 3 vector;
     - `trimset.wire` turns systemone and OpenAI traffic into record/1 and skips anything
       malformed, with a reason.
-- Next: T1.7 (`POST /v1/decisions:log`), then T1.8 (proxy) and the rest of M1.
+  - T1.7, `POST /v1/decisions:log` (`ingest.py`, `records.py`):
+    - strict per-record checks, with 207 and errors by index;
+    - question registration, with names moving to the newest wording;
+    - model versions recorded;
+    - one unnest insert that ignores duplicates.
+- Next: T1.8 (the proxy), then T1.9 and the rest of M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
   every milestone, from actual hours.
 - Repository: `github.com/trimset/trimset` (public).

@@ -9,7 +9,7 @@ import asyncpg
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from trimset_server import admin, errors, keys
+from trimset_server import admin, errors, ingest, keys
 from trimset_server.auth import KeyCache
 from trimset_server.config import Settings
 from trimset_server.telemetry import setup_telemetry
@@ -43,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     errors.install(app)
     app.include_router(admin.router)
+    app.include_router(ingest.router)
 
     # Public, no key: liveness and readiness never return project data.
     @app.get("/health")
