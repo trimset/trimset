@@ -12,6 +12,9 @@ on:
       proxy_duration:
         description: How long each proxy run lasts, direct and through trimset
         default: 5m
+      proxy_rate:
+        description: Proxy requests a second (NFR-03 says 500)
+        default: "500"
       workers:
         description: Server processes (TRIMSET_WORKERS)
         default: "1"
@@ -63,7 +66,8 @@ jobs:
           docker run --rm --network trimset_default --cpuset-cpus 2,3 \
             -v "$PWD/tools/load:/scripts" -e TRIMSET_URL=http://server:8800 \
             -e MOCK_URL=http://mock-upstream:9000 -e TRIMSET_PROXY_KEY="$PROXY_KEY" \
-            -e DURATION="${{ inputs.proxy_duration }}" "$K6" run --quiet /scripts/proxy.js
+            -e DURATION="${{ inputs.proxy_duration }}" -e RATE="${{ inputs.proxy_rate }}" \
+            "$K6" run --quiet /scripts/proxy.js
           python3 -c "import json; r = json.load(open('tools/load/out/proxy.json')); assert r['overhead_p99_ms'] < 5, r"
       - name: results
         if: always()

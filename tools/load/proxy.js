@@ -5,6 +5,7 @@ import http from "k6/http";
 import { check } from "k6";
 
 const DURATION = __ENV.DURATION || "5m";
+const RATE = Number(__ENV.RATE || 500); // NFR-03 is 500; lower or higher rates find the knee
 const DIRECT = `${__ENV.MOCK_URL}/v1/systemone`;
 const PROXIED = `${__ENV.TRIMSET_URL}/p/${__ENV.TRIMSET_PROXY_KEY}/v1/systemone`;
 const PARAMS = { headers: { "Content-Type": "application/json" } };
@@ -17,7 +18,7 @@ function seconds(text) {
 
 const run = {
   executor: "constant-arrival-rate",
-  rate: 500,
+  rate: RATE,
   timeUnit: "1s",
   duration: DURATION,
   preAllocatedVUs: 100,
@@ -69,6 +70,7 @@ export function proxied() {
 export function handleSummary(data) {
   const p99 = (name) => data.metrics[`http_req_duration{scenario:${name}}`].values["p(99)"];
   const result = {
+    rate: RATE,
     direct_p99_ms: p99("direct"),
     proxy_p99_ms: p99("proxy"),
     overhead_p99_ms: p99("proxy") - p99("direct"),
