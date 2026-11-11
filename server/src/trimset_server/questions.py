@@ -143,6 +143,23 @@ async def _view(conn: Any, project_id: uuid.UUID, row: Any) -> dict[str, Any]:
     }
 
 
+@router.get("/questions")
+async def list_questions(request: Request, admin: Admin, limit: int = 100) -> dict[str, Any]:
+    """Every question seen in this project, newest first, each with its served models."""
+    async with request.app.state.pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT question_id, name, type, definition, settings, previous_question_id, "
+            "first_seen FROM questions WHERE project_id = $1 "
+            "ORDER BY first_seen DESC, question_id LIMIT $2",
+            admin.project_id,
+            max(1, min(limit, 500)),
+        )
+        # ponytail: one models query per question; page with the cursor if projects grow
+        # past a few hundred wordings.
+        items = [await _view(conn, admin.project_id, r) for r in rows]
+    return {"items": items, "next_cursor": None}
+
+
 @router.get("/questions/{question}")
 async def get_question(question: str, request: Request, admin: Admin) -> dict[str, Any]:
     async with request.app.state.pool.acquire() as conn:
