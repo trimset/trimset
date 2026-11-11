@@ -51,7 +51,8 @@ for i in $(seq 151 250); do check_refund "rf-$i"; done
 
 step "Five months of history from the data generator: 6,000 refunds, their chargebacks
 and reviews, and the 120-day \"no chargeback means not fraud\" rule"
-docker compose run --rm --no-deps -e TRIMSET_INGEST_KEY="$INGEST" -e TRIMSET_ADMIN_KEY="$ADMIN" \
+export TRIMSET_INGEST_KEY=$INGEST TRIMSET_ADMIN_KEY=$ADMIN # passed by name, not value
+docker compose run --rm --no-deps -e TRIMSET_INGEST_KEY -e TRIMSET_ADMIN_KEY \
   --entrypoint trimset-datagen mock-upstream refund-fraud --seed 7 --days 150 --per-day 40 \
   --url http://proxy:8800
 

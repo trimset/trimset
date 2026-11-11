@@ -99,7 +99,11 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     config (0600 file; TRIMSET_URL/TRIMSET_KEY win), calibrate, simulate, policy
     compile/show/diff, coverage, decisions tail; tables or `--json`. The server gained
     read views: GET /v1/admin/policies, /policies/{id}, /policies/{id}/diff and
-    /v1/admin/decisions. Export (FR-58) stays in M5.
+    /v1/admin/decisions. Export (FR-58) stays in M5. It refuses redirects (they'd carry
+    the key) and escapes control characters in everything it prints.
+  - T2.8, the M2 demo (`examples/m2-refund-fraud/run.sh`, run in CI's image job): seven
+    months of a miscalibrated refund model, then coverage, calibrate, simulate and a
+    certified compile, all through the CLI inside the server container.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
