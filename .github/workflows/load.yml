@@ -42,7 +42,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test: [ingest, proxy]
+        # ingest-direct skips the proxy, to see what the front door adds to ingest.
+        test: [ingest, ingest-direct, proxy]
+    env:
+      INGEST_URL: ${{ matrix.test == 'ingest-direct' && 'http://server:8810' || 'http://proxy:8800' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: four CPUs, two of them for trimset
@@ -52,20 +55,20 @@ jobs:
       - name: a key, and CPU sampled per container every 5 s
         run: |
           docker compose exec -T server trimset-server create-project load > /dev/null
-          scope=${{ matrix.test == 'ingest' && 'ingest' || 'proxy' }}
+          scope=${{ matrix.test == 'proxy' && 'proxy' || 'ingest' }}
           key=$(docker compose exec -T server trimset-server create-key load --scope "$scope" --label k6 | python3 -c "import json,sys; print(json.load(sys.stdin)['key'])")
           echo "KEY=$key" >> "$GITHUB_ENV"
           mkdir -p tools/load/out && chmod 777 tools/load/out
           nohup bash -c 'while true; do docker stats --no-stream --format "{{.Name}},{{.CPUPerc}}" >> tools/load/out/cpu.csv; sleep 5; done' > /dev/null 2>&1 &
       - name: ingest at 2,000 decisions/s, p99 under 20 ms (NFR-02)
-        if: matrix.test == 'ingest'
+        if: startsWith(matrix.test, 'ingest')
         run: |
           docker run --rm --network trimset_default --cpuset-cpus 2,3 \
-            -v "$PWD/tools/load:/scripts" -e TRIMSET_URL=http://proxy:8800 \
+            -v "$PWD/tools/load:/scripts" -e TRIMSET_URL="$INGEST_URL" \
             -e TRIMSET_INGEST_KEY="$KEY" -e DURATION="$INGEST_DURATION" \
             "$K6" run --quiet /scripts/ingest.js
       - name: every acknowledged record is committed (NFR-02)
-        if: always() && matrix.test == 'ingest'
+        if: always() && startsWith(matrix.test, 'ingest')
         run: |
           stored=$(python3 -c "import json; print(json.load(open('tools/load/out/ingest.json'))['records_stored'])")
           in_db=$(docker compose exec -T postgres psql -U trimset -d trimset -tAc "SELECT count(*) FROM decisions")
