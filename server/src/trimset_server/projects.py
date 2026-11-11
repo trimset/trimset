@@ -8,11 +8,12 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
 
 from trimset_server import audit
 from trimset_server.auth import DB_ERRORS, MAX_STALE_S, Unavailable, require
 from trimset_server.bodies import TooLarge, parse_json, read_body
+from trimset_server.cron import Cron
 from trimset_server.errors import Problem
 from trimset_server.keys import Principal
 from trimset_server.upstreams import Upstream
@@ -46,6 +47,14 @@ class Privacy(BaseModel):
     tag_allowlist: list[Annotated[str, Field(pattern=r"^[A-Za-z0-9_.-]{1,64}$")]] | None = None
 
 
+REFIT_SCHEDULE = "0 3 * * *"  # daily at 03:00 UTC (FR-30)
+
+
+def _cron(expression: str) -> str:
+    Cron(expression)  # raises ValueError, which pydantic reports
+    return expression
+
+
 class ProjectSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     upstream: UpstreamChoice | None = None
@@ -53,7 +62,7 @@ class ProjectSettings(BaseModel):
     proxy_max_body_mb: Annotated[int, Field(ge=1, le=32)] = 8
     retention_days: Annotated[int, Field(ge=1, le=3650)] = 400
     privacy: Privacy = Privacy()
-    refit_schedule: Annotated[str, Field(min_length=9, max_length=100)] = "0 3 * * *"
+    refit_schedule: Annotated[str, Field(max_length=100), AfterValidator(_cron)] = REFIT_SCHEDULE
 
     def disallowed_tags(self, tags: Mapping[str, str]) -> list[str]:
         """Tag keys the project's allow-list doesn't permit (FR-09); none without a list.

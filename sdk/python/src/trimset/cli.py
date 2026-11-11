@@ -460,6 +460,18 @@ def cmd_diff(client: Client, args: argparse.Namespace) -> None:
     )
     say()
     print_metrics({"before": diff["metrics"]["before"], "after": diff["metrics"]["after"]})
+    if diff.get("label_sources"):
+        say()
+        say("Tuning labels by source (check for a key sending more than it should):")
+        say(
+            table(
+                ["source", "key", "share"],
+                [
+                    [s["source"], s["key_id"][:8] if s["key_id"] else "-", pct(s["share"])]
+                    for s in diff["label_sources"]
+                ],
+            )
+        )
 
 
 def cmd_transition(client: Client, args: argparse.Namespace) -> None:

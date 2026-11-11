@@ -19,13 +19,14 @@ from trimset_server.auth import require
 from trimset_server.errors import Problem
 from trimset_server.fitting import JobError, run_compile, run_fit
 from trimset_server.keys import Principal
+from trimset_server.refits import run_refit
 
 log = logging.getLogger("trimset.jobs")
 router = APIRouter(prefix="/v1/admin")
 Admin = Annotated[Principal, Depends(require("admin"))]
 MAX_ATTEMPTS = 3
 Handler = Callable[[Any, uuid.UUID, Mapping[str, Any], uuid.UUID | None], Awaitable[dict[str, Any]]]
-HANDLERS: dict[str, Handler] = {"fit": run_fit, "compile": run_compile}
+HANDLERS: dict[str, Handler] = {"fit": run_fit, "compile": run_compile, "refit": run_refit}
 
 _CLAIM = """
 UPDATE jobs SET status = 'running', started_at = now(), attempts = attempts + 1

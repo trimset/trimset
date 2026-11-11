@@ -414,6 +414,14 @@ def test_policy_show_by_id_or_question_and_diff(
     assert run("policy", "diff", "p1") == 0
     out = capsys.readouterr().out
     assert "against nothing (no active policy)" in out and "0.1200" in out
+    assert "Tuning labels by source" not in out
+    diff["label_sources"] = [
+        {"source": "downstream", "key_id": "1a2b3c4d-0000-4000-8000-000000000000", "share": 0.7},
+        {"source": "rule", "key_id": None, "share": 0.3},
+    ]
+    assert run("policy", "diff", "p1") == 0
+    out = capsys.readouterr().out
+    assert "downstream  1a2b3c4d  70.0%" in out and "rule        -         30.0%" in out
 
 
 @pytest.mark.req("FR-14")
