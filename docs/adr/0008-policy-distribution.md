@@ -21,7 +21,9 @@ tampering.
 **Pull with ETag:**
 - `GET /v1/policies` returns the project's bundle: every active policy, plus the
   project's state-hash key ([0009](0009-privacy-model.md)).
-- The bundle's ETag is a SHA-256 of its policies' fingerprints in sorted order.
+- The bundle's ETag is the SHA-256 of the canonical bundle without `generated_at` and
+  `etag` (hashing.md §5), so a new policy, a renamed question or a changed guarantee
+  status all change it.
 - The SDK polls every 30 s with ±20% jitter, sending `If-None-Match`.
 
 **Fingerprints:**

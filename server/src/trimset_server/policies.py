@@ -64,12 +64,17 @@ def _event(row: Any) -> dict[str, Any]:
     }
 
 
+def guarantee_status(policy: dict[str, Any]) -> str:
+    """certified or none; drift checks can suspend a certified one in M4 (FR-40)."""
+    return "certified" if policy["guarantee"]["status"] == "certified" else "none"
+
+
 def view(row: Any, events: list[dict[str, Any]]) -> dict[str, Any]:
     policy = json.loads(row["body"])
     return {
         "policy": policy,
         "state": row["state"],
-        "guarantee_status": "certified" if policy["guarantee"]["status"] == "certified" else "none",
+        "guarantee_status": guarantee_status(policy),
         "suspended_by": None,
         "events": events,
     }
