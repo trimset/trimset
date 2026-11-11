@@ -84,8 +84,9 @@ async def test_a_key_is_looked_up_for_the_proxy(dsn: str) -> None:
             "timeout_ms": 10_000,
         }
         assert found["max_body_bytes"] == 8 * 1024 * 1024
-        assert "principal" in ask(made["admin"])  # an admin key can do what a proxy key can
-        assert ask(made["ingest"])["denied"]["status"] == 403
+        assert "principal" in ask(made["admin"])  # admin and ingest keys may proxy too
+        assert "principal" in ask(made["ingest"])
+        assert ask(made["review"])["denied"]["status"] == 403
         assert ask("tsp_" + "x" * 32)["denied"] == {
             "status": 401,
             "code": "invalid_key",

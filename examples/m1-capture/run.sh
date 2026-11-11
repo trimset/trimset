@@ -53,7 +53,7 @@ step "Five months of history from the data generator: 6,000 refunds, their charg
 and reviews, and the 120-day \"no chargeback means not fraud\" rule"
 docker compose run --rm --no-deps -e TRIMSET_INGEST_KEY="$INGEST" -e TRIMSET_ADMIN_KEY="$ADMIN" \
   --entrypoint trimset-datagen mock-upstream refund-fraud --seed 7 --days 150 --per-day 40 \
-  --url http://server:8800
+  --url http://proxy:8800
 
 step "Outcomes for today's refunds: two chargebacks, a review, and one for a refund
 trimset hasn't seen yet"
