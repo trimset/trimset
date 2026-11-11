@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Use cases · trimset</title>
+<meta name="description" content="Six decisions trimset is built for, each with its question, its outcome and the target its policy has to meet.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="../" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="../how-it-works.html">How it works</a>
+<a href="../use-cases/" aria-current="page">Use cases</a>
+<a href="../integrations.html">Integrations</a>
+<a href="../docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap page">
+<section class="intro">
+<p class="eyebrow">Use cases</p>
+<h1>Real decisions, with real delays</h1>
+<p class="lead">Each one is a question an app asks a decision model, the outcome that comes back later, and the target its policy has to meet. Between them they cover all three question types, an escalation band, labels that take months, and a cost model.</p>
+</section>
+<section class="grid cols-340" aria-label="Use cases">
+<a class="card card-link" href="refund-fraud.html">
+<span class="row"><span class="type">noul</span><span class="badge badge-demo">Demo available</span></span>
+<span class="card-title-lg">Refund fraud</span>
+<span class="text">An online shop screens refund requests before paying out.</span>
+<span class="card-foot">
+<span class="hl">“Is this refund request fraudulent?”</span>
+<span><span class="c">Outcome · </span>a chargeback, 30 to 90 days later</span>
+<span><span class="c">Target · </span>false passes ≤ 2% with 95% confidence; the uncertain middle goes to the risk team</span>
+</span>
+</a>
+<a class="card card-link" href="ticket-triage.html">
+<span class="row"><span class="type">choice</span><span class="badge">Coming soon</span></span>
+<span class="card-title-lg">Support ticket triage</span>
+<span class="text">An online shop routes tickets to billing, shipping, returns or tech.</span>
+<span class="card-foot">
+<span class="hl">“Which team should handle this ticket?”</span>
+<span><span class="c">Outcome · </span>the team that finally handled it, hours later</span>
+<span><span class="c">Target · </span>misroutes ≤ 5% among auto-routed tickets</span>
+</span>
+</a>
+<a class="card card-link" href="model-routing.html">
+<span class="row"><span class="type">score</span><span class="badge">Coming soon</span></span>
+<span class="card-title-lg">Model routing</span>
+<span class="text">A chat product sends easy requests to a small model and hard ones to a large one.</span>
+<span class="card-foot">
+<span class="hl">“How hard is this request?”</span>
+<span><span class="c">Outcome · </span>a thumbs-down, a retry, or an LLM judge on a sample</span>
+<span><span class="c">Target · </span>the cost of a large-model call against the cost of a bad answer</span>
+</span>
+</a>
+<a class="card card-link" href="pii-guardrail.html">
+<span class="row"><span class="type">noul</span><span class="badge">Coming soon</span></span>
+<span class="card-title-lg">PII guardrail</span>
+<span class="text">An internal chat assistant checks every prompt before it reaches an LLM.</span>
+<span class="card-foot">
+<span class="hl">“Does this text contain personal data?”</span>
+<span><span class="c">Outcome · </span>the privacy team reviews a sample, days later</span>
+<span><span class="c">Target · </span>false passes ≤ 1% with 95% confidence</span>
+</span>
+</a>
+<a class="card card-link" href="tool-approval.html">
+<span class="row"><span class="type">noul</span><span class="badge">Coming soon</span></span>
+<span class="card-title-lg">Agent tool approval</span>
+<span class="text">An ops agent wants to run a database write or send an email.</span>
+<span class="card-foot">
+<span class="hl">“Is this tool call safe to run without a human?”</span>
+<span><span class="c">Outcome · </span>a human approves or denies; incident reports</span>
+<span><span class="c">Target · </span>unsafe passes ≤ 0.5% with 95% confidence</span>
+</span>
+</a>
+<a class="card card-link" href="content-moderation.html">
+<span class="row"><span class="type">score</span><span class="badge">Coming soon</span></span>
+<span class="card-title-lg">Content moderation</span>
+<span class="text">A marketplace checks new listings before they go live.</span>
+<span class="card-foot">
+<span class="hl">“How serious is the problem with this listing?”</span>
+<span><span class="c">Outcome · </span>a moderator decision or a user report, days later</span>
+<span><span class="c">Target · </span>a review queue under [N] items a day</span>
+</span>
+</a>
+</section>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="../docs.html">Docs</a>
+<a href="../self-hosting.html">Self-hosting</a>
+<a href="../roadmap.html">Roadmap</a>
+</nav>
+</div>
+</footer>
+</body>
+</html>

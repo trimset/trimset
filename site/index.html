@@ -2,181 +2,214 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Trimset — decision ops for decision models</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Trimset: open-source decision ops for decision models like Jev, Ollaya and Ollama.">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%230b0d10%27/%3E%3Cpath d=%27M27 12V42Q27 51 36 51H42%27 fill=%27none%27 stroke=%27%23b8f36b%27 stroke-width=%276%27 stroke-linecap=%27round%27/%3E%3Ccircle cx=%2740%27 cy=%2725%27 r=%276.5%27 fill=%27%23b8f36b%27/%3E%3C/svg%3E">
+<title>trimset: decision ops for decision models</title>
+<meta name="description" content="Open-source, self-hosted decision ops for decision models like Jev, Ollaya and Ollama: log every decision, join real outcomes, refit thresholds with a stated guarantee.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
-<style>
-:root{--accent:#b8f36b}
-html{scroll-behavior:smooth}
-body{margin:0;background:#0b0d10}
-a{color:#e8eaed}a:hover{color:#ffffff}
-pre{margin:0}
-</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div style="background: #0b0d10; color: #e8eaed; font-family: Inter, system-ui, sans-serif; min-height: 100vh">
-
-<header style="max-width: 1200px; margin: 0 auto; padding: 24px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
-<a href="#top" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #e8eaed">
-<svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg>
-<span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: -0.02em">trimset</span>
-</a>
-<nav aria-label="Main" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
-<a href="#how" style="padding: 10px 14px; font-size: 15px; color: #b6bdc6; text-decoration: none">How it works</a>
-<a href="#features" style="padding: 10px 14px; font-size: 15px; color: #b6bdc6; text-decoration: none">Features</a>
-<a href="#docs" style="padding: 10px 14px; font-size: 15px; color: #b6bdc6; text-decoration: none">Docs</a>
-<a href="https://github.com/trimset/trimset" style="padding: 10px 16px; font-size: 15px; font-weight: 500; color: #e8eaed; text-decoration: none; border: 1px solid #2a3038; border-radius: 10px">GitHub</a>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="./" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="how-it-works.html">How it works</a>
+<a href="use-cases/">Use cases</a>
+<a href="integrations.html">Integrations</a>
+<a href="docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
 </nav>
+</div>
 </header>
-
-<section id="top" style="max-width: 1200px; margin: 0 auto; padding: 72px 24px 56px; display: flex; flex-wrap: wrap; gap: 48px; align-items: center">
-<div style="flex: 1 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
-<span style="align-self: flex-start; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #b6bdc6; border: 1px solid #2a3038; border-radius: 999px; padding: 6px 12px">Open source · Apache-2.0 · pre-alpha</span>
-<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: clamp(40px, 6vw, 68px); line-height: 1.02; letter-spacing: -0.03em; font-weight: 700">Keep your decision thresholds <span style="color: var(--accent)">true</span>.</h1>
-<p style="margin: 0; font-size: 19px; line-height: 1.55; color: #b6bdc6; max-width: 560px">Trimset is decision ops for decision models like Jev, Ollaya and Ollama. It logs every decision, joins it to what really happened, refits your thresholds and tells you when the model drifts.</p>
-<div style="display: flex; flex-wrap: wrap; gap: 12px">
-<a href="#docs" style="padding: 14px 22px; border-radius: 12px; background: var(--accent); color: #0b0d10; font-weight: 600; font-size: 16px; text-decoration: none">Get started</a>
-<a href="https://github.com/trimset/trimset" style="padding: 14px 22px; border-radius: 12px; border: 1px solid #2a3038; color: #e8eaed; font-weight: 500; font-size: 16px; text-decoration: none">Star on GitHub</a>
+<main id="main">
+<section class="hero" aria-labelledby="hero-title">
+<div class="wrap">
+<div class="hero-text">
+<p class="pill">Open source · Apache-2.0 · pre-alpha</p>
+<h1 id="hero-title" class="display">Keep your decision thresholds <span class="ok">true</span>.</h1>
+<p class="lead">trimset is decision ops for decision models like Jev, Ollaya and Ollama. It logs every decision, joins it to what really happened, refits your thresholds and tells you when the model drifts.</p>
+<div class="actions">
+<a class="btn btn-primary" href="docs.html">Get started</a>
+<a class="btn" href="https://github.com/trimset/trimset">Star on GitHub</a>
 </div>
-<div style="font-family: 'JetBrains Mono', monospace; font-size: 15px; background: #12161b; border: 1px solid #222830; border-radius: 12px; padding: 14px 16px; overflow-x: auto; white-space: nowrap"><span style="color: #7f8893">$</span> docker compose up -d <span style="color: #7f8893"># trimset on :8800</span></div>
+<p class="cmd"><span class="c">$</span> docker compose up -d <span class="c"># trimset on :8800</span></p>
 </div>
+<figure class="term">
+<figcaption class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="t">One line to adopt</span></figcaption>
+<pre><span class="c"># before: straight to your model</span>
+base_url = "https://api.typesafe.ai"
 
-<div style="flex: 1 1 460px; min-width: 0; background: #12161b; border: 1px solid #222830; border-radius: 16px; overflow: hidden">
-<div style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #222830">
-<span style="width: 10px; height: 10px; border-radius: 50%; background: #2a3038"></span>
-<span style="width: 10px; height: 10px; border-radius: 50%; background: #2a3038"></span>
-<span style="width: 10px; height: 10px; border-radius: 50%; background: #2a3038"></span>
-<span style="margin-left: 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #7f8893">One line to adopt</span>
-</div>
-<pre style="padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 14px; line-height: 1.7; color: #d6dbe1; overflow-x: auto"><span style="color: #7f8893"># before: straight to your model</span>
-<span style="color: #7f8893"># TYPESAFE_BASE_URL=http://localhost:11435</span>
+<span class="c"># after: through trimset, zero code changes</span>
+base_url = "https://trimset.example.com/p/tsp_…"
 
-<span style="color: #7f8893"># after: through trimset, zero code changes</span>
-export TYPESAFE_BASE_URL=http://localhost:8800
-
-<span style="color: #7f8893"># later, gate with the live policy</span>
-from trimset import gate
-d = gate("refund_fraud", p=0.83)
-d.action  <span style="color: #7f8893"># ESCALATE  (policy v7)</span></pre>
+<span class="c"># later, gate with the live policy (M3)</span>
+d = ts.gate("refund_fraud", p=0.83)
+d.action  <span class="c"># ESCALATE  (policy v7)</span></pre>
+</figure>
 </div>
 </section>
 
-<section aria-label="Works with" style="border-top: 1px solid #1a1f26; border-bottom: 1px solid #1a1f26">
-<div style="max-width: 1200px; margin: 0 auto; padding: 24px; display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center">
-<span style="font-size: 14px; color: #7f8893">Works with any /v1/systemone server</span>
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; color: #b6bdc6">Jev</span>
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; color: #b6bdc6">Ollaya</span>
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; color: #b6bdc6">Ollama</span>
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; color: #b6bdc6">OpenAI decisions</span>
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; color: #b6bdc6">LangGraph</span>
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 15px; color: #b6bdc6">decision-circuits</span>
+<section class="band" aria-label="Works with">
+<div class="wrap works">
+<span class="note">Works with any /v1/systemone server</span>
+<span class="mono">Jev</span>
+<span class="mono">Ollaya</span>
+<span class="mono">Ollama</span>
+<span class="mono">OpenAI decisions</span>
+<span class="mono">LangGraph</span>
+<span class="mono">decision-circuits</span>
+<a href="integrations.html">All integrations →</a>
 </div>
 </section>
 
-<section id="how" style="max-width: 1200px; margin: 0 auto; padding: 96px 24px; display: flex; flex-direction: column; gap: 40px">
-<div style="display: flex; flex-direction: column; gap: 12px; max-width: 720px">
-<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.02em">Thresholds you set once go stale.</h2>
-<p style="margin: 0; font-size: 18px; line-height: 1.6; color: #b6bdc6">Everyone writes <code style="font-family: 'JetBrains Mono', monospace; color: #e8eaed">if p &gt; 0.9</code> and never checks it again. Trimset closes the loop in four steps.</p>
+<section id="how" aria-labelledby="how-title">
+<div class="wrap section stack-lg">
+<div class="intro">
+<h2 id="how-title" class="h-xl">Thresholds you set once go stale.</h2>
+<p class="lead">Everyone writes <code>if p &gt; 0.9</code> and never checks it again. trimset closes the loop in four steps.</p>
 </div>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
-<div style="background: #12161b; border: 1px solid #222830; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px">
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--accent)">01 · Capture</span>
-<h3 style="margin: 0; font-size: 20px; font-family: 'Space Grotesk', sans-serif">Log every decision</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">Proxy mode or SDK. Probabilities, model version, latency and cost. Raw state is never stored by default.</p>
+<div class="grid cols-240">
+<article class="card">
+<p class="eyebrow">01 · Capture</p>
+<h3>Log every decision</h3>
+<p class="text">Through the proxy or the logging API. Probabilities, model version, latency and cost. Raw state is never stored.</p>
+</article>
+<article class="card">
+<p class="eyebrow">02 · Join</p>
+<h3>Match real outcomes</h3>
+<p class="text">Chargebacks, reviewer labels, reassignments. Outcomes arrive hours or months later and attach to the original decision.</p>
+</article>
+<article class="card">
+<p class="eyebrow">03 · Refit</p>
+<h3>Compile a policy</h3>
+<p class="text">State a target like "at most 2% false passes". trimset recalibrates and proposes thresholds and an escalation band.</p>
+</article>
+<article class="card">
+<p class="eyebrow row-start">04 · Enforce <span class="badge">Coming soon</span></p>
+<h3>Ship it to your apps</h3>
+<p class="text">You approve, the SDK picks it up and gates locally, with no network call on the request path. Roll back with one command.</p>
+</article>
 </div>
-<div style="background: #12161b; border: 1px solid #222830; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px">
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--accent)">02 · Join</span>
-<h3 style="margin: 0; font-size: 20px; font-family: 'Space Grotesk', sans-serif">Match real outcomes</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">Chargebacks, reviewer labels, reassignments. Outcomes arrive hours or days later and attach to the original decision.</p>
-</div>
-<div style="background: #12161b; border: 1px solid #222830; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px">
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--accent)">03 · Refit</span>
-<h3 style="margin: 0; font-size: 20px; font-family: 'Space Grotesk', sans-serif">Compile a policy</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">State a target like "at most 2% false passes". Trimset recalibrates and proposes thresholds and an escalation band.</p>
-</div>
-<div style="background: #12161b; border: 1px solid #222830; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px">
-<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--accent)">04 · Enforce</span>
-<h3 style="margin: 0; font-size: 20px; font-family: 'Space Grotesk', sans-serif">Ship it to your apps</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">You approve, SDKs pick it up and gate locally in under a millisecond. Roll back with one click.</p>
-</div>
+<a class="more" href="how-it-works.html">How it works, step by step →</a>
 </div>
 </section>
 
-<section style="max-width: 1200px; margin: 0 auto; padding: 0 24px 96px; display: flex; flex-wrap: wrap; gap: 40px; align-items: center">
-<div style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
-<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: clamp(28px, 3.5vw, 40px); letter-spacing: -0.02em">Every threshold is a business trade-off. See it.</h2>
-<p style="margin: 0; font-size: 18px; line-height: 1.6; color: #b6bdc6">Pick how much manual review you can afford per error avoided. Trimset shows the curve on your own traffic, not a vendor benchmark.</p>
+<section aria-labelledby="tradeoff-title">
+<div class="wrap split tail">
+<div class="stack-sm">
+<h2 id="tradeoff-title">Every threshold is a business trade-off. See it.</h2>
+<p class="lead">Pick how much manual review you can afford per error avoided. trimset shows the curve on your own traffic, not a vendor benchmark.</p>
 </div>
-<div style="flex: 1 1 480px; min-width: 0; background: #12161b; border: 1px solid #222830; border-radius: 16px; padding: 8px; overflow-x: auto">
-<table style="width: 100%; border-collapse: collapse; font-size: 15px; min-width: 420px">
-<caption style="text-align: left; padding: 12px 14px; font-size: 13px; color: #7f8893; font-family: 'JetBrains Mono', monospace">refund_fraud · illustrative example</caption>
+<div class="table-box">
+<table>
+<caption>refund_fraud · illustrative example</caption>
 <thead>
-<tr style="color: #7f8893; text-align: left">
-<th style="padding: 10px 14px; font-weight: 500">Threshold</th>
-<th style="padding: 10px 14px; font-weight: 500">Automated</th>
-<th style="padding: 10px 14px; font-weight: 500">Auto-path errors</th>
-<th style="padding: 10px 14px; font-weight: 500">Sent to review</th>
-</tr>
+<tr><th scope="col">Threshold</th><th scope="col">Automated</th><th scope="col">Auto-path errors</th><th scope="col">Sent to review</th></tr>
 </thead>
-<tbody style="font-family: 'JetBrains Mono', monospace">
-<tr style="border-top: 1px solid #222830">
-<td style="padding: 12px 14px">0.70</td><td style="padding: 12px 14px">[X]%</td><td style="padding: 12px 14px">[X]%</td><td style="padding: 12px 14px">[X]%</td>
-</tr>
-<tr style="border-top: 1px solid #222830; background: #171c22">
-<td style="padding: 12px 14px; color: var(--accent)">0.85 ✓ proposed</td><td style="padding: 12px 14px">[X]%</td><td style="padding: 12px 14px">[X]%</td><td style="padding: 12px 14px">[X]%</td>
-</tr>
-<tr style="border-top: 1px solid #222830">
-<td style="padding: 12px 14px">0.95</td><td style="padding: 12px 14px">[X]%</td><td style="padding: 12px 14px">[X]%</td><td style="padding: 12px 14px">[X]%</td>
-</tr>
+<tbody>
+<tr><td>0.70</td><td>[X]%</td><td>[X]%</td><td>[X]%</td></tr>
+<tr class="pick"><td>0.85 ✓ proposed</td><td>[X]%</td><td>[X]%</td><td>[X]%</td></tr>
+<tr><td>0.95</td><td>[X]%</td><td>[X]%</td><td>[X]%</td></tr>
 </tbody>
 </table>
 </div>
-</section>
-
-<section id="features" style="background: #0f1216; border-top: 1px solid #1a1f26; border-bottom: 1px solid #1a1f26">
-<div style="max-width: 1200px; margin: 0 auto; padding: 96px 24px; display: flex; flex-direction: column; gap: 40px">
-<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.02em">Built for System One models</h2>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px 40px">
-<div style="display: flex; flex-direction: column; gap: 8px"><h3 style="margin: 0; font-size: 18px">Calibration per question</h3><p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">Temperature, Platt and isotonic fits per question wording and model. Never pooled across them.</p></div>
-<div style="display: flex; flex-direction: column; gap: 8px"><h3 style="margin: 0; font-size: 18px">Escalation bands</h3><p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">Confident cases run on System One. The uncertain middle goes to an LLM or a human.</p></div>
-<div style="display: flex; flex-direction: column; gap: 8px"><h3 style="margin: 0; font-size: 18px">Drift alerts that mean it</h3><p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">Label-free distribution drift with significance tests, so small samples don't page you at 3 a.m.</p></div>
-<div style="display: flex; flex-direction: column; gap: 8px"><h3 style="margin: 0; font-size: 18px">Silent upgrade detection</h3><p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">Know the moment an alias like jev-latest starts answering with a new version.</p></div>
-<div style="display: flex; flex-direction: column; gap: 8px"><h3 style="margin: 0; font-size: 18px">Shadow models</h3><p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">Run an open model next to your hosted one on live traffic and compare before you switch.</p></div>
-<div style="display: flex; flex-direction: column; gap: 8px"><h3 style="margin: 0; font-size: 18px">Review queue</h3><p style="margin: 0; font-size: 15px; line-height: 1.6; color: #b6bdc6">Escalated cases land in a queue. Every reviewer label becomes training signal for the next refit.</p></div>
-</div>
 </div>
 </section>
 
-<section id="docs" style="max-width: 1200px; margin: 0 auto; padding: 96px 24px; display: flex; flex-wrap: wrap; gap: 40px; align-items: center">
-<div style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
-<h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: clamp(28px, 3.5vw, 40px); letter-spacing: -0.02em">Self-hosted. Your data stays yours.</h2>
-<p style="margin: 0; font-size: 18px; line-height: 1.6; color: #b6bdc6">One docker compose, Postgres underneath, no account needed. SDKs for Python and TypeScript.</p>
-<div style="display: flex; flex-wrap: wrap; gap: 12px">
-<a href="#docs" style="padding: 12px 18px; border-radius: 10px; border: 1px solid #2a3038; color: #e8eaed; text-decoration: none; font-size: 15px">Read the docs</a>
-<a href="#docs" style="padding: 12px 18px; border-radius: 10px; border: 1px solid #2a3038; color: #e8eaed; text-decoration: none; font-size: 15px">Quickstart</a>
+<section class="top-rule" aria-labelledby="usecases-title">
+<div class="wrap section stack-lg">
+<div class="row">
+<div class="intro">
+<h2 id="usecases-title" class="h-xl">Six decisions, one loop</h2>
+<p class="lead">Each use case is a real question an app asks a decision model, the outcome that comes back later, and the target its policy has to meet.</p>
+</div>
+<a class="more" href="use-cases/">All use cases →</a>
+</div>
+<div class="grid">
+<a class="card card-link" href="use-cases/refund-fraud.html">
+<span class="row"><span class="type">noul</span><span class="badge badge-demo">Demo available</span></span>
+<span class="card-title">Refund fraud</span>
+<span class="text">Is this refund request fraudulent? Chargebacks arrive 30 to 90 days later.</span>
+</a>
+<a class="card card-link" href="use-cases/ticket-triage.html">
+<span class="row"><span class="type">choice</span><span class="badge">Coming soon</span></span>
+<span class="card-title">Support ticket triage</span>
+<span class="text">Which team should handle this ticket? The team that closes it says, hours later.</span>
+</a>
+<a class="card card-link" href="use-cases/model-routing.html">
+<span class="row"><span class="type">score</span><span class="badge">Coming soon</span></span>
+<span class="card-title">Model routing</span>
+<span class="text">How hard is this request? Small model or large model, priced per call.</span>
+</a>
+<a class="card card-link" href="use-cases/pii-guardrail.html">
+<span class="row"><span class="type">noul</span><span class="badge">Coming soon</span></span>
+<span class="card-title">PII guardrail</span>
+<span class="text">Does this text contain personal data? Checked before a prompt reaches an LLM.</span>
+</a>
+<a class="card card-link" href="use-cases/tool-approval.html">
+<span class="row"><span class="type">noul</span><span class="badge">Coming soon</span></span>
+<span class="card-title">Agent tool approval</span>
+<span class="text">Is this tool call safe to run without a human? Unsafe passes stay rare.</span>
+</a>
+<a class="card card-link" href="use-cases/content-moderation.html">
+<span class="row"><span class="type">score</span><span class="badge">Coming soon</span></span>
+<span class="card-title">Content moderation</span>
+<span class="text">How serious is the problem with this listing? The review queue has a daily cap.</span>
+</a>
 </div>
 </div>
-<pre style="flex: 1 1 480px; min-width: 0; background: #12161b; border: 1px solid #222830; border-radius: 16px; padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 14px; line-height: 1.7; color: #d6dbe1; overflow-x: auto">git clone https://github.com/trimset/trimset
+</section>
+
+<section id="features" class="alt" aria-labelledby="features-title">
+<div class="wrap section stack-lg">
+<div class="stack-sm">
+<h2 id="features-title" class="h-xl">Built for System One models</h2>
+<p class="text-16">Pre-alpha. The <a href="roadmap.html">roadmap</a> says what works today and what is coming.</p>
+</div>
+<div class="features">
+<div><h3 class="h-18">Calibration per question</h3><p class="text">Temperature, Platt and isotonic fits per question wording and model. Never pooled across them.</p></div>
+<div><h3 class="h-18">Escalation bands</h3><p class="text">Confident cases run on System One. The uncertain middle goes to an LLM or a human.</p></div>
+<div><h3 class="h-18 row-start">Drift alerts that mean it <span class="badge">Coming soon</span></h3><p class="text">Label-free distribution drift with significance tests, so small samples don't page you at 3 a.m.</p></div>
+<div><h3 class="h-18 row-start">Silent upgrade alerts <span class="badge">Coming soon</span></h3><p class="text">Know the moment an alias like jev-latest starts answering with a new version. trimset already records which version answered.</p></div>
+<div><h3 class="h-18 row-start">Shadow models <span class="badge">Coming soon</span></h3><p class="text">Run an open model next to your hosted one on live traffic and compare before you switch.</p></div>
+<div><h3 class="h-18 row-start">Review queue <span class="badge">Coming soon</span></h3><p class="text">Escalated cases land in a queue. Every reviewer label becomes training signal for the next refit.</p></div>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="selfhost-title">
+<div class="wrap section split">
+<div class="stack-sm">
+<h2 id="selfhost-title">Self-hosted. Your data stays yours.</h2>
+<p class="lead">One docker compose, Postgres underneath, no account needed. A Python SDK; TypeScript comes in v0.2.</p>
+<div class="actions">
+<a class="btn btn-sm" href="docs.html">Read the docs</a>
+<a class="btn btn-sm" href="self-hosting.html">Self-hosting</a>
+</div>
+</div>
+<pre class="code">git clone https://github.com/trimset/trimset
 cd trimset
+<span class="c"># two secrets in .env first: see Self-hosting</span>
 docker compose up -d
 
-pip install trimset        <span style="color: #7f8893"># or: npm i trimset</span></pre>
+pip install trimset        <span class="c"># the Python SDK, from v0.1</span></pre>
+</div>
 </section>
-
-<footer style="border-top: 1px solid #1a1f26">
-<div style="max-width: 1200px; margin: 0 auto; padding: 32px 24px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; font-size: 14px; color: #7f8893">
-<span>trimset · Apache-2.0 · not affiliated with TypeSafe, Ollama or Ollaya</span>
-<nav aria-label="Footer" style="display: flex; flex-wrap: wrap; gap: 20px">
-<a href="https://github.com/trimset/trimset" style="color: #b6bdc6; text-decoration: none">GitHub</a>
-<a href="#docs" style="color: #b6bdc6; text-decoration: none">Docs</a>
-<a href="#docs" style="color: #b6bdc6; text-decoration: none">Roadmap</a>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="docs.html">Docs</a>
+<a href="self-hosting.html">Self-hosting</a>
+<a href="roadmap.html">Roadmap</a>
 </nav>
 </div>
 </footer>
-
-</div>
 </body>
 </html>

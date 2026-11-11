@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How it works · trimset</title>
+<meta name="description" content="How trimset captures decisions, joins outcomes, compiles policies with guarantees and enforces them in your apps.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="./" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="how-it-works.html" aria-current="page">How it works</a>
+<a href="use-cases/">Use cases</a>
+<a href="integrations.html">Integrations</a>
+<a href="docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap page">
+<section class="intro">
+<p class="eyebrow">How it works</p>
+<h1>From a guessed threshold to a policy with a guarantee</h1>
+<p class="lead">A decision model answers in milliseconds. Whether it was right shows up hours or months later. trimset keeps those two together and turns them into thresholds you can defend.</p>
+</section>
+
+<section class="stack" aria-labelledby="steps-title">
+<h2 id="steps-title">Four steps</h2>
+
+<article class="step">
+<div>
+<p class="eyebrow">01 · Capture</p>
+<h3 class="h-24">Log every decision</h3>
+<p class="text-16">Point your app's base URL at trimset's proxy, or send each decision to its logging API. trimset forwards the request unchanged, returns the model's answer, and records the probabilities, the model version that really answered, latency and cost. The state itself is kept only as a keyed hash.</p>
+</div>
+<svg role="img" aria-label="Your app calls the trimset proxy, which forwards to the decision model and writes each decision to Postgres." viewBox="0 0 420 170">
+<rect x="4" y="20" width="110" height="48" rx="10" fill="#0b0d10" stroke="#2a3038" stroke-width="1.5"></rect>
+<text x="59" y="49" text-anchor="middle" fill="#b6bdc6" font-size="13">your app</text>
+<rect x="155" y="20" width="110" height="48" rx="10" fill="#0b0d10" stroke="#b8f36b" stroke-width="1.5"></rect>
+<text x="210" y="49" text-anchor="middle" fill="#e8eaed" font-size="13">trimset</text>
+<rect x="306" y="20" width="110" height="48" rx="10" fill="#0b0d10" stroke="#2a3038" stroke-width="1.5"></rect>
+<text x="361" y="49" text-anchor="middle" fill="#b6bdc6" font-size="13">model</text>
+<path d="M114 44H149" stroke="#7f8893" stroke-width="1.5"></path><path d="M143 39L150 44L143 49" fill="none" stroke="#7f8893" stroke-width="1.5"></path>
+<path d="M265 44H300" stroke="#7f8893" stroke-width="1.5"></path><path d="M294 39L301 44L294 49" fill="none" stroke="#7f8893" stroke-width="1.5"></path>
+<rect x="155" y="112" width="110" height="44" rx="10" fill="#0b0d10" stroke="#2a3038" stroke-width="1.5"></rect>
+<text x="210" y="139" text-anchor="middle" fill="#b6bdc6" font-size="13">Postgres</text>
+<path d="M210 68V106" stroke="#7f8893" stroke-width="1.5" stroke-dasharray="4 4"></path><path d="M205 100L210 107L215 100" fill="none" stroke="#7f8893" stroke-width="1.5"></path>
+<text x="222" y="92" fill="#7f8893" font-size="11">record</text>
+</svg>
+</article>
+
+<article class="step">
+<div>
+<p class="eyebrow">02 · Join</p>
+<h3 class="h-24">Match real outcomes</h3>
+<p class="text-16">Send outcomes when you learn them: a chargeback, a reviewer's verdict, the team that finally closed a ticket. Name the decision by its id or by your own reference, such as the refund id. An outcome that arrives before its decision waits for it, a correction keeps the history, and a rule like "no chargeback in 120 days means not fraud" fills in the silence.</p>
+</div>
+<svg role="img" aria-label="A timeline: the decision is made today, a reviewer's label arrives hours later, a chargeback arrives 30 to 90 days later, and both attach to the same decision." viewBox="0 0 420 150">
+<path d="M20 80H400" stroke="#2a3038" stroke-width="2"></path>
+<circle cx="40" cy="80" r="8" fill="#b8f36b"></circle>
+<text x="40" y="112" text-anchor="middle" fill="#e8eaed" font-size="12">decision</text>
+<text x="40" y="128" text-anchor="middle" fill="#7f8893" font-size="11">now</text>
+<circle cx="150" cy="80" r="6" fill="#0b0d10" stroke="#b6bdc6" stroke-width="2"></circle>
+<text x="150" y="112" text-anchor="middle" fill="#b6bdc6" font-size="12">review</text>
+<text x="150" y="128" text-anchor="middle" fill="#7f8893" font-size="11">hours</text>
+<circle cx="350" cy="80" r="6" fill="#0b0d10" stroke="#b6bdc6" stroke-width="2"></circle>
+<text x="350" y="112" text-anchor="middle" fill="#b6bdc6" font-size="12">chargeback</text>
+<text x="350" y="128" text-anchor="middle" fill="#7f8893" font-size="11">30–90 days</text>
+<path d="M150 72Q95 20 46 70" fill="none" stroke="#b8f36b" stroke-width="1.5" stroke-dasharray="4 4"></path>
+<path d="M350 72Q200 -10 48 68" fill="none" stroke="#b8f36b" stroke-width="1.5" stroke-dasharray="4 4"></path>
+</svg>
+</article>
+
+<article class="step">
+<div>
+<p class="eyebrow">03 · Refit</p>
+<h3 class="h-24">Compile a policy</h3>
+<p class="text-16">Give each question a target: "at most 2% false passes with 95% confidence", or a cost for each kind of mistake. trimset recalibrates the model's probabilities on the labels you have, per question wording and model version, and proposes thresholds with an escalation band. When the labels aren't enough for the target, it says how many more it needs instead of guessing.</p>
+</div>
+<svg role="img" aria-label="Before refitting, the model's probabilities sit away from the diagonal; after calibration they follow it, and a proposed threshold is marked." viewBox="0 0 420 212">
+<rect x="60" y="10" width="180" height="180" fill="none" stroke="#2a3038" stroke-width="1.5"></rect>
+<path d="M60 190L240 10" stroke="#2a3038" stroke-width="1.5" stroke-dasharray="5 5"></path>
+<path d="M60 190C110 186 140 170 160 120C175 80 200 30 240 12" fill="none" stroke="#b6bdc6" stroke-width="2"></path>
+<path d="M60 190L240 10" stroke="#b8f36b" stroke-width="2.5" opacity="0.9"></path>
+<path d="M213 10V190" stroke="#e8eaed" stroke-width="1.5" stroke-dasharray="3 4"></path>
+<text x="213" y="206" text-anchor="middle" fill="#e8eaed" font-size="11">hi</text>
+<rect x="262" y="40" width="14" height="3" fill="#b6bdc6"></rect>
+<text x="284" y="45" fill="#b6bdc6" font-size="12">raw model</text>
+<rect x="262" y="66" width="14" height="3" fill="#b8f36b"></rect>
+<text x="284" y="71" fill="#e8eaed" font-size="12">calibrated</text>
+<path d="M262 96H276" stroke="#e8eaed" stroke-width="1.5" stroke-dasharray="3 4"></path>
+<text x="284" y="100" fill="#e8eaed" font-size="12">proposed</text>
+<text x="284" y="116" fill="#e8eaed" font-size="12">threshold</text>
+</svg>
+</article>
+
+<article class="step">
+<div>
+<p class="eyebrow row-start">04 · Enforce <span class="badge">Coming soon</span></p>
+<h3 class="h-24">Ship it to your apps</h3>
+<p class="text-16">A person approves the proposed policy, with the trade-off in front of them. Your app's SDK polls for it and gates locally, with no network call on the request path. If the SDK can't get a policy, it falls back to the default you chose. Rolling back is one command, and trimset keeps watching for drift.</p>
+</div>
+<svg role="img" aria-label="A proposed policy is approved by a person, the SDK in your app picks it up, and gate decides locally." viewBox="0 0 420 120">
+<rect x="4" y="34" width="100" height="48" rx="10" fill="#0b0d10" stroke="#2a3038" stroke-width="1.5"></rect>
+<text x="54" y="63" text-anchor="middle" fill="#b6bdc6" font-size="13">policy</text>
+<rect x="148" y="34" width="110" height="48" rx="10" fill="#0b0d10" stroke="#b8f36b" stroke-width="1.5"></rect>
+<text x="203" y="63" text-anchor="middle" fill="#e8eaed" font-size="13">✓ approved</text>
+<rect x="302" y="34" width="114" height="48" rx="10" fill="#0b0d10" stroke="#2a3038" stroke-width="1.5"></rect>
+<text x="359" y="56" text-anchor="middle" fill="#b6bdc6" font-size="13">SDK</text>
+<text x="359" y="72" text-anchor="middle" fill="#7f8893" font-size="11">gate() local</text>
+<path d="M104 58H142" stroke="#7f8893" stroke-width="1.5"></path><path d="M136 53L143 58L136 63" fill="none" stroke="#7f8893" stroke-width="1.5"></path>
+<path d="M258 58H296" stroke="#7f8893" stroke-width="1.5"></path><path d="M290 53L297 58L290 63" fill="none" stroke="#7f8893" stroke-width="1.5"></path>
+</svg>
+</article>
+</section>
+
+<section id="concepts" class="stack" aria-labelledby="concepts-title">
+<h2 id="concepts-title">Concepts</h2>
+<div class="grid cols-320">
+
+<article class="card">
+<h3 class="h-22">Calibration</h3>
+<p class="text">A model is calibrated when "0.8" comes true 8 times in 10. Most aren't. A reliability diagram plots what the model said against what happened; the diagonal is honest.</p>
+<svg role="img" aria-label="A reliability diagram: an overconfident model's curve bends away from the diagonal; the calibrated curve follows it." viewBox="0 0 320 240">
+<path d="M48 200H300M48 200V12" stroke="#2a3038" stroke-width="1.5"></path>
+<path d="M48 200L300 12" stroke="#2a3038" stroke-width="1.5" stroke-dasharray="5 5"></path>
+<path d="M48 200C120 196 150 180 175 110C195 55 240 24 300 14" fill="none" stroke="#b6bdc6" stroke-width="2"></path>
+<path d="M48 200C110 154 180 104 300 12" fill="none" stroke="#b8f36b" stroke-width="2.5"></path>
+<text x="174" y="226" text-anchor="middle" fill="#7f8893" font-size="12">what the model said</text>
+<text x="20" y="106" text-anchor="middle" fill="#7f8893" font-size="12" transform="rotate(-90 20 106)">what happened</text>
+<text x="200" y="168" fill="#b6bdc6" font-size="12">raw</text>
+<text x="96" y="140" fill="#b8f36b" font-size="12">calibrated</text>
+</svg>
+</article>
+
+<article class="card">
+<h3 class="h-22">Thresholds and the escalation band</h3>
+<p class="text">Two cut points split the probability axis. Below lo the app acts on its own, above hi it acts the other way, and the uncertain middle goes to a bigger model or a person.</p>
+<svg role="img" aria-label="A probability axis from 0 to 1, cut at lo and hi: ACCEPT below lo, ESCALATE between lo and hi, BLOCK above hi." viewBox="0 0 320 150">
+<rect x="20" y="40" width="90" height="36" fill="#0b0d10" stroke="#2a3038" stroke-width="1.5"></rect>
+<rect x="110" y="40" width="110" height="36" fill="rgba(184,243,107,0.10)" stroke="#b8f36b" stroke-width="1.5"></rect>
+<rect x="220" y="40" width="80" height="36" fill="#0b0d10" stroke="#2a3038" stroke-width="1.5"></rect>
+<text x="65" y="63" text-anchor="middle" fill="#b6bdc6" font-size="12">ACCEPT</text>
+<text x="165" y="63" text-anchor="middle" fill="#e8eaed" font-size="12">ESCALATE</text>
+<text x="260" y="63" text-anchor="middle" fill="#b6bdc6" font-size="12">BLOCK</text>
+<path d="M20 100H300" stroke="#7f8893" stroke-width="1.5"></path>
+<text x="20" y="122" text-anchor="middle" fill="#7f8893" font-size="12">0</text>
+<text x="110" y="122" text-anchor="middle" fill="#e8eaed" font-size="12">lo</text>
+<text x="220" y="122" text-anchor="middle" fill="#e8eaed" font-size="12">hi</text>
+<text x="300" y="122" text-anchor="middle" fill="#7f8893" font-size="12">1</text>
+<path d="M110 94V106M220 94V106" stroke="#e8eaed" stroke-width="1.5"></path>
+<text x="160" y="144" text-anchor="middle" fill="#7f8893" font-size="11">p = the model's probability of "yes"</text>
+</svg>
+</article>
+
+<article class="card">
+<h3 class="h-22 row-start">Drift <span class="badge">Coming soon</span></h3>
+<p class="text">Traffic changes, and models change under the same name. trimset compares this week's probabilities with the ones the policy was fit on, with a significance test, so a small sample doesn't raise an alarm. A new model version behind an alias like jev-latest is flagged on its first answer.</p>
+<svg role="img" aria-label="Two distributions of probabilities: the one the policy was fit on, and this week's, shifted to the right." viewBox="0 0 320 170">
+<path d="M20 140H300" stroke="#2a3038" stroke-width="1.5"></path>
+<path d="M20 140C60 138 80 60 110 52C140 46 160 120 200 136C230 140 260 140 300 140" fill="none" stroke="#b6bdc6" stroke-width="2"></path>
+<path d="M20 140C90 140 120 130 150 90C175 56 200 40 220 46C250 56 270 126 300 138" fill="none" stroke="#b8f36b" stroke-width="2.5"></path>
+<text x="70" y="40" fill="#b6bdc6" font-size="12">when fit</text>
+<text x="210" y="30" fill="#b8f36b" font-size="12">this week</text>
+<text x="160" y="162" text-anchor="middle" fill="#7f8893" font-size="11">probability</text>
+</svg>
+</article>
+
+<article class="card">
+<h3 class="h-22">Guarantees</h3>
+<p class="text">"False passes ≤ 2% with 95% confidence" means: on traffic like the labeled data the policy was fit on, the chance that its real false-pass rate is above 2% is at most 5%. trimset gets there with exact binomial bounds, not a rule of thumb.</p>
+<p class="text">The promise only covers traffic like that data. From M4, when traffic shifts, trimset says "no guarantee" on the policy instead of keeping a number it can no longer back.</p>
+<pre class="inset">refund_fraud · policy v7
+false passes ≤ 2%, 95% confidence  <span class="ok">holds</span>
+after a drift alert                 no guarantee</pre>
+</article>
+</div>
+</section>
+
+<section class="actions" aria-label="Next">
+<a class="btn btn-primary" href="use-cases/">See the use cases</a>
+<a class="btn" href="docs.html">Read the docs</a>
+</section>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="docs.html">Docs</a>
+<a href="self-hosting.html">Self-hosting</a>
+<a href="roadmap.html">Roadmap</a>
+</nav>
+</div>
+</footer>
+</body>
+</html>

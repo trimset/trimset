@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found · trimset</title>
+<meta name="description" content="This page does not exist.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+<div class="wrap">
+<a class="brand" href="/" aria-label="trimset, home"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 12V42Q27 51 36 51H42" fill="none" stroke="#b8f36b" stroke-width="7" stroke-linecap="round"></path><path d="M14 25H50" stroke="#b8f36b" stroke-width="4" stroke-linecap="round" opacity="0.55"></path><circle cx="40" cy="25" r="7.5" fill="#b8f36b" stroke="#0b0d10" stroke-width="3"></circle></svg><span>trimset</span></a>
+<nav class="nav" aria-label="Main">
+<a href="/how-it-works.html">How it works</a>
+<a href="/use-cases/">Use cases</a>
+<a href="/integrations.html">Integrations</a>
+<a href="/docs.html">Docs</a>
+<a class="nav-gh" href="https://github.com/trimset/trimset">GitHub</a>
+</nav>
+</div>
+</header>
+<main id="main">
+<div class="wrap split notfound">
+<div class="stack">
+<p class="eyebrow">404</p>
+<h1>No page answers this URL.</h1>
+<p class="lead">It may have moved, or never existed. When trimset isn't sure, it escalates; so do we.</p>
+<div class="actions">
+<a class="btn btn-primary" href="/">Back to home</a>
+<a class="btn" href="/docs.html">Docs</a>
+</div>
+</div>
+<pre class="code" aria-hidden="true">d = ts.gate("page_exists", p=0.00)
+d.action   <span class="ok"># ESCALATE</span>
+d.reason   <span class="c"># no_policy</span></pre>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<p>trimset · Apache-2.0 · not affiliated with TypeSafe, OpenAI, Ollama or Ollaya</p>
+<nav aria-label="Footer">
+<a href="https://github.com/trimset/trimset">GitHub</a>
+<a href="/docs.html">Docs</a>
+<a href="/self-hosting.html">Self-hosting</a>
+<a href="/roadmap.html">Roadmap</a>
+</nav>
+</div>
+</footer>
+</body>
+</html>
