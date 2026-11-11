@@ -82,8 +82,10 @@ async def test_fit_then_compile_then_simulate(dsn: str, check: Any, conforms: An
         check(listed, "GET", "/v1/admin/questions/{question}/fits")
         assert [f["fit_id"] for f in listed.json()["items"]] == [fit_id]
 
-        # 5% of tickets never get a webhook, and an unlabeled item counts as wrong.
-        target = {"kind": "risk", "metric": "error_budget", "alpha": 0.25}
+        # 5% of tickets never get a webhook, and an unlabeled item counts as wrong. With
+        # ~570 tuning tickets, 0.25 was declined (honestly) for about 1 split in 20; 0.4
+        # compiled on 300 of 300, and this test checks the plumbing, not the edge.
+        target = {"kind": "risk", "metric": "error_budget", "alpha": 0.4}
         for _ in range(2):
             r = c.post(
                 "/v1/admin/questions/team/compile", json=model | {"target": target}, headers=auth

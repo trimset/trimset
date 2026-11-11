@@ -57,9 +57,13 @@ async def test_a_refit_proposes_replaces_its_last_proposal_and_never_activates(
         # v1: fitted, compiled and activated by hand.
         c.post("/v1/admin/questions/team/fits", json=MODEL, headers=auth)
         await _db(dsn, jobs.work)
-        target = {"kind": "risk", "metric": "error_budget", "alpha": 0.25}
-        c.post("/v1/admin/questions/team/compile", json=MODEL | {"target": target}, headers=auth)
+        target = {"kind": "risk", "metric": "error_budget", "alpha": 0.4}  # see test_fitting
+        r = c.post(
+            "/v1/admin/questions/team/compile", json=MODEL | {"target": target}, headers=auth
+        )
         await _db(dsn, jobs.work)
+        done = c.get(r.headers["location"], headers=auth).json()
+        assert "policy_id" in (done["result"] or {}), done
         (v1,) = c.get("/v1/admin/policies", headers=auth).json()["items"]
         v1_id = v1["policy"]["policy_id"]
         for action in ("submit", "approve", "activate"):
