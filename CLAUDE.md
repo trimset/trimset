@@ -137,6 +137,9 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
 - **Phase 5:** agents and a chat assistant wait until the guarantees exist (ADR 0014):
   an MCP server and agent hook (TV.1, v0.2 or earlier if M3 leaves room) and an
   assistant in the v2 dashboard (TV.2). No model playground.
+- **Phase 5:** the docs site (T7.1) will be Zensical on docs.trimset.dev, with the API
+  reference rendered from `openapi.yaml`, never written by hand (ADR 0016). Material for
+  MkDocs is the fallback through the same `mkdocs.yml`.
 - **Phase 3** (`docs/03-api/`):
   - Wire formats: two, `systemone` and `openai-decisions`, chosen by the upstream's
     format, not the path.
