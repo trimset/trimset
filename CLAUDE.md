@@ -64,6 +64,11 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T2.1, metrics (`stats/.../metrics.py`): log loss, Brier, ECE with equal-width and
     equal-mass bins, reliability bins with Clopper-Pearson intervals, all on one event's
     (p, y); golden-tested against scikit-learn and scipy. scikit-learn is test-only.
+  - T2.2, calibrators (`stats/.../calibration.py`): temperature, Platt and isotonic for
+    one event, temperature for distributions, and `choose` by 5-fold log loss with a
+    seed. Every map is non-decreasing (a reversed Platt fit is refused), so thresholds
+    carry back to raw p. Golden against scikit-learn; Guo 2017 and Niculescu-Mizil 2005
+    reproduced.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
