@@ -107,7 +107,11 @@ export async function answer(path: string, init: Init = {}): Promise<unknown> {
     }
   }
 
-  if (p === "/v1/admin/policies" && method === "GET") return { items: D.policies, next_cursor: null };
+  if (p === "/v1/admin/policies" && method === "GET") {
+    const q = qs.get("question");
+    const ours = !q || q === D.question.name || q === D.question.question_id;
+    return { items: ours ? D.policies : [], next_cursor: null };
+  }
   if (p.startsWith("/v1/admin/policies/") && p.endsWith("/diff") && method === "GET") {
     const id = p.split("/")[4];
     const diff = D.diffs[`${id}:${qs.get("against") ?? ""}`];

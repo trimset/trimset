@@ -131,6 +131,10 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
         <p className="mu small" style={{ margin: 0 }}>
           Anything no rule takes is escalated. Numbers come from the server on fit <span className="m">{fit.fit_id.slice(0, 8)}…</span>'s evaluation split.
         </p>
+        <p className="wa small" style={{ margin: 0 }}>
+          ▲ Exploration on held-out data: for thresholds you pick by looking here, these numbers are optimistic, more so the more
+          you try. The only number with a promise is a compiled policy's guarantee, certified on a split you never see here.
+        </p>
       </section>
 
       <section aria-label="What these thresholds do" aria-busy={busy} aria-live="polite" className="col" style={{ gap: 12 }}>

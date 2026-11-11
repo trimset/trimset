@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, DEMO, q, type Question } from "../api.ts";
+import { ApiError, api, DEMO, q, type Question } from "../api.ts";
 import { count } from "../format.ts";
 import * as mock from "../mock.ts";
 import { href, Load, SamplePill, Tabs, Top, useLoad } from "../ui.tsx";
@@ -128,6 +128,20 @@ export function QuestionPage({ name, tab }: { name: string; tab: string }) {
       </Top>
       <div className="body">
         <Tabs items={TABS.map(([id, label]) => ({ label, to: href("questions", name, id), current: id === tab }))} />
+        {DEMO && state.error instanceof ApiError && state.error.status === 404 ? (
+          <section className="card pad col" style={{ gap: 10 }}>
+            <h2 className="h" style={{ fontSize: 18 }}>
+              <span className="m">{name}</span> is a design sample in the demo
+            </h2>
+            <p className="t2" style={{ margin: 0 }}>
+              The demo's real numbers come from one question, recorded from a trimset server running the refund fraud example. The
+              other questions on the Overview and Questions screens show the design's sample data.
+            </p>
+            <div className="row">
+              <a className="btn p" href={href("questions", "refund_fraud", tab)}>Open refund_fraud</a>
+            </div>
+          </section>
+        ) : (
         <Load state={state}>
           {(question) =>
             !model && (tab === "calibration" || tab === "simulator") ? (
@@ -143,6 +157,7 @@ export function QuestionPage({ name, tab }: { name: string; tab: string }) {
             )
           }
         </Load>
+        )}
       </div>
     </>
   );
