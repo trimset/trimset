@@ -51,6 +51,27 @@ def load_config() -> dict[str, str]:
     return {k: v for k, v in (("url", url), ("key", key)) if v}
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """The API never redirects; following one would send the key wherever it points."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+_open = urllib.request.build_opener(_NoRedirect).open
+
+
+def printable(text: Any) -> str:
+    """Text with control characters escaped, so a value stored on the server (an escape
+    sequence in an external_ref, say) can't drive the terminal."""
+    return "".join(c if c.isprintable() else c.encode("unicode_escape").decode() for c in str(text))
+
+
+def say(text: Any = "", file: Any = None) -> None:
+    """Every line the CLI writes goes through here."""
+    print("\n".join(map(printable, str(text).split("\n"))), file=file or sys.stdout)
+
+
 class Client:
     """The API over urllib: JSON in and out, a Problem turned into a CliError."""
 
@@ -79,9 +100,13 @@ class Client:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
+            with _open(request, timeout=self.timeout) as response:
                 raw = response.read()
         except urllib.error.HTTPError as e:
+            if 300 <= e.code < 400:
+                raise CliError(
+                    f"{self.url} answered with a redirect ({e.code}); use the server's own URL"
+                ) from None
             raise CliError(_problem(e)) from None
         except (urllib.error.URLError, TimeoutError) as e:
             reason = getattr(e, "reason", e)
@@ -126,7 +151,7 @@ def num(value: float | None, digits: int = 4) -> str:
 
 
 def table(header: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
-    cells = [list(map(str, header)), *[list(map(str, r)) for r in rows]]
+    cells = [list(map(printable, header)), *[list(map(printable, r)) for r in rows]]  # widths
     widths = [max(len(row[i]) for row in cells) for i in range(len(header))]
     lines = [
         "  ".join(c.ljust(w) for c, w in zip(row, widths, strict=True)).rstrip() for row in cells
@@ -174,21 +199,21 @@ def print_metrics(by_split: dict[str, dict[str, Any]]) -> None:
         for name, m in by_split.items()
         if m is not None
     ]
-    print(table(["split", "n", "automated", "escalated", "cost/1000"], rows))
+    say(table(["split", "n", "automated", "escalated", "cost/1000"], rows))
     detail = [row for name, m in by_split.items() if m is not None for row in metrics_rows(name, m)]
     if detail:
-        print()
-        print(table(["split", "rule", "fired", "wrong", "95% interval", "unlabeled"], detail))
+        say()
+        say(table(["split", "rule", "fired", "wrong", "95% interval", "unlabeled"], detail))
 
 
 def print_fit(fit: dict[str, Any]) -> None:
     cal = fit["calibration"]
-    print(f"{fit['question_id']} on {fit['model_served']}: {cal['method']} (fit {fit['fit_id']})")
+    say(f"{fit['question_id']} on {fit['model_served']}: {cal['method']} (fit {fit['fit_id']})")
     scores = ", ".join(f"{k} {v:.4f}" for k, v in fit["selection"]["cv_log_loss"].items())
-    print(f"chosen by {fit['selection']['cv_folds']}-fold log loss: {scores}")
+    say(f"chosen by {fit['selection']['cv_folds']}-fold log loss: {scores}")
     raw, calibrated = fit["metrics"]["raw"], fit["metrics"]["calibrated"]
-    print()
-    print(
+    say()
+    say(
         table(
             ["eval split", "raw", "calibrated"],
             [
@@ -204,9 +229,9 @@ def print_fit(fit: dict[str, Any]) -> None:
             ],
         )
     )
-    print()
-    print("Reliability, calibrated:")
-    print(
+    say()
+    say("Reliability, calibrated:")
+    say(
         table(
             ["predicted", "items", "mean", "observed", "95% interval"],
             [
@@ -226,22 +251,20 @@ def print_fit(fit: dict[str, Any]) -> None:
 def print_policy(view: dict[str, Any]) -> None:
     p = view["policy"]
     name = p.get("question_name") or p["question_id"]
-    print(
-        f"v{p['version']} {view['state']}: {name} on {p['model_served']} (policy {p['policy_id']})"
-    )
-    print(f"calibration: {p['calibration']['method']}; fingerprint {p['fingerprint']}")
+    say(f"v{p['version']} {view['state']}: {name} on {p['model_served']} (policy {p['policy_id']})")
+    say(f"calibration: {p['calibration']['method']}; fingerprint {p['fingerprint']}")
     for rule in p["rules"]:
-        print(f"  {describe_rule(rule)}")
+        say(f"  {describe_rule(rule)}")
     if p.get("option_actions"):
-        print(f"  options that BLOCK instead: {', '.join(map(str, p['option_actions']))}")
-    print(f"  otherwise {p['fallback_action']}")
+        say(f"  options that BLOCK instead: {', '.join(map(str, p['option_actions']))}")
+    say(f"  otherwise {p['fallback_action']}")
     g = p["guarantee"]
     if g["status"] == "certified":
         n = ", ".join(f"{k} {v}" for k, v in g["n"].items())
-        print(f"guarantee ({view['guarantee_status']}): {g['statement']} (items: {n})")
+        say(f"guarantee ({view['guarantee_status']}): {g['statement']} (items: {n})")
     else:
-        print(f"no guarantee: {g['reason']}. {g.get('detail', '')}".rstrip())
-    print()
+        say(f"no guarantee: {g['reason']}. {g.get('detail', '')}".rstrip())
+    say()
     print_metrics(p["metrics"])
 
 
@@ -268,7 +291,7 @@ def cmd_calibrate(client: Client, args: argparse.Namespace) -> None:
     result = _job_result(client, job)
     fit = client.call("GET", f"/v1/admin/fits/{result['fit_id']}")
     if args.json:
-        print(json.dumps(fit, indent=2))
+        say(json.dumps(fit, indent=2))
     else:
         print_fit(fit)
 
@@ -333,15 +356,15 @@ def cmd_simulate(client: Client, args: argparse.Namespace) -> None:
         body["costs"] = costs
     out = client.call("POST", f"/v1/admin/questions/{_q(args.question)}/simulate", body)
     if args.json:
-        print(json.dumps(out, indent=2))
+        say(json.dumps(out, indent=2))
         return
     rows = sorted(out["rows"], key=lambda r: -r["metrics"]["automated"])[: args.top]
-    print(f"on the eval split of fit {out['fit_id']}:")
-    printable = []
+    say(f"on the eval split of fit {out['fit_id']}:")
+    shown = []
     for row in rows:
         m = row["metrics"]
         rates = "; ".join(f"{rid} {pct(r['rate'], 2)}" for rid, r in m["rules"].items())
-        printable.append(
+        shown.append(
             [
                 "; ".join(describe_rule(r) for r in row["rules"]),
                 pct(m["automated"]),
@@ -350,7 +373,7 @@ def cmd_simulate(client: Client, args: argparse.Namespace) -> None:
                 num(m.get("expected_cost_per_1000"), 2),
             ]
         )
-    print(table(["rules", "automated", "escalated", "error rate", "cost/1000"], printable))
+    say(table(["rules", "automated", "escalated", "error rate", "cost/1000"], shown))
 
 
 def cmd_compile(client: Client, args: argparse.Namespace) -> None:
@@ -381,7 +404,7 @@ def cmd_compile(client: Client, args: argparse.Namespace) -> None:
     result = _job_result(client, job)
     view = client.call("GET", f"/v1/admin/policies/{result['policy_id']}")
     if args.json:
-        print(json.dumps(view, indent=2))
+        say(json.dumps(view, indent=2))
     else:
         print_policy(view)
 
@@ -398,7 +421,7 @@ def cmd_show(client: Client, args: argparse.Namespace) -> None:
             raise CliError(f"no policy for {args.question} yet: run trimset policy compile", code=2)
         view = items[0]
     if args.json:
-        print(json.dumps(view, indent=2))
+        say(json.dumps(view, indent=2))
     else:
         print_policy(view)
 
@@ -408,17 +431,17 @@ def cmd_diff(client: Client, args: argparse.Namespace) -> None:
         "GET", f"/v1/admin/policies/{args.policy_id}/diff", params={"against": args.against}
     )
     if args.json:
-        print(json.dumps(diff, indent=2))
+        say(json.dumps(diff, indent=2))
         return
     against = diff["against"] or "nothing (no active policy)"
-    print(f"policy {diff['policy_id']} against {against}:")
-    print(
+    say(f"policy {diff['policy_id']} against {against}:")
+    say(
         table(
             ["rule", "before", "after"],
             [[r["id"], num(r["before"]), num(r["after"])] for r in diff["rules"]],
         )
     )
-    print()
+    say()
     print_metrics({"before": diff["metrics"]["before"], "after": diff["metrics"]["after"]})
 
 
@@ -429,7 +452,7 @@ def cmd_coverage(client: Client, args: argparse.Namespace) -> None:
         params={"model_served": args.model},
     )
     if args.json:
-        print(json.dumps(out, indent=2))
+        say(json.dumps(out, indent=2))
         return
     rows = [
         [
@@ -443,7 +466,7 @@ def cmd_coverage(client: Client, args: argparse.Namespace) -> None:
         ]
         for p in out["paths"]
     ]
-    print(
+    say(
         table(
             ["model", "action", "decisions", "matured", "labeled", "audited", "median delay h"],
             rows,
@@ -451,7 +474,7 @@ def cmd_coverage(client: Client, args: argparse.Namespace) -> None:
     )
     starved = [p for p in out["paths"] if p["decisions"] and p["labeled"] / p["decisions"] < 0.02]
     for p in starved:
-        print(
+        say(
             f"warning: {p['action']} on {p['model_served']} has almost no labels, "
             "so its errors can't be measured"
         )
@@ -464,14 +487,15 @@ def cmd_tail(client: Client, args: argparse.Namespace) -> None:
         items = client.call("GET", "/v1/admin/decisions", params=params | {"from": seen})["items"]
         for d in reversed(items):
             if args.json:
-                print(json.dumps(d))
+                say(json.dumps(d))
             else:
                 probs = ", ".join(f"{x:.3f}" for x in d["probabilities"] or []) or "refused"
                 name = d.get("question_name") or d["question_id"][:10]
-                print(
+                line = (
                     f"{d['ts']}  {name}  {d['model_served']}  [{probs}]  "
-                    f"{d.get('action_taken') or '-'}  {d.get('external_ref') or ''}".rstrip()
+                    f"{d.get('action_taken') or '-'}  {d.get('external_ref') or ''}"
                 )
+                say(printable(line).rstrip())  # one decision, one line
         if items:
             seen = items[0]["ts"]
         if args.once:
@@ -485,9 +509,9 @@ def cmd_config(args: argparse.Namespace) -> None:
     if args.action == "show":
         saved = load_config()
         key = saved.get("key")
-        print(f"url: {saved.get('url', '-')}")
-        print(f"key: {key[:8] + '...' if key else '-'}")
-        print(f"file: {path}")
+        say(f"url: {saved.get('url', '-')}")
+        say(f"key: {key[:8] + '...' if key else '-'}")
+        say(f"file: {path}")
         return
     key = args.key or getpass.getpass("trimset key: ")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -495,7 +519,7 @@ def cmd_config(args: argparse.Namespace) -> None:
     with os.fdopen(fd, "w") as f:
         json.dump({"url": args.config_url.rstrip("/"), "key": key}, f)
     os.chmod(path, 0o600)
-    print(f"saved to {path}")
+    say(f"saved to {path}")
 
 
 def _q(question: str) -> str:
@@ -610,7 +634,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         command = COMMANDS[(args.command, sub) if sub else args.command]
         command(client, args)
     except CliError as e:
-        print(f"trimset: {e}", file=sys.stderr)
+        say(f"trimset: {e}", file=sys.stderr)
         return e.code
     except KeyboardInterrupt:
         return 0

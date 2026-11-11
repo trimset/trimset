@@ -21,7 +21,7 @@ Admin = Annotated[Principal, Depends(require("admin"))]
 
 def record(row: Any) -> dict[str, Any]:
     """A decisions row as record/1."""
-    return {
+    out = {
         "schema": "record/1",
         "decision_id": str(row["decision_id"]),
         "request_id": str(row["request_id"]) if row["request_id"] else None,
@@ -44,10 +44,12 @@ def record(row: Any) -> dict[str, Any]:
         "tags": json.loads(row["tags"]),
         "external_ref": row["external_ref"],
         "state_hash": row["state_hash"],
-        "state_hash_alg": "hmac-sha256/1" if row["state_hash"] else None,
         "role": row["role"],
         "shadow_of": str(row["shadow_of"]) if row["shadow_of"] else None,
     }
+    if row["state_hash"]:
+        out["state_hash_alg"] = "hmac-sha256/1"
+    return out
 
 
 @router.get("/decisions")

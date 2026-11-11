@@ -13,7 +13,11 @@ import pytest
 
 from trimset import cli
 
-Answer = tuple[int, Any] | Callable[[Any, dict[str, list[str]]], tuple[int, Any]]
+Answer = (
+    tuple[int, Any]
+    | tuple[int, Any, dict[str, str]]
+    | Callable[[Any, dict[str, list[str]]], tuple[int, Any]]
+)
 
 
 class FakeAPI:
@@ -40,11 +44,13 @@ class FakeAPI:
                 route = api.routes.get(
                     (self.command, url.path), (404, {"title": "Not found", "status": 404})
                 )
-                status, out = route(body, query) if callable(route) else route
+                status, out, *headers = route(body, query) if callable(route) else route
                 data = json.dumps(out).encode()
                 self.send_response(status)
                 kind = "application/problem+json" if status >= 400 else "application/json"
                 self.send_header("content-type", kind)
+                for name, value in (headers[0] if headers else {}).items():
+                    self.send_header(name, value)
                 self.send_header("content-length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
@@ -475,6 +481,26 @@ def test_decisions_tail_prints_the_latest(api: FakeAPI, capsys: pytest.CaptureFi
     ]
 
 
+def test_server_text_cannot_drive_the_terminal(
+    api: FakeAPI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    row = {
+        "ts": "2026-11-11T10:00:02Z",
+        "question_id": "q_x",
+        "question_name": "fraud\x1b]0;owned\x07",
+        "model_served": "m",
+        "probabilities": [0.5],
+        "action_taken": "ACCEPT",
+        "external_ref": "rf\x1b[2J\nfake line",
+    }
+    api.routes[("GET", "/v1/admin/decisions")] = (200, {"items": [row]})
+    assert run("decisions", "tail", "--once") == 0
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out
+    assert "fraud\\x1b]0;owned\\x07" in out and "rf\\x1b[2J\\nfake line" in out
+    assert out.count("\n") == 1
+
+
 def test_errors_say_what_went_wrong(
     api: FakeAPI, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -495,6 +521,20 @@ def test_errors_say_what_went_wrong(
     monkeypatch.delenv("TRIMSET_KEY")
     assert run("coverage", "q") == 1
     assert "trimset config set" in capsys.readouterr().err
+
+
+def test_a_redirect_is_refused_so_the_key_goes_nowhere_else(
+    api: FakeAPI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    api.routes[("GET", "/v1/admin/questions/q/coverage")] = (
+        302,
+        {},
+        {"location": api.url + "/elsewhere"},
+    )
+    api.routes[("GET", "/elsewhere")] = (200, {"paths": []})
+    assert run("coverage", "q") == 1
+    assert "answered with a redirect (302)" in capsys.readouterr().err
+    assert [s["path"] for s in api.seen] == ["/v1/admin/questions/q/coverage"]
 
 
 def test_a_job_that_never_finishes_is_left_to_check_later(
