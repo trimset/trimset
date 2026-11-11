@@ -4,9 +4,9 @@ Each process remembers a key for at most `ttl_s` seconds before asking the datab
 again, so a revoked key is refused everywhere within that time (FR-52 allows 60 s).
 Unknown keys are never cached, so the cache only ever holds real keys.
 
-When the database can't answer, a key seen before keeps working on its last known
-answer, so the proxy keeps forwarding while Postgres is down (NFR-06). A key never seen
-can't be checked then, and gets a 503.
+When the database can't answer, every route fails closed with 503, except the proxy:
+it may use a key's last known answer, for at most MAX_STALE_S, so it keeps forwarding
+while Postgres is briefly down (NFR-06). A key never seen gets a 503 there too.
 """
 
 import time
@@ -21,6 +21,7 @@ from trimset_server.keys import Principal, hash_key, looks_like_key
 
 Loader = Callable[[bytes], Awaitable[Principal | None]]
 DB_ERRORS = (OSError, TimeoutError, asyncpg.PostgresError, asyncpg.InterfaceError)
+MAX_STALE_S = 600.0  # the oldest answer the proxy may use during an outage
 
 
 class Unavailable(Exception):
@@ -29,12 +30,19 @@ class Unavailable(Exception):
 
 class KeyCache:
     def __init__(
-        self, loader: Loader, ttl_s: float, clock: Callable[[], float] = time.monotonic
+        self,
+        loader: Loader,
+        ttl_s: float,
+        clock: Callable[[], float] = time.monotonic,
+        max_stale_s: float = MAX_STALE_S,
     ) -> None:
         self._load, self._ttl, self._clock = loader, ttl_s, clock
+        self._max_stale = max_stale_s
         self._entries: dict[bytes, tuple[float, Principal]] = {}
 
-    async def principal(self, key: str) -> Principal | None:
+    async def principal(self, key: str, *, allow_stale: bool = False) -> Principal | None:
+        """The key's principal. `allow_stale` (the proxy only): if the database fails, use
+        the last known answer, while it is younger than `max_stale_s`."""
         if not looks_like_key(key):
             return None
         digest = hash_key(key)
@@ -45,8 +53,8 @@ class KeyCache:
         try:
             found = await self._load(digest)
         except DB_ERRORS as e:
-            if hit is not None:
-                return hit[1]  # stale, but the best answer there is
+            if allow_stale and hit is not None and now - hit[0] < self._max_stale:
+                return hit[1]  # stale, but bounded, and only for forwarding
             raise Unavailable from e
         if found is None:
             self._entries.pop(digest, None)

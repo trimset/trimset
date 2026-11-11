@@ -146,3 +146,36 @@ def test_invalid_bodies_are_422_problems_without_the_values(
     _problem(r, 422, "invalid-request")
     assert "secret-looking-value" not in r.text
     assert r.json()["errors"][0]["pointer"] == "/body/n"
+
+
+class FailingKeys(Keys):
+    """A key table whose database can go down."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.down = False
+
+    async def load(self, digest: bytes) -> Principal | None:
+        if self.down:
+            raise ConnectionRefusedError("database down")
+        return await super().load(digest)
+
+
+@pytest.mark.anyio
+@pytest.mark.req("NFR-06")
+async def test_only_the_proxy_may_use_a_stale_key_and_only_briefly() -> None:
+    from trimset_server.auth import Unavailable
+
+    table, clock = FailingKeys(), Clock()
+    cache = KeyCache(table.load, ttl_s=30, clock=clock, max_stale_s=600)
+    key = table.add(ADMIN)
+    await cache.principal(key)
+    table.down = True
+    clock.now += 31  # past the TTL, so the database is asked again
+
+    with pytest.raises(Unavailable):
+        await cache.principal(key)  # admin, ingest and review routes fail closed
+    assert await cache.principal(key, allow_stale=True) == ADMIN  # the proxy keeps going
+    clock.now += 600
+    with pytest.raises(Unavailable):
+        await cache.principal(key, allow_stale=True)  # but not for ever

@@ -207,7 +207,7 @@ async def _proxy(request: Request, key: str | None, path: str, guess: Format) ->
             "missing_key",
         )
     try:
-        principal = await state.keys.principal(key)
+        principal = await state.keys.principal(key, allow_stale=True)
         settings = await state.projects.settings(principal.project_id) if principal else None
     except Unavailable:
         return _fail(guess, 503, "trimset can't check this key right now", "unavailable")

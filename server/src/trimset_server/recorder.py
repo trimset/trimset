@@ -21,6 +21,8 @@ from trimset_server.records import RecordIn
 from trimset_server.store import store
 
 log = logging.getLogger("trimset.recorder")
+# Errors meaning "this data will never go in", as opposed to "the database is unreachable".
+_REFUSED = (asyncpg.DataError, asyncpg.IntegrityConstraintViolationError)
 
 
 @dataclass(frozen=True)
@@ -63,44 +65,56 @@ class Recorder:
         if len(self._queue) >= self._batch:
             self._wake.set()
 
-    async def _write(self, items: list[Pending]) -> None:
-        by_project: dict[uuid.UUID, list[Pending]] = {}
-        for item in items:
-            by_project.setdefault(item.project_id, []).append(item)
-        async with self._connect() as conn:
-            for project_id, group in by_project.items():
-                definitions = {p.record.question_id: p.definition for p in group}
-                names = {p.record.question_id: p.name for p in group if p.name}
+    async def _store(self, conn: Any, project_id: uuid.UUID, group: list[Pending]) -> None:
+        definitions = {p.record.question_id: p.definition for p in group}
+        names = {p.record.question_id: p.name for p in group if p.name}
 
-                def refused(index: int) -> None:
-                    self.refused += 1
+        def refused(index: int) -> None:
+            self.refused += 1
 
-                await store(
-                    conn,
-                    project_id,
-                    list(enumerate(p.record for p in group)),
-                    definitions,
-                    names,
-                    refused,
-                )
+        await store(
+            conn, project_id, list(enumerate(p.record for p in group)), definitions, names, refused
+        )
+
+    async def _store_group(self, conn: Any, project_id: uuid.UUID, group: list[Pending]) -> None:
+        """One project's records. If the database refuses the group, each record is tried
+        alone, so only the ones it won't take are dropped (and counted)."""
+        try:
+            await self._store(conn, project_id, group)
+            return
+        except _REFUSED as e:
+            log.warning(
+                "project %s: retrying %d records one by one (%s)",
+                project_id,
+                len(group),
+                type(e).__name__,
+            )
+        for item in group:
+            try:
+                await self._store(conn, project_id, [item])
+            except _REFUSED:
+                self.refused += 1
 
     async def flush_once(self) -> bool:
-        """Write up to one batch. False if the database refused the attempt."""
+        """Write up to one batch, project by project. False if the database was
+        unreachable; the projects not yet written go back to the front of the queue."""
         items = [self._queue.popleft() for _ in range(min(self._batch, len(self._queue)))]
         if not items:
             return True
+        groups: dict[uuid.UUID, list[Pending]] = {}
+        for item in items:
+            groups.setdefault(item.project_id, []).append(item)
+        pending = list(groups.items())
         try:
-            await self._write(items)
-        except (asyncpg.DataError, asyncpg.IntegrityConstraintViolationError) as e:
-            # Data the database will never take: retrying would block the buffer for good.
-            self.refused += len(items)
-            log.warning(
-                "dropped %d records the database refused (%s)", len(items), type(e).__name__
-            )
-            return True
+            async with self._connect() as conn:
+                while pending:
+                    project_id, group = pending[0]
+                    await self._store_group(conn, project_id, group)
+                    pending.pop(0)
         except DB_ERRORS as e:
-            self._queue.extendleft(reversed(items))  # back to the front, in order
-            log.warning("could not write %d records (%s); will retry", len(items), type(e).__name__)
+            retry = [item for _, group in pending for item in group]
+            self._queue.extendleft(reversed(retry))  # back to the front, in order
+            log.warning("could not write %d records (%s); will retry", len(retry), type(e).__name__)
             return False
         return True
 

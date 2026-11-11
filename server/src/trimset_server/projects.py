@@ -10,7 +10,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from trimset_server.auth import DB_ERRORS, Unavailable, require
+from trimset_server.auth import DB_ERRORS, MAX_STALE_S, Unavailable, require
 from trimset_server.bodies import TooLarge, parse_json, read_body
 from trimset_server.errors import Problem
 from trimset_server.keys import Principal
@@ -69,13 +69,19 @@ Loader = Callable[[uuid.UUID], Awaitable[ProjectSettings | None]]
 
 
 class ProjectCache:
-    """Settings per project for `ttl_s` seconds. If the database fails, the last known
-    settings stay in use, so the proxy keeps forwarding (NFR-06)."""
+    """Settings per project for `ttl_s` seconds, for the proxy. If the database fails, the
+    last known settings stay in use for at most `max_stale_s`, so the proxy keeps
+    forwarding (NFR-06)."""
 
     def __init__(
-        self, loader: Loader, ttl_s: float = 30.0, clock: Callable[[], float] = time.monotonic
+        self,
+        loader: Loader,
+        ttl_s: float = 30.0,
+        clock: Callable[[], float] = time.monotonic,
+        max_stale_s: float = MAX_STALE_S,
     ) -> None:
         self._load, self._ttl, self._clock = loader, ttl_s, clock
+        self._max_stale = max_stale_s
         self._entries: dict[uuid.UUID, tuple[float, ProjectSettings]] = {}
 
     async def settings(self, project_id: uuid.UUID) -> ProjectSettings | None:
@@ -86,7 +92,7 @@ class ProjectCache:
         try:
             found = await self._load(project_id)
         except DB_ERRORS as e:
-            if hit is not None:
+            if hit is not None and now - hit[0] < self._max_stale:
                 return hit[1]
             raise Unavailable from e
         if found is None:
