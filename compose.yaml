@@ -1,6 +1,9 @@
 # All of trimset on one machine (NFR-01): `docker compose up -d`.
-# Needs a .env file next to this one with TRIMSET_DB_PASSWORD (letters and digits only):
+# Needs a .env file next to this one:
 #   echo "TRIMSET_DB_PASSWORD=$(openssl rand -hex 16)" > .env
+#   echo "TRIMSET_SECRET=$(openssl rand -hex 32)" >> .env
+# Upstreams are defined there too, e.g. a local Ollaya (ADR 0011):
+#   TRIMSET_UPSTREAM_OLLAYA_URL=http://host.docker.internal:11435
 # The server and the worker both migrate the database when they start (advisory lock).
 name: trimset
 
@@ -24,8 +27,12 @@ services:
     build: .
     image: ghcr.io/trimset/trimset:dev
     command: ["serve"]
+    env_file: &trimset-env-file
+      - path: .env # operator settings such as TRIMSET_UPSTREAM_*
+        required: false
     environment: &trimset-env
       TRIMSET_DATABASE_URL: postgresql://trimset:${TRIMSET_DB_PASSWORD}@postgres:5432/trimset
+      TRIMSET_SECRET: ${TRIMSET_SECRET:?Set TRIMSET_SECRET in .env, at least 32 characters}
       TRIMSET_AUTO_MIGRATE: "true"
     ports:
       - "8800:8800"
@@ -46,6 +53,7 @@ services:
   worker:
     image: ghcr.io/trimset/trimset:dev
     command: ["worker"]
+    env_file: *trimset-env-file
     environment: *trimset-env
     depends_on:
       postgres:

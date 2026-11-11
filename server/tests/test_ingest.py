@@ -75,7 +75,7 @@ def test_bad_envelopes_are_refused_before_any_work(
 
 
 def test_nul_anywhere_is_found() -> None:
-    from trimset_server.ingest import _has_nul
+    from trimset_server.ingest import has_nul as _has_nul
 
     assert _has_nul({"a": ["x", {"b\x00": 1}]})
     assert _has_nul(["ok", "no\x00"])

@@ -52,6 +52,7 @@ upstream's format ([wire-formats.md](wire-formats.md) §6).
 | `question-hash-mismatch` | 422 | A definition doesn't hash to its `question_id` |
 | `timestamp-out-of-range` | 422 | `ts` is outside [now − retention, now + 5 minutes] |
 | `too-large` | 413 | Over 1,000 items or 1 MB (8 MiB on the proxy) |
+| `unavailable` | 503 | The database can't answer and there is no earlier answer to fall back on (for example, a key never seen before) |
 
 **Batches.**
 - At most 1,000 items.

@@ -332,3 +332,13 @@ def test_decision_ids_can_be_supplied_one_per_decision() -> None:
     assert [r["decision_id"] for r in to_records(ex, ts=datetime.now(UTC), decision_ids=ids)] == ids
     with pytest.raises(ValueError, match="one decision id per decision"):
         to_records(ex, ts=datetime.now(UTC), decision_ids=ids[:1])
+
+
+def test_the_decision_header_keeps_a_slot_for_every_question() -> None:
+    from trimset.wire import decision_id_header
+
+    response = json.loads(json.dumps(SYSTEMONE_RESPONSE))
+    del response["answers"]["billing"]  # the middle question is skipped
+    ex = parse_exchange(SYSTEMONE_REQUEST, response, "systemone")
+    assert [d.position for d in ex.decisions] == [0, 2]
+    assert decision_id_header(ex, ["a", "c"], questions=3) == "a,,c"

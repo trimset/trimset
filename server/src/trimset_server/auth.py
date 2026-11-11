@@ -3,18 +3,28 @@
 Each process remembers a key for at most `ttl_s` seconds before asking the database
 again, so a revoked key is refused everywhere within that time (FR-52 allows 60 s).
 Unknown keys are never cached, so the cache only ever holds real keys.
+
+When the database can't answer, a key seen before keeps working on its last known
+answer, so the proxy keeps forwarding while Postgres is down (NFR-06). A key never seen
+can't be checked then, and gets a 503.
 """
 
 import time
 import uuid
 from collections.abc import Awaitable, Callable
 
+import asyncpg
 from fastapi import Request
 
 from trimset_server.errors import Problem
 from trimset_server.keys import Principal, hash_key, looks_like_key
 
 Loader = Callable[[bytes], Awaitable[Principal | None]]
+DB_ERRORS = (OSError, TimeoutError, asyncpg.PostgresError, asyncpg.InterfaceError)
+
+
+class Unavailable(Exception):
+    """The database can't answer and there is no earlier answer to fall back on."""
 
 
 class KeyCache:
@@ -32,7 +42,12 @@ class KeyCache:
         hit = self._entries.get(digest)
         if hit is not None and now - hit[0] < self._ttl:
             return hit[1]
-        found = await self._load(digest)
+        try:
+            found = await self._load(digest)
+        except DB_ERRORS as e:
+            if hit is not None:
+                return hit[1]  # stale, but the best answer there is
+            raise Unavailable from e
         if found is None:
             self._entries.pop(digest, None)
         else:
@@ -66,7 +81,10 @@ def require(capability: str) -> Callable[[Request], Awaitable[Principal]]:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         cache: KeyCache = request.app.state.keys
-        principal = await cache.principal(key)
+        try:
+            principal = await cache.principal(key)
+        except Unavailable:
+            raise Problem(503, "unavailable", "Keys can't be checked right now") from None
         if principal is None:
             raise Problem(
                 401,

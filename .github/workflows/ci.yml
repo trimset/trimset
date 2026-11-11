@@ -74,6 +74,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       TRIMSET_DB_PASSWORD: ciOnlyNotASecret
+      TRIMSET_SECRET: ci-only-not-a-secret-0123456789abcdef
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: docker compose build

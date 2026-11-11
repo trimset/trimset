@@ -34,6 +34,7 @@ class Decision:
     definition: dict[str, Any]
     probabilities: list[float] | None  # None when the model refused
     refusal: bool = False
+    position: int = 0  # where the question sits in the request (0-based)
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,15 @@ class Usage:
     input_tokens: int = 0
     cached_input_tokens: int = 0
     output_tokens: int = 0
+
+
+def decision_id_header(exchange: "Exchange", ids: Sequence[str], questions: int) -> str:
+    """X-Trimset-Decision-Id: one slot per question in request order, empty where the
+    question was skipped (ADR 0011)."""
+    slots = [""] * questions
+    for d, i in zip(exchange.decisions, ids, strict=True):
+        slots[d.position] = i
+    return ",".join(slots)
 
 
 @dataclass(frozen=True)
@@ -224,7 +234,7 @@ def parse_exchange(
     else:
         raise WireError(f"unknown format {fmt!r}")
 
-    for label, name, q, answer in pairs:
+    for position, (label, name, q, answer) in enumerate(pairs):
         try:
             definition = (
                 question_from_systemone(label, q) if fmt == "systemone" else question_from_openai(q)
@@ -234,13 +244,13 @@ def parse_exchange(
                 raise WireError("no answer")
             refused = isinstance(answer, Mapping) and answer.get("type") == "refusal"
             if fmt == "openai-decisions" and refused:
-                decisions.append(Decision(name, qid, definition, None, refusal=True))
+                decisions.append(Decision(name, qid, definition, None, True, position))
                 continue
             probs = _probabilities(definition, answer, fmt)
         except WireError as e:
             skipped.append((label, str(e)))
             continue
-        decisions.append(Decision(name, qid, definition, probs))
+        decisions.append(Decision(name, qid, definition, probs, False, position))
 
     return Exchange(fmt, model_requested, model_served, state, decisions, skipped, _usage(response))
 

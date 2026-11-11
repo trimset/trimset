@@ -31,7 +31,14 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     - question registration, with names moving to the newest wording;
     - model versions recorded;
     - one unnest insert that ignores duplicates.
-- Next: T1.8 (the proxy), then T1.9 and the rest of M1.
+  - T1.8, the proxy:
+    - `proxy.py`, `recorder.py`, `store.py`, `projects.py` (`GET/PATCH /v1/admin/project`)
+      and `upstreams.py`;
+    - forwards unchanged, never follows redirects, never sends a trimset key upstream;
+    - errors in the upstream's format;
+    - keys and project settings stay stale while the database is down (NFR-06).
+- Next: T1.9 (outcomes, the default-by-rule job, `POST /v1/decisions:actions`), then the
+  rest of M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
   every milestone, from actual hours.
 - Repository: `github.com/trimset/trimset` (public).
@@ -131,6 +138,11 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
 - **Auth:** routes depend on `auth.require("<capability>")`, where the capability is
   `proxy`, `ingest`, `review` or `admin`. Scope → capability lives in
   `keys.CAPABILITIES`. Every query is scoped by `principal.project_id` (FR-51).
+- **Proxy records:** `recorder.Recorder` buffers them (bounded, drop-oldest, counted) and a
+  background task writes them via `store.store`, the same path as `/v1/decisions:log`.
+- **Operator config:** upstreams are `TRIMSET_UPSTREAM_<NAME>_*` (`upstreams.py`), and
+  `TRIMSET_SECRET` (at least 32 characters) derives the state-hash keys. Both live in
+  `.env` for compose.
 - **Shared logic:** wire formats and hashing live in the SDK (`trimset.wire`,
   `trimset.hashing`), and the server imports them. Never write a second copy.
   `docs/03-api/vectors/generate.py` stays as the independent reference.
