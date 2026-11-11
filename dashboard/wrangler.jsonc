@@ -1,0 +1,9 @@
+// The public dashboard demo (ADR 0017) on demo.trimset.dev: the demo build only, static
+// files answering from a recording, no backend. From dashboard/:
+//   npm run build:demo && npx wrangler@4.157.0 deploy
+{
+  "name": "trimset-demo",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./dist-demo" },
+  "routes": [{ "pattern": "demo.trimset.dev", "custom_domain": true }]
+}

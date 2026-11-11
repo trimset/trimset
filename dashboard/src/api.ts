@@ -54,7 +54,11 @@ export async function problemOf(res: Response): Promise<ApiError> {
 
 type Init = { method?: string; body?: unknown; merge?: boolean; signal?: AbortSignal; key?: string };
 
+/** The public demo build (`npm run build:demo`): answers come from a recording. */
+export const DEMO = import.meta.env.VITE_DEMO === "1";
+
 export async function api<T>(path: string, init: Init = {}): Promise<T> {
+  if (DEMO) return (await (await import("./demo.ts")).answer(path, init)) as T;
   const key = init.key ?? getKey();
   const headers: Record<string, string> = { Accept: "application/json" };
   if (key) headers.Authorization = `Bearer ${key}`;
@@ -302,7 +306,7 @@ export interface PolicyView {
   state: PolicyState;
   guarantee_status: "certified" | "suspended" | "none";
   suspended_by?: string | null;
-  events: { from_state: PolicyState | null; to_state: PolicyState; key_id: string; reason?: string | null; at: string }[];
+  events: { from_state: PolicyState | null; to_state: PolicyState; key_id: string | null; reason?: string | null; at: string }[];
 }
 
 export interface PolicyDiff {

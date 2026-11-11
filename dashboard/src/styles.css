@@ -213,3 +213,6 @@ input[type="range"] { width: 100%; accent-color: #b8f36b; height: 28px; }
   .review .rv-pane { order: -1; }
   .review > section { max-width: none !important; }
 }
+.demo-bar { padding: 10px 28px; font-size: 13px; background: var(--band); border-bottom: 1px solid var(--dv); color: var(--t2); }
+.demo-bar strong { color: var(--acx); }
+@media (max-width: 760px) { .demo-bar { padding: 10px 16px; } }

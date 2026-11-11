@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiError, api, type Bin, type Costs, type Fit, type Job, type PolicyMetrics, q, type Question, type Rule, type SimulateResult, type Target, waitJob } from "../api.ts";
+import { ApiError, api, DEMO, type Bin, type Costs, type Fit, type Job, type PolicyMetrics, q, type Question, type Rule, type SimulateResult, type Target, waitJob } from "../api.ts";
 import { candidate, count, prob, sameScalar, scalarName, simView, startThreshold } from "../format.ts";
 import { ErrorState, href, Load, Skeleton, Tile, TooFew, useLoad } from "../ui.tsx";
 import { FitNow, useLatestFit } from "./Calibration.tsx";
@@ -15,7 +15,7 @@ export function Simulator({ name, question, model }: { name: string; question: Q
         f === null ? (
           <section className="card pad col" style={{ gap: 12 }}>
             <h2 className="h" style={{ fontSize: 18 }}>The simulator needs a calibration fit for <span className="m">{model}</span></h2>
-            <FitNow name={name} model={model} onDone={fit.reload} />
+            {DEMO ? <p className="t2" style={{ margin: 0 }}>The demo recorded one model only.</p> : <FitNow name={name} model={model} onDone={fit.reload} />}
           </section>
         ) : (
           <WithShapes name={name} question={question} model={model} fit={f} />
@@ -42,11 +42,14 @@ function costsFrom(target: Target | undefined): Costs {
   return { escalation: target?.costs?.escalation ?? 0, wrong: { ...target?.costs?.wrong } };
 }
 
+// The costs the demo's grid was recorded with (dashboard/demo/record.py).
+const demoCosts: Costs = { escalation: 1.2, wrong: { ACCEPT: 85, BLOCK: 6 } };
+
 const hasCosts = (c: Costs) => (c.escalation ?? 0) > 0 || Object.values(c.wrong ?? {}).some((v) => (v ?? 0) > 0);
 
 function Sim({ name, question, model, fit, shapes }: { name: string; question: Question; model: string; fit: Fit; shapes: Rule[] }) {
   const [t, setT] = useState(() => shapes.map(startThreshold));
-  const [costs, setCosts] = useState(() => costsFrom(question.settings.target));
+  const [costs, setCosts] = useState(() => (DEMO ? demoCosts : costsFrom(question.settings.target)));
   const [metrics, setMetrics] = useState<PolicyMetrics | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -84,14 +87,16 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
   const lo = Math.max(0, ...shapes.map((r, i) => (r.op === "lt" ? t[i] : 0)));
   const hi = Math.min(1, ...shapes.map((r, i) => (r.op === "ge" ? t[i] : 1)));
 
+  // The demo answers from a recording on a 0.05 grid.
+  const step = DEMO ? 0.05 : 0.01;
   const move = (i: number, v: number) => {
     const next = [...t];
     next[i] = v;
     if (pair) {
       // Keep the "below" rule under the "from" rule so the band stays a band.
       const j = 1 - i;
-      if (shapes[i].op === "lt" && v > next[j] - 0.01) next[i] = Math.max(0, next[j] - 0.01);
-      if (shapes[i].op === "ge" && v < next[j] + 0.01) next[i] = Math.min(1, next[j] + 0.01);
+      if (shapes[i].op === "lt" && v > next[j] - step) next[i] = Math.max(0, next[j] - step);
+      if (shapes[i].op === "ge" && v < next[j] + step) next[i] = Math.min(1, next[j] + step);
     }
     setT(next);
   };
@@ -119,7 +124,7 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
               <span>
                 {r.action} when {scalarName(r.scalar)} {r.op === "lt" ? "<" : "≥"} <span className="m">{prob(t[i])}</span>
               </span>
-              <input type="range" min={0} max={1} step={0.01} value={t[i]} onChange={(e) => move(i, Number(e.target.value))} aria-label={`${r.action} threshold`} />
+              <input type="range" min={0} max={1} step={step} value={t[i]} onChange={(e) => move(i, Number(e.target.value))} aria-label={`${r.action} threshold`} />
             </label>
           ))}
         </div>
@@ -158,6 +163,7 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
 
       <section className="card pad row" aria-label="Costs" style={{ gap: 16 }}>
         <h2 className="h" style={{ fontSize: 16 }}>Costs</h2>
+        {DEMO && <span className="mu small">Recorded with these costs.</span>}
         <CostInput label="Each escalation" value={costs.escalation ?? 0} onChange={(v) => setCosts({ ...costs, escalation: v })} />
         {[...new Set(shapes.map((r) => r.action))].map((a) => (
           <CostInput key={a} label={`Each wrong ${a}`} value={costs.wrong?.[a] ?? 0} onChange={(v) => setCosts({ ...costs, wrong: { ...costs.wrong, [a]: v } })} />
@@ -173,7 +179,7 @@ function CostInput({ label, value, onChange }: { label: string; value: number; o
   return (
     <label className="row" style={{ gap: 8, fontSize: 13 }}>
       {label} $
-      <input className="in m" type="number" min={0} step="any" value={value} onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))} style={{ width: 96 }} />
+      <input className="in m" type="number" min={0} step="any" disabled={DEMO} value={value} onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))} style={{ width: 96 }} />
     </label>
   );
 }

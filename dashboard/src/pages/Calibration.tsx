@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ApiError, api, type Bin, type CoveragePath, type Fit, type Job, q, type Question, waitJob } from "../api.ts";
+import { ApiError, api, type Bin, DEMO, type CoveragePath, type Fit, type Job, q, type Question, waitJob } from "../api.ts";
 import { count, day, pct } from "../format.ts";
 import { ErrorState, Load, Pending, useLoad } from "../ui.tsx";
 
@@ -61,7 +61,7 @@ export function Calibration({ name, question, model }: { name: string; question:
               <p className="t2" style={{ margin: 0 }}>
                 A fit maps the model's probabilities to observed rates, from labelled decisions. Thresholds and guarantees need one.
               </p>
-              <FitNow name={name} model={model} onDone={fit.reload} />
+              {DEMO ? <p className="t2" style={{ margin: 0 }}>The demo recorded one model only.</p> : <FitNow name={name} model={model} onDone={fit.reload} />}
             </section>
           ) : (
             <>
@@ -70,7 +70,7 @@ export function Calibration({ name, question, model }: { name: string; question:
                   Fit <span className="m">{f.fit_id}</span> · {f.calibration.method} · {day(f.created_at)} · window {day(f.provenance.window.from)} – {day(f.provenance.window.to)}
                 </span>
                 <span className="grow" />
-                <FitNow name={name} model={model} onDone={fit.reload} label="Refit now" />
+                {!DEMO && <FitNow name={name} model={model} onDone={fit.reload} label="Refit now" />}
               </div>
               <div className="split">
                 <section className="card pad col" aria-labelledby="rd" style={{ gap: 10 }}>

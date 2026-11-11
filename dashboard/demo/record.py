@@ -77,6 +77,16 @@ def record(api: Api, name: str) -> dict[str, Any]:
         body = {"model_served": model, "fit_id": fit["fit_id"], "target": target}
         compiles[f"{alpha:g}"] = api.job(api(f"/v1/admin/questions/{q}/compile", body))
 
+    # Walk the lifecycle (FR-27): the 2% policy goes live, the 1% one waits for approval.
+    def move(job: dict[str, Any], *actions: str) -> None:
+        policy_id = (job.get("result") or {}).get("policy_id")
+        for action in actions if policy_id else ():
+            note = {"reason": "recorded for the demo"}
+            api(f"/v1/admin/policies/{policy_id}/transitions", {"action": action, **note})
+
+    move(compiles["0.02"], "submit", "approve", "activate")
+    move(compiles["0.01"], "submit")
+
     policies = api("/v1/admin/policies", question=name)["items"]
     ids = [p["policy"]["policy_id"] for p in policies]
     diffs = {f"{a}:": api(f"/v1/admin/policies/{a}/diff") for a in ids}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, q, type Question } from "../api.ts";
+import { api, DEMO, q, type Question } from "../api.ts";
 import { count } from "../format.ts";
 import * as mock from "../mock.ts";
 import { href, Load, SamplePill, Tabs, Top, useLoad } from "../ui.tsx";
@@ -30,6 +30,7 @@ export function Questions() {
           </label>
           <button className="btn p" type="submit" disabled={!name.trim()}>Open</button>
           <span className="mu small" style={{ flexBasis: "100%" }}>
+            {DEMO && <>In the demo, <a href={href("questions", "refund_fraud")}>refund_fraud</a> has recorded data. </>}
             The list below is sample data until <span className="m">{mock.ENDPOINT.questions}</span> is built; opening a question reads your server.
           </span>
         </form>

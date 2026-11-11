@@ -5,7 +5,7 @@ import "./styles.css";
 
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ApiError, api, getKey, type Project, setKey } from "./api.ts";
+import { ApiError, api, DEMO, getKey, type Project, setKey } from "./api.ts";
 import { Alerts } from "./pages/Alerts.tsx";
 import { Decisions } from "./pages/Decisions.tsx";
 import { Drift } from "./pages/Drift.tsx";
@@ -144,7 +144,7 @@ function Shell() {
           <Logo />
           <span>trimset</span>
         </a>
-        <button className="proj" type="button" aria-label={`Switch project, current: ${project.data?.name ?? "loading"}. Signs out of this key.`} onClick={() => setKey(null)}>
+        <button className="proj" type="button" aria-label={`Switch project, current: ${project.data?.name ?? "loading"}. Signs out of this key.`} onClick={() => !DEMO && setKey(null)}>
           <span className="col grow" style={{ gap: 0 }}>
             <span className="mu" style={{ fontSize: 11 }}>Project</span>
             <span className="m" style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>{project.data?.name ?? "…"}</span>
@@ -168,6 +168,13 @@ function Shell() {
         </div>
       </nav>
       <main className="main">
+        {DEMO && (
+          <div className="demo-bar" role="note">
+            <strong>Demo.</strong> Every number here comes from a real trimset server, recorded while it ran the refund-fraud example: seven
+            months of synthetic refunds. Nothing you do is saved; screens marked Sample data show the design's examples.{" "}
+            <a href="https://github.com/trimset/trimset">Run your own</a>
+          </div>
+        )}
         {project.error && !(project.error instanceof ApiError && project.error.status === 401) ? (
           <div className="body">
             <ErrorState error={project.error} retry={project.reload} />
@@ -181,9 +188,9 @@ function Shell() {
 }
 
 function App() {
-  const [signedIn, setSignedIn] = useState(() => getKey() !== null);
+  const [signedIn, setSignedIn] = useState(() => DEMO || getKey() !== null);
   useEffect(() => {
-    const on = () => setSignedIn(getKey() !== null);
+    const on = () => setSignedIn(DEMO || getKey() !== null);
     window.addEventListener("trimset:key", on);
     return () => window.removeEventListener("trimset:key", on);
   }, []);
