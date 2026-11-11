@@ -18,8 +18,11 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T1.4, the migration runner, `0001_capture` (projects, questions, model_versions,
     and the monthly-partitioned decisions table), the worker (partition upkeep), and
     compose's worker service.
-- Next: T1.5 (keys, scopes and the bootstrap command; migration `0002`), then T1.6 and
-  the rest of M1.
+  - T1.5, keys:
+    - `0002_keys`: SHA-256 only, four scopes, revocation refused everywhere within 30 s;
+    - `/v1/admin/keys` with RFC 9457 errors;
+    - `trimset-server create-project | create-key | revoke-key`.
+- Next: T1.6 (the wire module in the SDK package), then T1.7 and the rest of M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
   every milestone, from actual hours.
 - Repository: `github.com/trimset/trimset` (public).
@@ -116,6 +119,11 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
   - OpenTelemetry is on only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and span
     attributes pass through the same redaction.
 - **HTTP client:** `httpx2`, not `httpx`, which Starlette deprecated.
+- **Auth:** routes depend on `auth.require("<capability>")`, where the capability is
+  `proxy`, `ingest`, `review` or `admin`. Scope → capability lives in
+  `keys.CAPABILITIES`. Every query is scoped by `principal.project_id` (FR-51).
+- **Errors:** raise `errors.Problem(status, slug, title)`. Slugs are listed in
+  `docs/03-api/README.md`.
 - **Migrations:** `server/src/trimset_server/migrations/NNNN_name.sql`.
   - They only move forward. Never edit one that has been applied: the checksum guard
     refuses to run if you do.

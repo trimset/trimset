@@ -2,12 +2,9 @@
 
 import asyncio
 import hashlib
-import os
 import uuid
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
 
 import asyncpg
 import pytest
@@ -17,25 +14,8 @@ from trimset_server.migrate import MigrationError, available, run_migrations
 from trimset_server.partitions import ensure_partitions, partition_months
 from trimset_server.worker import run_worker
 
-ADMIN_URL = os.environ.get("TRIMSET_TEST_DATABASE_URL", "")
-pytestmark = [
-    pytest.mark.anyio,
-    pytest.mark.integration,
-    pytest.mark.skipif(not ADMIN_URL, reason="needs TRIMSET_TEST_DATABASE_URL (CI has Postgres)"),
-]
-
-
-@pytest.fixture
-async def dsn() -> AsyncIterator[str]:
-    """A fresh, empty database for each test."""
-    name = "trimset_test_" + uuid.uuid4().hex[:12]
-    admin = await asyncpg.connect(ADMIN_URL)
-    try:
-        await admin.execute(f'CREATE DATABASE "{name}"')
-        yield urlunsplit(urlsplit(ADMIN_URL)._replace(path="/" + name))
-    finally:
-        await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
-        await admin.close()
+pytestmark = [pytest.mark.anyio, pytest.mark.integration]
+SHIPPED = [v for v, _ in available()]
 
 
 async def _partitions(conn: Any) -> set[str]:
@@ -48,7 +28,7 @@ async def _partitions(conn: Any) -> set[str]:
 
 @pytest.mark.req("NFR-15")
 async def test_migrations_apply_once_and_create_partitions(dsn: str) -> None:
-    assert await run_migrations(dsn) == ["0001_capture"]
+    assert await run_migrations(dsn) == SHIPPED
     assert await run_migrations(dsn) == []
 
     conn = await asyncpg.connect(dsn)
@@ -66,7 +46,7 @@ async def test_migrations_apply_once_and_create_partitions(dsn: str) -> None:
 @pytest.mark.req("NFR-15")
 async def test_concurrent_starts_apply_each_migration_once(dsn: str) -> None:
     results = await asyncio.gather(*(run_migrations(dsn) for _ in range(3)))
-    assert sorted(v for applied in results for v in applied) == ["0001_capture"]
+    assert sorted(v for applied in results for v in applied) == SHIPPED
 
 
 @pytest.mark.req("NFR-15")
@@ -74,7 +54,9 @@ async def test_a_migration_edited_after_it_ran_is_refused(dsn: str) -> None:
     await run_migrations(dsn)
     conn = await asyncpg.connect(dsn)
     try:
-        await conn.execute("UPDATE schema_migrations SET checksum = 'edited'")
+        await conn.execute(
+            "UPDATE schema_migrations SET checksum = 'edited' WHERE version = '0001_capture'"
+        )
     finally:
         await conn.close()
     with pytest.raises(MigrationError, match="0001_capture changed"):

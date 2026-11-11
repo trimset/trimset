@@ -12,6 +12,7 @@ class Settings:
     db_pool_max: int = 10
     auto_migrate: bool = False  # compose turns it on; operators may run `migrate` instead
     maintenance_interval_s: float = 3600.0
+    key_cache_ttl_s: float = 30.0  # a revoked key is refused everywhere within this (FR-52)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] = os.environ) -> "Settings":
@@ -24,4 +25,5 @@ class Settings:
             db_pool_max=int(env.get("TRIMSET_DB_POOL_MAX", "10")),
             auto_migrate=env.get("TRIMSET_AUTO_MIGRATE", "false").lower() in ("1", "true", "yes"),
             maintenance_interval_s=float(env.get("TRIMSET_MAINTENANCE_INTERVAL_S", "3600")),
+            key_cache_ttl_s=min(float(env.get("TRIMSET_KEY_CACHE_TTL_S", "30")), 60.0),
         )

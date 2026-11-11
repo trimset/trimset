@@ -9,6 +9,8 @@ import asyncpg
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from trimset_server import admin, errors, keys
+from trimset_server.auth import KeyCache
 from trimset_server.config import Settings
 from trimset_server.telemetry import setup_telemetry
 
@@ -22,16 +24,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # min_size=0 opens no connection here, so the server starts while Postgres is
         # still down and /ready reports it.
-        app.state.pool = await asyncpg.create_pool(
+        pool = await asyncpg.create_pool(
             settings.database_url, min_size=0, max_size=settings.db_pool_max, timeout=5
         )
+
+        async def load_key(digest: bytes) -> keys.Principal | None:
+            async with pool.acquire() as conn:
+                return await keys.principal_for(conn, digest)
+
+        app.state.pool = pool
+        app.state.keys = KeyCache(load_key, settings.key_cache_ttl_s)
         try:
             yield
         finally:
-            await app.state.pool.close()
+            await pool.close()
 
     # The contract is docs/03-api/openapi.yaml, so FastAPI's generated docs stay off.
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    errors.install(app)
+    app.include_router(admin.router)
 
     # Public, no key: liveness and readiness never return project data.
     @app.get("/health")

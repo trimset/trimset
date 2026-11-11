@@ -82,10 +82,15 @@ jobs:
         run: curl -fsS http://127.0.0.1:8800/health && curl -fsS http://127.0.0.1:8800/ready
       - name: migrations ran, partitions exist, migrate is idempotent (NFR-15)
         run: |
-          test "$(docker compose exec -T postgres psql -U trimset -d trimset -tAc 'SELECT version FROM schema_migrations ORDER BY 1')" = 0001_capture
           n=$(docker compose exec -T postgres psql -U trimset -d trimset -tAc "SELECT count(*) FROM pg_inherits WHERE inhparent = 'decisions'::regclass")
           echo "$n partitions"; test "$n" -ge 4
           test "$(docker compose exec -T server trimset-server migrate)" = '{"applied": []}'
+      - name: no key, no access; the bootstrap key works (FR-52, FR-53)
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8800/v1/admin/keys)" = 401
+          docker compose exec -T server trimset-server create-project ci > /dev/null
+          key=$(docker compose exec -T server trimset-server create-key ci --label ci | python3 -c "import json,sys; print(json.load(sys.stdin)['key'])")
+          curl -fsS -H "Authorization: Bearer $key" http://127.0.0.1:8800/v1/admin/keys > /dev/null
       - name: every log line is JSON (NFR-13)
         run: |
           docker compose logs --no-log-prefix server worker > stack.log
