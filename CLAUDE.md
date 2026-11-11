@@ -54,8 +54,10 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T1.12, contract tests (`server/tests/test_contract_integration.py`): every route is in
     `openapi.yaml`, and real responses match their documented status and schema. A new
     endpoint gets a `check(...)` call there.
-  - T1.13, the load test (`tools/load/`, workflow `load`, started by hand). Ingest
-    passed in Python; the proxy didn't, so its hot path is now Rust (ADR 0015).
+  - T1.13, the load test (`tools/load/`, workflow `load`, started by hand). The proxy's
+    hot path is now Rust (ADR 0015): ~1 ms added at p99 at 500 req/s. Ingest's p99 swings
+    16–27 ms on GitHub runners with or without the proxy; a rented 2 vCPU VM decides
+    NFR-02 before the alpha (needs the user's OK, a few dollars).
   - T1.15, the demo `examples/m1-capture/run.sh`: refund fraud through the proxy, a
     silent upgrade, generated history, held and default-rule labels. CI runs it.
 - Waiting: T1.14 (real successful calls) needs the user's TypeSafe and OpenAI keys; then

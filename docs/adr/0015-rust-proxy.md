@@ -70,6 +70,11 @@ NFR-03 stays at 500 requests a second.
   ones against a fake upstream and a fake server.
 - **Supply chain:** crates are pinned exactly, and `tools/crate_ages.py` checks the 7-day
   hold across `Cargo.lock`. The Rust build image is pinned by digest.
+- **Ingest is at the edge of NFR-02 on GitHub's runners, proxy or not.** Over today's
+  runs its p99 ranged from 15.7 to 27 ms (p50 5–7 ms), and one run measured it both ways:
+  27.0 ms straight to the server, 25.0 ms through the proxy. The runners vary more than
+  trimset does, so a rented 2 vCPU / 4 GB VM decides NFR-02 before the alpha
+  (docs/05-testing.md). The load workflow's `ingest-direct` job keeps the comparison.
 - **Nothing else moves to Rust.** Ingest passes in Python at a quarter of a CPU, and the
   statistics are numpy and scipy, already compiled code, golden-tested against the
   reference implementations. If a profile ever shows one hot function, it can move on its
