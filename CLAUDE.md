@@ -48,7 +48,12 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T1.10, the mock upstream (`tools/`, `compose.mock.yaml`): both formats,
     deterministic answers, a version switch for silent upgrades, latency and error
     injection. CI sends a request through the image's proxy to it.
-- Next: T1.11 (the data generator), then the rest of M1.
+  - T1.11, the data generator (`tools/.../datagen.py`, `trimset-datagen`): all six use
+    cases with their outcome channels; planted miscalibration, drift, a silent model
+    swap, missing labels and slower delays; JSONL (with ground truth) or through the API.
+- Next: T1.12 (contract and integration tests), then the rest of M1.
+- Pace (2026-11-11): go from one task to the next without asking, each green in CI
+  first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
   every milestone, from actual hours.
 - Repository: `github.com/trimset/trimset` (public).
@@ -125,7 +130,7 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
 - `stats/`: package `trimset-stats`. Pure functions, no I/O.
 - `server/`: package `trimset-server` (server and worker).
 - `tools/`: package `trimset-tools`, never published and never in the server image. The
-  mock upstream (`trimset-mock-upstream`); the data generator joins it in T1.11. Tests
+  mock upstream (`trimset-mock-upstream`) and the data generator (`trimset-datagen`). Tests
   use the mock in-process: `create_app(transport=httpx2.ASGITransport(mock_upstream.create_app()))`.
 - `docs/`:
   - the brief and one doc per phase;
@@ -183,6 +188,7 @@ uv run --frozen pytest stats/tests/test_x.py    # one file at a time locally
 gh run list --repo trimset/trimset              # the real test results
 TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
 uv run trimset-mock-upstream --port 9000        # the mock upstream, for trying the proxy
+uv run trimset-datagen refund-fraud --out data/ # synthetic data; --url to send it
 # The image is built and smoke-tested in CI (job "image"), not locally.
 
 # Contract checks (also in CI)

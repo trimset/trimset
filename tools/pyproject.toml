@@ -1,13 +1,14 @@
 [project]
 name = "trimset-tools"
 version = "0.0.0"
-description = "Test and demo tools for trimset: the mock upstream (FR-59). Never published."
+description = "Test and demo tools for trimset: the mock upstream (FR-59) and the data generator (FR-60). Never published."
 requires-python = ">=3.12"
 classifiers = ["Private :: Do Not Upload"]
-dependencies = ["starlette>=1.10.0", "uvicorn>=0.54.0"]
+dependencies = ["httpx2>=2.16.0", "starlette>=1.10.0", "trimset", "uvicorn>=0.54.0"]
 
 [project.scripts]
 trimset-mock-upstream = "trimset_tools.mock_upstream:main"
+trimset-datagen = "trimset_tools.datagen:main"
 
 [build-system]
 requires = ["uv_build>=0.13.0,<0.14"]

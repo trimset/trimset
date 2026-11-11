@@ -1678,13 +1678,17 @@ name = "trimset-tools"
 version = "0.0.0"
 source = { editable = "tools" }
 dependencies = [
+    { name = "httpx2" },
     { name = "starlette" },
+    { name = "trimset" },
     { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx2", specifier = ">=2.16.0" },
     { name = "starlette", specifier = ">=1.10.0" },
+    { name = "trimset", editable = "sdk/python" },
     { name = "uvicorn", specifier = ">=0.54.0" },
 ]
 
