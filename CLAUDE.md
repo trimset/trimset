@@ -22,7 +22,11 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     - `0002_keys`: SHA-256 only, four scopes, revocation refused everywhere within 30 s;
     - `/v1/admin/keys` with RFC 9457 errors;
     - `trimset-server create-project | create-key | revoke-key`.
-- Next: T1.6 (the wire module in the SDK package), then T1.7 and the rest of M1.
+  - T1.6, the wire module in the SDK package:
+    - `trimset.hashing` reproduces every Phase 3 vector;
+    - `trimset.wire` turns systemone and OpenAI traffic into record/1 and skips anything
+      malformed, with a reason.
+- Next: T1.7 (`POST /v1/decisions:log`), then T1.8 (proxy) and the rest of M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
   every milestone, from actual hours.
 - Repository: `github.com/trimset/trimset` (public).
@@ -122,6 +126,9 @@ lacks the `/p/<proxy key>` path that ADR 0011 requires.
 - **Auth:** routes depend on `auth.require("<capability>")`, where the capability is
   `proxy`, `ingest`, `review` or `admin`. Scope → capability lives in
   `keys.CAPABILITIES`. Every query is scoped by `principal.project_id` (FR-51).
+- **Shared logic:** wire formats and hashing live in the SDK (`trimset.wire`,
+  `trimset.hashing`), and the server imports them. Never write a second copy.
+  `docs/03-api/vectors/generate.py` stays as the independent reference.
 - **Errors:** raise `errors.Problem(status, slug, title)`. Slugs are listed in
   `docs/03-api/README.md`.
 - **Migrations:** `server/src/trimset_server/migrations/NNNN_name.sql`.
