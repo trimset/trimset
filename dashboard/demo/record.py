@@ -69,10 +69,11 @@ def record(api: Api, name: str) -> dict[str, Any]:
     candidates = [
         [{**r, "threshold": lo if r["op"] == "lt" else hi} for r in shapes] for lo, hi in pairs
     ]
-    rows = api(
+    simulated = api(
         f"/v1/admin/questions/{q}/simulate",
         {"model_served": model, "fit_id": fit["fit_id"], "candidates": candidates, "costs": COSTS},
-    )["rows"]
+    )
+    rows = simulated["rows"]
     grid = {f"{lo:.2f},{hi:.2f}": row["metrics"] for (lo, hi), row in zip(pairs, rows, strict=True)}
 
     compiles = {}
@@ -112,6 +113,9 @@ def record(api: Api, name: str) -> dict[str, Any]:
         "shapes": shapes,
         "costs": COSTS,
         "grid": grid,
+        # Which split the simulator used and its bins (servers before PR #8 send neither).
+        "split": simulated.get("split", "eval"),
+        "reliability": simulated.get("reliability"),
         "compiles": compiles,
         "policies": policies,
         "diffs": diffs,

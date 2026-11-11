@@ -5,6 +5,7 @@
 // hold is refused, and nothing is ever saved.
 import {
   ApiError,
+  type Bin,
   type DecisionRecord,
   type Fit,
   type Job,
@@ -28,6 +29,8 @@ interface Recorded {
   shapes: Rule[];
   costs: unknown;
   grid: Record<string, PolicyMetrics>;
+  split?: "tune" | "eval";
+  reliability?: Bin[] | null;
   compiles: Record<string, Job>;
   policies: PolicyView[];
   diffs: Record<string, PolicyDiff>;
@@ -86,10 +89,11 @@ export async function answer(path: string, init: Init = {}): Promise<unknown> {
     if (method === "GET" && sub === "fits") return { items: ours ? D.fits : [] };
     if (method === "GET" && sub === "coverage") return D.coverage;
     if (method === "POST" && sub === "simulate") {
-      const fit_id = D.fits[0].fit_id;
-      if (!body.candidates) return { fit_id, rows: [{ rules: D.shapes, metrics: D.grid["0.30,0.85"] }] };
+      // The split and bins as the server answered (a recording from before PR #8 has neither).
+      const meta = { fit_id: D.fits[0].fit_id, split: D.split, reliability: D.reliability ?? undefined };
+      if (!body.candidates) return { ...meta, rows: [{ rules: D.shapes, metrics: D.grid["0.30,0.85"] }] };
       return {
-        fit_id,
+        ...meta,
         rows: (body.candidates as Rule[][]).map((rules) => {
           const lo = rules.find((r) => r.op === "lt")?.threshold ?? NaN;
           const hi = rules.find((r) => r.op === "ge")?.threshold ?? NaN;

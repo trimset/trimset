@@ -230,6 +230,10 @@ export interface PolicyMetrics {
 
 export interface SimulateResult {
   fit_id: string;
+  /** Which of the fit's splits the rows were computed on. Absent from servers before #8: eval. */
+  split?: "tune" | "eval";
+  /** That split's labelled items in calibrated reliability bins, the same items as the rows. */
+  reliability?: Bin[];
   rows: { rules: Rule[]; metrics: PolicyMetrics }[];
 }
 

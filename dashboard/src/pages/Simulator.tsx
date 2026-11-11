@@ -45,12 +45,15 @@ function costsFrom(target: Target | undefined): Costs {
 // The costs the demo's grid was recorded with (dashboard/demo/record.py).
 const demoCosts: Costs = { escalation: 1.2, wrong: { ACCEPT: 85, BLOCK: 6 } };
 
+const splitName = (s: "tune" | "eval" | undefined) => (s === "tune" ? "tuning" : "evaluation");
+
 const hasCosts = (c: Costs) => (c.escalation ?? 0) > 0 || Object.values(c.wrong ?? {}).some((v) => (v ?? 0) > 0);
 
 function Sim({ name, question, model, fit, shapes }: { name: string; question: Question; model: string; fit: Fit; shapes: Rule[] }) {
   const [t, setT] = useState(() => shapes.map(startThreshold));
   const [costs, setCosts] = useState(() => (DEMO ? demoCosts : costsFrom(question.settings.target)));
   const [metrics, setMetrics] = useState<PolicyMetrics | null>(null);
+  const [split, setSplit] = useState<{ name: "tune" | "eval"; bins: Bin[] } | null>(null);
   // Candidates kept to compare: this page only, nothing is saved anywhere.
   const [kept, setKept] = useState<{ key: string; rules: string[]; costs: string; view: SimView }[]>([]);
   const [error, setError] = useState<unknown>(null);
@@ -70,6 +73,8 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
         };
         const r = await api<SimulateResult>(`/v1/admin/questions/${q(name)}/simulate`, { body, signal: ctl.signal });
         setMetrics(r.rows[0]?.metrics ?? null);
+        // The bars come from the same answer as the numbers, so they describe the same items.
+        setSplit({ name: r.split ?? "eval", bins: r.reliability ?? fit.reliability.calibrated });
         setError(null);
       } catch (e) {
         if ((e as Error).name !== "AbortError") setError(e);
@@ -128,7 +133,7 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
             </>
           )}
         </div>
-        {axis && <Histogram bins={fit.reliability.calibrated} lo={lo} hi={hi} noul={question.type === "noul"} scalar={scalarName(shapes[0].scalar)} />}
+        {axis && split && <Histogram bins={split.bins} lo={lo} hi={hi} noul={question.type === "noul"} scalar={scalarName(shapes[0].scalar)} />}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
           {shapes.map((r, i) => (
             <label key={r.id} className="col" style={{ gap: 4, fontSize: 13 }}>
@@ -140,11 +145,12 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
           ))}
         </div>
         <p className="mu small" style={{ margin: 0 }}>
-          Anything no rule takes is escalated. Numbers come from the server on fit <span className="m">{fit.fit_id.slice(0, 8)}…</span>'s evaluation split.
+          Anything no rule takes is escalated. Numbers and bars come from the server, on fit{" "}
+          <span className="m">{fit.fit_id.slice(0, 8)}…</span>'s {splitName(split?.name)} split.
         </p>
         <p className="wa small" style={{ margin: 0 }}>
-          ▲ Exploration on held-out data: for thresholds you pick by looking here, these numbers are optimistic, more so the more
-          you try. The only number with a promise is a compiled policy's guarantee, certified on a split you never see here.
+          ▲ Exploration: for thresholds you pick by looking here, these numbers are optimistic, more so the more you try. The only
+          number with a promise is a compiled policy's guarantee.
         </p>
       </section>
 
@@ -156,7 +162,7 @@ function Sim({ name, question, model, fit, shapes }: { name: string; question: Q
         ) : (
           <>
             <div className="tiles">
-              <Tile label="Decided automatically" value={view.automated} note={<>n = <span className="m">{view.n}</span> in the evaluation split</>} />
+              <Tile label="Decided automatically" value={view.automated} note={<>n = <span className="m">{view.n}</span> in the {splitName(split?.name)} split</>} />
               <Tile label="Escalated" value={view.escalated} note="to a bigger model or a person" />
               <Tile label="Cost per 1,000 decisions" value={view.cost ?? "–"} note={view.cost ? "with the costs below" : "set costs below to see it"} />
             </div>
