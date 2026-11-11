@@ -104,6 +104,11 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
   - T2.8, the M2 demo (`examples/m2-refund-fraud/run.sh`, run in CI's image job): seven
     months of a miscalibrated refund model, then coverage, calibrate, simulate and a
     certified compile, all through the CLI inside the server container.
+- **M6, the dashboard, started early** (2026-11-11, [ADR 0017](docs/adr/0017-dashboard.md)):
+  `dashboard/` on the API. Real: sign-in, Decisions, each question's Calibration and
+  Thresholds (the simulator), Policies, Settings, the empty project. Sample data until
+  their endpoints exist: Overview, Outcomes, the Questions list, Drift, Shadow, Review
+  queue, Alerts. Not yet served: the `/ui` mount and the image's Node build stage.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
@@ -215,8 +220,21 @@ Built early, on 2026-11-11, from the site v2 design (T7.5's pages, TA.3's deploy
   - `03-api/`, the contracts;
   - `design/`, the prompts for Claude Design.
 - `site/`: the website (see Homepage); `wrangler.jsonc` deploys it.
+- `dashboard/`: the v2 web dashboard (ADR 0017), React + TypeScript + Vite, its own npm
+  lockfile. Never hosted on trimset.dev: each install serves its own.
+  - Only `src/api.ts` reaches a backend, and only paths in `openapi.yaml`
+    (`src/contract.test.ts` checks). A screen without an endpoint reads `src/mock.ts`
+    and shows the "Sample data" pill; when the endpoint ships, call `api()` and delete
+    the mock export.
+  - The browser never computes a rate, an interval or a guarantee: it formats what the
+    server returns (`src/format.ts`).
+  - Colours are the design's tokens in `src/styles.css`, both themes; right/wrong and
+    severity always carry a mark and a word. Check at 390 px: the Review queue and Alerts
+    must work there with no sideways scroll.
+  - Dependencies: `npm install --before=<the exclude-newer date> --save-exact`.
 - `.github/workflows/ci.yml`: lint, types, tests per package with coverage gates, SDK on
-  Python 3.11, contract checks, and an image and compose smoke test.
+  Python 3.11, contract checks, an image and compose smoke test, and the dashboard's
+  tests, types and build.
 - `Dockerfile`: one image for the proxy, the server and the worker.
   - Base images and uv are pinned by digest.
   - It runs as uid 10001.
@@ -266,6 +284,8 @@ gh run list --repo trimset/trimset              # the real test results
 gh workflow run load.yml --repo trimset/trimset # load test, ~20 min; results in the log and summary
 cd proxy && cargo clippy -j 2 --all-targets -- -D warnings && cargo test -j 2  # the Rust proxy
 npx wrangler@4.157.0 deploy                     # the site to trimset.dev (once: npx wrangler@4.157.0 login)
+cd dashboard && npm ci --ignore-scripts && npm run dev   # the dashboard on :5173, /v1 proxied to :8800
+cd dashboard && npm test && npm run build      # its checks (node --test) and tsc + vite build
 python3 tools/crate_ages.py 2026-11-04          # crates against the 7-day hold
 TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
 uv run trimset-mock-upstream --port 9000        # the mock upstream, for trying the proxy
