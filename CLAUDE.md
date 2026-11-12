@@ -331,7 +331,7 @@ gh workflow run load.yml --repo trimset/trimset # load test, ~20 min; results in
 cd proxy && cargo clippy -j 2 --all-targets -- -D warnings && cargo test -j 2  # the Rust proxy
 npx wrangler@4.157.0 deploy                     # the site to trimset.dev (once: npx wrangler@4.157.0 login)
 uv run --frozen python tools/build_docs.py      # the docs site, into _docs_build/ (ADR 0016)
-npx wrangler@4.157.0 deploy -c wrangler.docs.jsonc   # docs.trimset.dev (needs its DNS record)
+npx wrangler@4.157.0 deploy -c wrangler.docs.jsonc   # docs.trimset.dev (live since 2026-11-12; deploy from a clean main build)
 python3 tools/crate_ages.py 2026-11-04          # crates against the 7-day hold
 TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
 uv run trimset-mock-upstream --port 9000        # the mock upstream, for trying the proxy
