@@ -17,7 +17,7 @@ image tag can be moved.
    ```bash
    for p in trimset trimset-stats trimset-server; do uv version --package $p X.Y.Z; done
    ```
-   Rename `## [Unreleased]` in [CHANGELOG.md](../CHANGELOG.md) to `## [X.Y.Z] - YYYY-MM-DD`,
+   Rename `## [Unreleased]` in [CHANGELOG.md](https://github.com/trimset/trimset/blob/main/CHANGELOG.md) to `## [X.Y.Z] - YYYY-MM-DD`,
    add a fresh empty `[Unreleased]` above it, and update the README's status and
    "not yet" lines. The three packages carry one version. Merge it once CI is green.
 3. **Tag the merge commit on `main` and push the tag:**
