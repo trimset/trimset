@@ -39,7 +39,8 @@ PyPI release. The plan is in [docs/04-plan.md](docs/04-plan.md).
 ## Quickstart
 
 You need Docker with Compose. trimset runs on one machine (aimed at 2 vCPU, 4 GB) with
-Postgres beside it.
+Postgres beside it. No model account? [docs/quickstart.md](docs/quickstart.md) walks from a
+first call to a policy deciding in code with a stand-in model that ships in the repository.
 
 ```bash
 git clone https://github.com/trimset/trimset
@@ -93,6 +94,7 @@ trimset policy compile refund_fraud --model jev-1.14.0 --false-pass 0.02 --confi
 
 ## Docs
 
+- [Quickstart](docs/quickstart.md) and [self-hosting](docs/self-hosting.md): TLS, upgrades, backups, every setting
 - [How it fits together](docs/02-architecture.md) and the decision records in [docs/adr](docs/adr)
 - The API contract: [docs/03-api/openapi.yaml](docs/03-api/openapi.yaml) and the [SDK interface](docs/03-api/sdk.md)
 - [Requirements](docs/01-requirements.md) and the [plan](docs/04-plan.md)
