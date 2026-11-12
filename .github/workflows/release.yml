@@ -1,0 +1,193 @@
+# Releases (TA.1, NFR-16). Push a tag `vX.Y.Z[aN|bN|rcN]` on main to publish; docs/releasing.md
+# has the whole procedure. Started by hand, or by a pull request that touches the release
+# machinery, it is a rehearsal: it builds both images and the wheel, runs the same checks,
+# and publishes nothing. That keeps the arm64 image and the wheel from breaking unseen.
+#
+# Order matters. PyPI cannot be undone, so it goes last; an image tag can be moved.
+#   check -> image (amd64, arm64) + dist -> manifest -> pypi -> github-release
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]*"]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - tools/release_check.py
+      - Dockerfile
+      - uv.lock
+      - proxy/Cargo.lock
+      - "**/pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Keep in step with [tool.uv] exclude-newer in pyproject.toml (7-day supply-chain hold).
+  UV_EXCLUDE_NEWER: "2026-11-03T00:00:00Z"
+  IMAGE: ghcr.io/trimset/trimset
+
+jobs:
+  check:
+    name: check the release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read # to read CI's result for the tagged commit
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+      publish: ${{ steps.check.outputs.publish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: the tagged commit is on main, and CI passed on it
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_REF_NAME is not on main: release from main only"; exit 1; }
+          passed=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" \
+            --json conclusion --jq '[.[] | select(.conclusion == "success")] | length')
+          [ "$passed" -ge 1 ] \
+            || { echo "::error::no green ci run for $GITHUB_SHA: a red run releases nothing"; exit 1; }
+      - id: check
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            python3 tools/release_check.py --tag "$TAG"
+          else
+            python3 tools/release_check.py --dry
+          fi
+
+  image:
+    name: image (${{ matrix.arch }})
+    needs: check
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm } # native, not emulated: the Rust proxy builds here
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: build
+        run: >-
+          docker buildx build --load --provenance=false
+          --platform linux/${{ matrix.arch }}
+          --build-arg VERSION="$VERSION"
+          --tag "$IMAGE:$VERSION-${{ matrix.arch }}" .
+      - name: the image runs on this architecture
+        run: |
+          image="$IMAGE:$VERSION-${{ matrix.arch }}"
+          docker run --rm --entrypoint sh "$image" -c '
+            set -e
+            uname -m
+            trimset-server --help > /dev/null
+            test -x /usr/local/bin/trimset-proxy
+            python -c "import trimset, trimset_stats, trimset_server; print(trimset.__version__)"
+          '
+          docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.version" }}'
+      - name: push
+        if: needs.check.outputs.publish == 'true'
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$VERSION-${{ matrix.arch }}"
+
+  dist:
+    name: the Python package
+    needs: check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: build
+        run: uv build --package trimset --out-dir dist
+      - name: it is a pure Python wheel and sdist with sound metadata
+        run: |
+          ls dist
+          test "$(ls dist/*.whl | wc -l)" = 1
+          case "$(ls dist/*.whl)" in *-py3-none-any.whl) ;; *) echo "::error::not a pure Python wheel"; exit 1 ;; esac
+          uvx twine check --strict dist/*
+      - name: it installs on the oldest supported Python and imports
+        run: >-
+          uv run --no-project --python 3.11 --with dist/*.whl
+          python -c "import trimset; print('trimset', trimset.__version__)"
+      - name: its CLI runs
+        run: uv run --no-project --python 3.11 --with dist/*.whl trimset --help
+
+  manifest:
+    name: multi-arch image tags
+    needs: [check, image, dist]
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      PRERELEASE: ${{ needs.check.outputs.prerelease }}
+    steps:
+      - name: log in
+        env:
+          TOKEN: ${{ github.token }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: one tag for both architectures
+        run: |
+          tags=(--tag "$IMAGE:$VERSION")
+          [ "$PRERELEASE" = false ] && tags+=(--tag "$IMAGE:latest") # an alpha never becomes latest
+          docker buildx imagetools create "${tags[@]}" "$IMAGE:$VERSION-amd64" "$IMAGE:$VERSION-arm64"
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
+
+  pypi:
+    name: publish to PyPI
+    needs: [check, manifest]
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    environment: pypi # add a required reviewer to this environment to approve each release
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing: no token is stored anywhere
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv build --package trimset --out-dir dist
+      - name: publish (files already on PyPI are skipped, so a rerun is safe)
+        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/*
+
+  github-release:
+    name: GitHub release
+    needs: [check, pypi]
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: create the release from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.check.outputs.prerelease }}
+        run: |
+          python3 tools/release_check.py --tag "$TAG" --notes notes.md
+          flag=()
+          [ "$PRERELEASE" = true ] && flag+=(--prerelease)
+          gh release create "$TAG" --title "$TAG" --notes-file notes.md "${flag[@]}"

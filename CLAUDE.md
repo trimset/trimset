@@ -144,6 +144,12 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     job): a month of tickets, a compiled policy approved and activated, an app using the
     SDK that gates six tickets and follows a second policy's activation (+5 s) and a
     rollback (+2 s), and the audit trail. **M3 is done** (2026-11-12); the alpha is next.
+  - TA.1, the release pipeline (`.github/workflows/release.yml`, `tools/release_check.py`,
+    `CHANGELOG.md`, `docs/releasing.md`): a tag `vX.Y.Z[aN|bN|rcN]` on a green `main`
+    builds amd64 and arm64 images on native runners, joins them under one tag on GHCR,
+    then publishes the SDK to PyPI by trusted publishing, then the GitHub release;
+    a pull request touching the release machinery runs it as a rehearsal. Needs the
+    maintainer once: a PyPI pending publisher, the `pypi` environment, GHCR visibility.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

@@ -10,7 +10,8 @@ dependencies = [
     "rfc8785>=0.1.4",
 ]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
   "Typing :: Typed",
 ]
@@ -19,7 +20,10 @@ classifiers = [
 trimset = "trimset.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/trimset/trimset"
+Homepage = "https://trimset.dev"
+Source = "https://github.com/trimset/trimset"
+Issues = "https://github.com/trimset/trimset/issues"
+Changelog = "https://github.com/trimset/trimset/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["uv_build>=0.13.0,<0.14"]
