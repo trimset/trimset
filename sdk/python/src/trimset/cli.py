@@ -258,7 +258,9 @@ def print_fit(fit: dict[str, Any], name: str | None = None) -> None:
     )
 
 
-def print_policy(view: dict[str, Any]) -> None:
+def print_policy(view: dict[str, Any], brief: bool = False) -> None:
+    """A policy's rules, guarantee and history; `brief` leaves out the metrics tables, for
+    the commands that move a policy (the tables haven't changed)."""
     p = view["policy"]
     name = p.get("question_name") or p["question_id"]
     say(f"v{p['version']} {view['state']}: {name} on {p['model_served']} (policy {p['policy_id']})")
@@ -281,8 +283,9 @@ def print_policy(view: dict[str, Any]) -> None:
             step = f"{e['from_state']} -> {e['to_state']}" if e["from_state"] else "compiled"
             why = f": {e['reason']}" if e.get("reason") else ""
             say(f"  {e['at'][:19]}  {step} by {who}{why}")
-    say()
-    print_metrics(p["metrics"])
+    if not brief:
+        say()
+        print_metrics(p["metrics"])
 
 
 # ------------------------------------------------------------------ commands
@@ -494,7 +497,7 @@ def _show(view: dict[str, Any], args: argparse.Namespace) -> None:
     if args.json:
         say(json.dumps(view, indent=2))
     else:
-        print_policy(view)
+        print_policy(view, brief=True)
 
 
 def cmd_coverage(client: Client, args: argparse.Namespace) -> None:

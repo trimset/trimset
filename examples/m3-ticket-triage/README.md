@@ -24,7 +24,8 @@ build. It writes a `.env` with a random database password and secret if you don'
 5. Starts the support app (`app.py`, the SDK's side). It routes six tickets, each gated by
    the live policy, logs each exchange with the action taken, and reports what each ticket
    turned out to need. Then it watches one borderline ticket.
-6. Compiles a second, looser policy and reads its diff (`trimset policy diff`: thresholds,
+6. Compiles a second, looser policy (a 40% error budget, on a model that is already
+   about 32% wrong, so it automates every ticket) and reads its diff (`trimset policy diff`: thresholds,
    metrics, and who supplied the tuning labels). Activates it. The running app switches
    to it within about a poll, without a restart.
 7. `trimset policy rollback`. The app goes back to version 1.
@@ -37,7 +38,9 @@ build. It writes a `.env` with a random database password and secret if you don'
 - The app's watch line changing three times: `policy v1`, then `policy v2` a second or two
   after the activation, then `policy v1` again after the rollback.
 - A diff for v2 with the thresholds before and after.
-- An audit trail of seven policy events, in order, each with its reason.
+- An audit trail of nine policy events, in order: three for the first policy, then
+  submit, approve, the first policy's retirement and the second's activation, and the two
+  halves of the rollback, each with its reason.
 
 The app polls every second here so the demo is quick. The SDK's default is 30 seconds
 (plus or minus 20%), so a change reaches every app within 36 seconds, inside the 60 the

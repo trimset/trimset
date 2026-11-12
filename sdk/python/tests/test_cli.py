@@ -590,6 +590,7 @@ def test_policy_lifecycle_commands_send_the_step_and_show_the_history(
     assert "v3 active: refund_fraud" in out
     assert "2026-11-11T10:00:00  compiled by key 1a2b3c4d" in out
     assert "approved -> active by the server: v8 escalates too much" in out
+    assert "eval" not in out and "tune" not in out  # a transition doesn't reprint the metrics
 
     with pytest.raises(SystemExit):  # reject and retire need a reason
         run("policy", "reject", "p1")
