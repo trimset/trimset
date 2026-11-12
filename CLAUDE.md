@@ -140,6 +140,10 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     `test_gate_benchmark.py` (NFR-04: 1,000 policies, p99 9 us against 1 ms, no socket);
     `server/tests/test_sdk_integration.py` (a real server on a port: an activation and a
     rollback reach the SDK within a poll; the server stopped and restarted).
+  - T3.7, the M3 demo (`examples/m3-ticket-triage/run.sh` and `app.py`, run in CI's image
+    job): a month of tickets, a compiled policy approved and activated, an app using the
+    SDK that gates six tickets and follows a second policy's activation (+5 s) and a
+    rollback (+2 s), and the audit trail. **M3 is done** (2026-11-12); the alpha is next.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
