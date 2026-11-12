@@ -54,6 +54,12 @@ ENTRYPOINT ["trimset-mock-upstream", "--host", "0.0.0.0"]
 
 
 FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f
+ARG VERSION=dev
+LABEL org.opencontainers.image.title="trimset" \
+      org.opencontainers.image.description="Decision ops for decision models: log, calibrate, gate." \
+      org.opencontainers.image.source="https://github.com/trimset/trimset" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.version="$VERSION"
 RUN useradd --system --uid 10001 --no-create-home trimset
 COPY --from=build /app/.venv /app/.venv
 COPY --from=proxy-build /src/proxy/target/release/trimset-proxy /usr/local/bin/trimset-proxy
