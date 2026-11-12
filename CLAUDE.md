@@ -225,7 +225,7 @@ Built early, on 2026-11-11, from the site v2 design (T7.5's pages, TA.3's deploy
   six `use-cases/*.html` share one skeleton: change one, change all six.
 - Claims match what is built. Anything not built carries a "Coming soon" badge or names
   its milestone, and a use case says "Demo available" only when its `examples/` demo
-  exists (today: refund fraud). A PR that builds a feature updates the site with it.
+  exists (today: refund fraud and ticket triage). A PR that builds a feature updates the site with it.
 - `[X]`, `[X]%` and `[N]` stay placeholders until our own demo data fills them.
 - Name no company beyond TypeSafe, OpenAI, Ollama, Ollaya, LangGraph and decision-circuits.
 - `404.html` uses root-absolute links: it is served at any path.
