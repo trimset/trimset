@@ -10,6 +10,7 @@ SDK's tests read gates.json, and the TypeScript SDK's will.
 """
 
 import copy
+import difflib
 import hashlib
 import json
 import pathlib
@@ -130,7 +131,14 @@ def _reference(policy: dict, definition: dict, probs: list[float]) -> dict:
         label = None
     return {"action": action, "label": label, "source": "policy", "reason": None,
             "policy_version": policy["version"], "audit": False,
-            "scalar": float(scored.values[rule.scalar][0])}  # fmt: skip
+            "scalar": _scalar(scored.values[rule.scalar][0])}  # fmt: skip
+
+
+def _scalar(value: float) -> float:
+    """A scalar to 10 decimals: numpy's exp and log differ in the last bit between
+    platforms, so the file must not depend on it. Decisions never sit that close to a
+    threshold (thresholds move off the data, ADR 0006), and SDKs compare with 1e-9."""
+    return round(float(value), 10)
 
 
 def _rule(raw: dict) -> Rule:
@@ -231,8 +239,11 @@ def build() -> dict:
 if __name__ == "__main__":
     text = json.dumps(build(), indent=2, ensure_ascii=False) + "\n"
     if "--check" in sys.argv:
-        if OUT.read_text() != text:
-            sys.exit("gates.json is stale: run gates.py")
+        have = OUT.read_text()
+        if have != text:
+            diff = difflib.unified_diff(have.splitlines(), text.splitlines(), "gates.json",
+                                        "gates.py now", lineterm="", n=1)  # fmt: skip
+            sys.exit("gates.json is stale: run gates.py\n" + "\n".join(list(diff)[:60]))
         print("gates.json is current")
     else:
         OUT.write_text(text)

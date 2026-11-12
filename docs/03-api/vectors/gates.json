@@ -738,7 +738,7 @@
         "reason": null,
         "policy_version": 7,
         "audit": false,
-        "scalar": 0.6694714226996094
+        "scalar": 0.6694714227
       }
     },
     {
@@ -756,7 +756,7 @@
         "reason": null,
         "policy_version": 7,
         "audit": false,
-        "scalar": 0.1213156985494721
+        "scalar": 0.1213156985
       }
     },
     {
@@ -774,7 +774,7 @@
         "reason": null,
         "policy_version": 7,
         "audit": false,
-        "scalar": 0.9449315270766129
+        "scalar": 0.9449315271
       }
     },
     {
@@ -795,7 +795,7 @@
         "reason": null,
         "policy_version": 7,
         "audit": false,
-        "scalar": 0.6694714226996094
+        "scalar": 0.6694714227
       }
     },
     {
@@ -816,7 +816,7 @@
         "reason": null,
         "policy_version": 7,
         "audit": false,
-        "scalar": 0.6694714226996094
+        "scalar": 0.6694714227
       }
     },
     {
@@ -838,7 +838,7 @@
         "reason": null,
         "policy_version": 21,
         "audit": false,
-        "scalar": 0.7711791368481964
+        "scalar": 0.7711791368
       }
     },
     {
@@ -860,7 +860,7 @@
         "reason": null,
         "policy_version": 21,
         "audit": false,
-        "scalar": 0.7711791368481964
+        "scalar": 0.7711791368
       }
     },
     {
@@ -882,7 +882,7 @@
         "reason": null,
         "policy_version": 21,
         "audit": false,
-        "scalar": 0.8705865369971729
+        "scalar": 0.870586537
       }
     },
     {
@@ -904,7 +904,7 @@
         "reason": null,
         "policy_version": 21,
         "audit": false,
-        "scalar": 0.9754107038944021
+        "scalar": 0.9754107039
       }
     },
     {
@@ -926,7 +926,7 @@
         "reason": null,
         "policy_version": 21,
         "audit": false,
-        "scalar": 0.41314662170790917
+        "scalar": 0.4131466217
       }
     },
     {
@@ -948,7 +948,7 @@
         "reason": null,
         "policy_version": 21,
         "audit": false,
-        "scalar": 0.7709179340943457
+        "scalar": 0.7709179341
       }
     },
     {
@@ -1035,7 +1035,7 @@
         "reason": null,
         "policy_version": 41,
         "audit": false,
-        "scalar": 0.2333333333333333
+        "scalar": 0.2333333333
       }
     },
     {

@@ -37,6 +37,6 @@ def test_the_reference_examples(client: Client, example: dict[str, Any]) -> None
     if want["scalar"] is None:
         assert d.scalar is None
     else:
-        assert d.scalar == pytest.approx(want["scalar"], abs=1e-12)
+        assert d.scalar == pytest.approx(want["scalar"], abs=1e-9)
     if "decision_id" in example["gate"]:
         assert d.decision_id == example["gate"]["decision_id"]
