@@ -1,0 +1,1210 @@
+{
+  "schema": "gate-examples/1",
+  "client": {
+    "defaults": {
+      "refund_fraud": "ACCEPT"
+    },
+    "default_model": null
+  },
+  "bundle": {
+    "schema": "bundle/1",
+    "project_id": "0193f0a2-7c4e-7b1a-9d2e-5f6a7b8c9d0e",
+    "generated_at": "2026-11-10T09:40:00Z",
+    "etag": "5af7001fd1ac4031449049a64b93cdf6c9133ec9c5f70aa730c13d70e039ec0a",
+    "state_hash_key": {
+      "alg": "hmac-sha256/1",
+      "key_b64": "lBhyIw+OrsQrfIkq86dr5CJG8Atc9vVevtTkgk0G8rs="
+    },
+    "questions": {
+      "refund_fraud": {
+        "question_id": "q_534a3508f2d81f8c35d11ba5cde4fcc3",
+        "definition": {
+          "schema": "question/1",
+          "type": "noul",
+          "instructions": "Is this refund request fraudulent?",
+          "noul": {
+            "true": null,
+            "false": null
+          }
+        }
+      },
+      "team": {
+        "question_id": "q_2f2dfd41bd9cef53aa72f28c5597af5a",
+        "definition": {
+          "schema": "question/1",
+          "type": "choice",
+          "instructions": "Which team should handle this?",
+          "options": [
+            {
+              "value": "billing",
+              "description": null
+            },
+            {
+              "value": "tech",
+              "description": null
+            },
+            {
+              "value": true,
+              "description": null
+            }
+          ]
+        }
+      },
+      "difficulty": {
+        "question_id": "q_668cbcdca848949efe889127355a6637",
+        "definition": {
+          "schema": "question/1",
+          "type": "score",
+          "instructions": "How hard is this request?",
+          "levels": [
+            {
+              "label": "0",
+              "description": null
+            },
+            {
+              "label": "1",
+              "description": null
+            },
+            {
+              "label": "2",
+              "description": null
+            },
+            {
+              "label": "3",
+              "description": null
+            }
+          ]
+        }
+      },
+      "spam": {
+        "question_id": "q_7a91e56e2545cf14e6875681f35697a2",
+        "definition": {
+          "schema": "question/1",
+          "type": "noul",
+          "instructions": "Is this message spam?",
+          "noul": {
+            "true": null,
+            "false": null
+          }
+        }
+      }
+    },
+    "policies": [
+      {
+        "policy": {
+          "schema": "policy/1",
+          "policy_id": "019a5c00-2222-7aaa-8bbb-ccccdddd0007",
+          "question_id": "q_534a3508f2d81f8c35d11ba5cde4fcc3",
+          "question_name": "refund_fraud",
+          "model_served": "jev-1.14.0",
+          "type": "noul",
+          "version": 7,
+          "created_at": "2026-11-08T03:00:14Z",
+          "fit_id": "019a5c00-1111-7aaa-8bbb-ccccdddd0001",
+          "calibration": {
+            "method": "platt",
+            "a": -0.71,
+            "b": 0.42
+          },
+          "rules": [
+            {
+              "id": "accept",
+              "action": "ACCEPT",
+              "scalar": "p",
+              "op": "lt",
+              "threshold": 0.3
+            },
+            {
+              "id": "block",
+              "action": "BLOCK",
+              "scalar": "p",
+              "op": "ge",
+              "threshold": 0.85
+            }
+          ],
+          "fallback_action": "ESCALATE",
+          "audit_fraction": 0.01,
+          "target": {
+            "kind": "risk",
+            "metric": "false_pass",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "max_escalation": 0.15
+          },
+          "guarantee": {
+            "status": "certified",
+            "method": "ltt-binomial/1",
+            "statement": "With 95% confidence over the tuning data, at most 2% of ACCEPTed refund requests are fraudulent, for future traffic like the tuning window.",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "assumptions": [
+              "Future traffic is exchangeable with the tuning window (no drift since 2026-07-11).",
+              "Only decisions older than the 120-day label horizon were used.",
+              "A refund with no chargeback after 120 days counts as not fraudulent (default-by-rule)."
+            ],
+            "n": {
+              "accept": 7180
+            },
+            "window": {
+              "from": "2026-04-12T00:00:00Z",
+              "to": "2026-07-11T00:00:00Z",
+              "n": 25000
+            }
+          },
+          "metrics": {
+            "tune": {
+              "n": 10000,
+              "automated": 0.857,
+              "escalated": 0.143,
+              "rules": {
+                "accept": {
+                  "fired": 7180,
+                  "wrong": 108,
+                  "unlabeled": 0,
+                  "rate": 0.015,
+                  "ci95": [
+                    0.0124,
+                    0.0181
+                  ]
+                },
+                "block": {
+                  "fired": 1390,
+                  "wrong": 22,
+                  "unlabeled": 0,
+                  "rate": 0.0158,
+                  "ci95": [
+                    0.0099,
+                    0.0239
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            },
+            "eval": {
+              "n": 5000,
+              "automated": 0.856,
+              "escalated": 0.144,
+              "rules": {
+                "accept": {
+                  "fired": 3600,
+                  "wrong": 55,
+                  "unlabeled": 0,
+                  "rate": 0.0153,
+                  "ci95": [
+                    0.0115,
+                    0.0198
+                  ]
+                },
+                "block": {
+                  "fired": 680,
+                  "wrong": 11,
+                  "unlabeled": 0,
+                  "rate": 0.0162,
+                  "ci95": [
+                    0.0081,
+                    0.0288
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            }
+          },
+          "fingerprint": "sha256:32d8f6efeee249f92884e5bf3067e1b38df4ea9ec5bc1f4c088c97220bb0e94c"
+        },
+        "guarantee_status": "certified"
+      },
+      {
+        "policy": {
+          "schema": "policy/1",
+          "policy_id": "019a5c00-2222-7aaa-8bbb-000000000021",
+          "question_id": "q_2f2dfd41bd9cef53aa72f28c5597af5a",
+          "question_name": "team",
+          "model_served": "jev-1.14.0",
+          "type": "choice",
+          "version": 21,
+          "created_at": "2026-11-08T03:00:14Z",
+          "fit_id": "019a5c00-1111-7aaa-8bbb-ccccdddd0001",
+          "calibration": {
+            "method": "temperature",
+            "temperature": 0.8
+          },
+          "rules": [
+            {
+              "id": "select",
+              "action": "SELECT",
+              "scalar": "top",
+              "op": "ge",
+              "threshold": 0.6,
+              "per_option": [
+                {
+                  "value": "tech",
+                  "threshold": 0.9
+                }
+              ]
+            }
+          ],
+          "fallback_action": "ESCALATE",
+          "audit_fraction": 0,
+          "target": {
+            "kind": "risk",
+            "metric": "false_pass",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "max_escalation": 0.15
+          },
+          "guarantee": {
+            "status": "certified",
+            "method": "ltt-binomial/1",
+            "statement": "With 95% confidence over the tuning data, at most 2% of ACCEPTed refund requests are fraudulent, for future traffic like the tuning window.",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "assumptions": [
+              "Future traffic is exchangeable with the tuning window (no drift since 2026-07-11).",
+              "Only decisions older than the 120-day label horizon were used.",
+              "A refund with no chargeback after 120 days counts as not fraudulent (default-by-rule)."
+            ],
+            "n": {
+              "accept": 7180
+            },
+            "window": {
+              "from": "2026-04-12T00:00:00Z",
+              "to": "2026-07-11T00:00:00Z",
+              "n": 25000
+            }
+          },
+          "metrics": {
+            "tune": {
+              "n": 10000,
+              "automated": 0.857,
+              "escalated": 0.143,
+              "rules": {
+                "accept": {
+                  "fired": 7180,
+                  "wrong": 108,
+                  "unlabeled": 0,
+                  "rate": 0.015,
+                  "ci95": [
+                    0.0124,
+                    0.0181
+                  ]
+                },
+                "block": {
+                  "fired": 1390,
+                  "wrong": 22,
+                  "unlabeled": 0,
+                  "rate": 0.0158,
+                  "ci95": [
+                    0.0099,
+                    0.0239
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            },
+            "eval": {
+              "n": 5000,
+              "automated": 0.856,
+              "escalated": 0.144,
+              "rules": {
+                "accept": {
+                  "fired": 3600,
+                  "wrong": 55,
+                  "unlabeled": 0,
+                  "rate": 0.0153,
+                  "ci95": [
+                    0.0115,
+                    0.0198
+                  ]
+                },
+                "block": {
+                  "fired": 680,
+                  "wrong": 11,
+                  "unlabeled": 0,
+                  "rate": 0.0162,
+                  "ci95": [
+                    0.0081,
+                    0.0288
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            }
+          },
+          "fingerprint": "sha256:6644686b3d5a37f1fcc2753597b0ebc3673d0377801d1bf9cc231dc3d4808c97",
+          "option_actions": [
+            "billing"
+          ]
+        },
+        "guarantee_status": "certified"
+      },
+      {
+        "policy": {
+          "schema": "policy/1",
+          "policy_id": "019a5c00-2222-7aaa-8bbb-000000000031",
+          "question_id": "q_668cbcdca848949efe889127355a6637",
+          "question_name": "difficulty",
+          "model_served": "jev-1.14.0",
+          "type": "score",
+          "version": 31,
+          "created_at": "2026-11-08T03:00:14Z",
+          "fit_id": "019a5c00-1111-7aaa-8bbb-ccccdddd0001",
+          "calibration": {
+            "method": "identity"
+          },
+          "rules": [
+            {
+              "id": "accept",
+              "action": "ACCEPT",
+              "scalar": {
+                "tail_ge": 2
+              },
+              "op": "lt",
+              "threshold": 0.1
+            },
+            {
+              "id": "block",
+              "action": "BLOCK",
+              "scalar": {
+                "tail_ge": 3
+              },
+              "op": "ge",
+              "threshold": 0.5
+            }
+          ],
+          "fallback_action": "ESCALATE",
+          "audit_fraction": 0,
+          "target": {
+            "kind": "risk",
+            "metric": "false_pass",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "max_escalation": 0.15
+          },
+          "guarantee": {
+            "status": "certified",
+            "method": "ltt-binomial/1",
+            "statement": "With 95% confidence over the tuning data, at most 2% of ACCEPTed refund requests are fraudulent, for future traffic like the tuning window.",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "assumptions": [
+              "Future traffic is exchangeable with the tuning window (no drift since 2026-07-11).",
+              "Only decisions older than the 120-day label horizon were used.",
+              "A refund with no chargeback after 120 days counts as not fraudulent (default-by-rule)."
+            ],
+            "n": {
+              "accept": 7180
+            },
+            "window": {
+              "from": "2026-04-12T00:00:00Z",
+              "to": "2026-07-11T00:00:00Z",
+              "n": 25000
+            }
+          },
+          "metrics": {
+            "tune": {
+              "n": 10000,
+              "automated": 0.857,
+              "escalated": 0.143,
+              "rules": {
+                "accept": {
+                  "fired": 7180,
+                  "wrong": 108,
+                  "unlabeled": 0,
+                  "rate": 0.015,
+                  "ci95": [
+                    0.0124,
+                    0.0181
+                  ]
+                },
+                "block": {
+                  "fired": 1390,
+                  "wrong": 22,
+                  "unlabeled": 0,
+                  "rate": 0.0158,
+                  "ci95": [
+                    0.0099,
+                    0.0239
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            },
+            "eval": {
+              "n": 5000,
+              "automated": 0.856,
+              "escalated": 0.144,
+              "rules": {
+                "accept": {
+                  "fired": 3600,
+                  "wrong": 55,
+                  "unlabeled": 0,
+                  "rate": 0.0153,
+                  "ci95": [
+                    0.0115,
+                    0.0198
+                  ]
+                },
+                "block": {
+                  "fired": 680,
+                  "wrong": 11,
+                  "unlabeled": 0,
+                  "rate": 0.0162,
+                  "ci95": [
+                    0.0081,
+                    0.0288
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            }
+          },
+          "fingerprint": "sha256:b442d2da0bef22c21e0e595471e3e46885c0505477e01c89c9d5c2801a33fc64"
+        },
+        "guarantee_status": "certified"
+      },
+      {
+        "policy": {
+          "schema": "policy/1",
+          "policy_id": "019a5c00-2222-7aaa-8bbb-000000000041",
+          "question_id": "q_7a91e56e2545cf14e6875681f35697a2",
+          "question_name": "spam",
+          "model_served": "jev-1.14.0",
+          "type": "noul",
+          "version": 41,
+          "created_at": "2026-11-08T03:00:14Z",
+          "fit_id": "019a5c00-1111-7aaa-8bbb-ccccdddd0001",
+          "calibration": {
+            "method": "isotonic",
+            "x": [
+              0.0,
+              0.2,
+              0.5,
+              0.9,
+              1.0
+            ],
+            "y": [
+              0.0,
+              0.05,
+              0.3,
+              0.9,
+              1.0
+            ]
+          },
+          "rules": [
+            {
+              "id": "accept",
+              "action": "ACCEPT",
+              "scalar": "p",
+              "op": "lt",
+              "threshold": 0.3
+            },
+            {
+              "id": "block",
+              "action": "BLOCK",
+              "scalar": "p",
+              "op": "ge",
+              "threshold": 0.85
+            }
+          ],
+          "fallback_action": "ESCALATE",
+          "audit_fraction": 0,
+          "target": {
+            "kind": "risk",
+            "metric": "false_pass",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "max_escalation": 0.15
+          },
+          "guarantee": {
+            "status": "certified",
+            "method": "ltt-binomial/1",
+            "statement": "With 95% confidence over the tuning data, at most 2% of ACCEPTed refund requests are fraudulent, for future traffic like the tuning window.",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "assumptions": [
+              "Future traffic is exchangeable with the tuning window (no drift since 2026-07-11).",
+              "Only decisions older than the 120-day label horizon were used.",
+              "A refund with no chargeback after 120 days counts as not fraudulent (default-by-rule)."
+            ],
+            "n": {
+              "accept": 7180
+            },
+            "window": {
+              "from": "2026-04-12T00:00:00Z",
+              "to": "2026-07-11T00:00:00Z",
+              "n": 25000
+            }
+          },
+          "metrics": {
+            "tune": {
+              "n": 10000,
+              "automated": 0.857,
+              "escalated": 0.143,
+              "rules": {
+                "accept": {
+                  "fired": 7180,
+                  "wrong": 108,
+                  "unlabeled": 0,
+                  "rate": 0.015,
+                  "ci95": [
+                    0.0124,
+                    0.0181
+                  ]
+                },
+                "block": {
+                  "fired": 1390,
+                  "wrong": 22,
+                  "unlabeled": 0,
+                  "rate": 0.0158,
+                  "ci95": [
+                    0.0099,
+                    0.0239
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            },
+            "eval": {
+              "n": 5000,
+              "automated": 0.856,
+              "escalated": 0.144,
+              "rules": {
+                "accept": {
+                  "fired": 3600,
+                  "wrong": 55,
+                  "unlabeled": 0,
+                  "rate": 0.0153,
+                  "ci95": [
+                    0.0115,
+                    0.0198
+                  ]
+                },
+                "block": {
+                  "fired": 680,
+                  "wrong": 11,
+                  "unlabeled": 0,
+                  "rate": 0.0162,
+                  "ci95": [
+                    0.0081,
+                    0.0288
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            }
+          },
+          "fingerprint": "sha256:184c17e06e70d0cf41881ecbd7ccc1e676909d78f0dd9e4604e5e7f12df61c09"
+        },
+        "guarantee_status": "certified"
+      },
+      {
+        "policy": {
+          "schema": "policy/1",
+          "policy_id": "019a5c00-2222-7aaa-8bbb-000000000042",
+          "question_id": "q_7a91e56e2545cf14e6875681f35697a2",
+          "question_name": "spam",
+          "model_served": "jev-1.15.0",
+          "type": "noul",
+          "version": 42,
+          "created_at": "2026-11-08T03:00:14Z",
+          "fit_id": "019a5c00-1111-7aaa-8bbb-ccccdddd0001",
+          "calibration": {
+            "method": "platt",
+            "a": -0.71,
+            "b": 0.42
+          },
+          "rules": [
+            {
+              "id": "accept",
+              "action": "ACCEPT",
+              "scalar": "p",
+              "op": "lt",
+              "threshold": 0.99
+            },
+            {
+              "id": "block",
+              "action": "BLOCK",
+              "scalar": "p",
+              "op": "ge",
+              "threshold": 0.85
+            }
+          ],
+          "fallback_action": "ESCALATE",
+          "audit_fraction": 0,
+          "target": {
+            "kind": "risk",
+            "metric": "false_pass",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "max_escalation": 0.15
+          },
+          "guarantee": {
+            "status": "certified",
+            "method": "ltt-binomial/1",
+            "statement": "With 95% confidence over the tuning data, at most 2% of ACCEPTed refund requests are fraudulent, for future traffic like the tuning window.",
+            "alpha": 0.02,
+            "delta": 0.05,
+            "assumptions": [
+              "Future traffic is exchangeable with the tuning window (no drift since 2026-07-11).",
+              "Only decisions older than the 120-day label horizon were used.",
+              "A refund with no chargeback after 120 days counts as not fraudulent (default-by-rule)."
+            ],
+            "n": {
+              "accept": 7180
+            },
+            "window": {
+              "from": "2026-04-12T00:00:00Z",
+              "to": "2026-07-11T00:00:00Z",
+              "n": 25000
+            }
+          },
+          "metrics": {
+            "tune": {
+              "n": 10000,
+              "automated": 0.857,
+              "escalated": 0.143,
+              "rules": {
+                "accept": {
+                  "fired": 7180,
+                  "wrong": 108,
+                  "unlabeled": 0,
+                  "rate": 0.015,
+                  "ci95": [
+                    0.0124,
+                    0.0181
+                  ]
+                },
+                "block": {
+                  "fired": 1390,
+                  "wrong": 22,
+                  "unlabeled": 0,
+                  "rate": 0.0158,
+                  "ci95": [
+                    0.0099,
+                    0.0239
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            },
+            "eval": {
+              "n": 5000,
+              "automated": 0.856,
+              "escalated": 0.144,
+              "rules": {
+                "accept": {
+                  "fired": 3600,
+                  "wrong": 55,
+                  "unlabeled": 0,
+                  "rate": 0.0153,
+                  "ci95": [
+                    0.0115,
+                    0.0198
+                  ]
+                },
+                "block": {
+                  "fired": 680,
+                  "wrong": 11,
+                  "unlabeled": 0,
+                  "rate": 0.0162,
+                  "ci95": [
+                    0.0081,
+                    0.0288
+                  ]
+                }
+              },
+              "expected_cost_per_1000": null
+            }
+          },
+          "fingerprint": "sha256:80ae067ee1b7839320eb46f033e6f938411b78d4d73cc40b1d01a60255f8ec75"
+        },
+        "guarantee_status": "certified"
+      }
+    ]
+  },
+  "examples": [
+    {
+      "name": "sdk.md §3: Platt maps 0.83 to 0.6695, between the rules",
+      "gate": {
+        "question": "refund_fraud",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "p": 0.83
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 7,
+        "audit": false,
+        "scalar": 0.6694714226996094
+      }
+    },
+    {
+      "name": "below the accept threshold",
+      "gate": {
+        "question": "refund_fraud",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "p": 0.1
+      },
+      "expected": {
+        "action": "ACCEPT",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 7,
+        "audit": false,
+        "scalar": 0.1213156985494721
+      }
+    },
+    {
+      "name": "above the block threshold",
+      "gate": {
+        "question": "refund_fraud",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "p": 0.99
+      },
+      "expected": {
+        "action": "BLOCK",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 7,
+        "audit": false,
+        "scalar": 0.9449315270766129
+      }
+    },
+    {
+      "name": "a systemone answer",
+      "gate": {
+        "question": "refund_fraud",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "answer": {
+          "type": "noul",
+          "noul": 0.83
+        }
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 7,
+        "audit": false,
+        "scalar": 0.6694714226996094
+      }
+    },
+    {
+      "name": "an OpenAI decisions answer",
+      "gate": {
+        "question": "refund_fraud",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "answer": {
+          "type": "predicate",
+          "probability": 0.83
+        }
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 7,
+        "audit": false,
+        "scalar": 0.6694714226996094
+      }
+    },
+    {
+      "name": "the top option is a boolean",
+      "gate": {
+        "question": "team",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "probabilities": [
+          0.1,
+          0.2,
+          0.7
+        ]
+      },
+      "expected": {
+        "action": "SELECT:true",
+        "label": true,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 21,
+        "audit": false,
+        "scalar": 0.7711791368481964
+      }
+    },
+    {
+      "name": "an option in option_actions blocks",
+      "gate": {
+        "question": "team",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "probabilities": [
+          0.7,
+          0.2,
+          0.1
+        ]
+      },
+      "expected": {
+        "action": "BLOCK",
+        "label": "billing",
+        "source": "policy",
+        "reason": null,
+        "policy_version": 21,
+        "audit": false,
+        "scalar": 0.7711791368481964
+      }
+    },
+    {
+      "name": "per_option raises tech's threshold",
+      "gate": {
+        "question": "team",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "probabilities": [
+          0.1,
+          0.8,
+          0.1
+        ]
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 21,
+        "audit": false,
+        "scalar": 0.8705865369971729
+      }
+    },
+    {
+      "name": "tech clears its own threshold",
+      "gate": {
+        "question": "team",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "probabilities": [
+          0.05,
+          0.95,
+          0.0
+        ]
+      },
+      "expected": {
+        "action": "SELECT:tech",
+        "label": "tech",
+        "source": "policy",
+        "reason": null,
+        "policy_version": 21,
+        "audit": false,
+        "scalar": 0.9754107038944021
+      }
+    },
+    {
+      "name": "a tie goes to the first option",
+      "gate": {
+        "question": "team",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "probabilities": [
+          0.4,
+          0.4,
+          0.2
+        ]
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 21,
+        "audit": false,
+        "scalar": 0.41314662170790917
+      }
+    },
+    {
+      "name": "probabilities are divided by their sum",
+      "gate": {
+        "question": "team",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "probabilities": [
+          0.1004,
+          0.2,
+          0.7
+        ]
+      },
+      "expected": {
+        "action": "SELECT:true",
+        "label": true,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 21,
+        "audit": false,
+        "scalar": 0.7709179340943457
+      }
+    },
+    {
+      "name": "a low tail accepts",
+      "gate": {
+        "question": "difficulty",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "probabilities": [
+          0.6,
+          0.35,
+          0.04,
+          0.01
+        ]
+      },
+      "expected": {
+        "action": "ACCEPT",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 31,
+        "audit": false,
+        "scalar": 0.05
+      }
+    },
+    {
+      "name": "a high tail blocks",
+      "gate": {
+        "question": "difficulty",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "probabilities": [
+          0.1,
+          0.1,
+          0.2,
+          0.6
+        ]
+      },
+      "expected": {
+        "action": "BLOCK",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 31,
+        "audit": false,
+        "scalar": 0.6
+      }
+    },
+    {
+      "name": "in between escalates",
+      "gate": {
+        "question": "difficulty",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "probabilities": [
+          0.3,
+          0.3,
+          0.3,
+          0.1
+        ]
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 31,
+        "audit": false,
+        "scalar": 0.4
+      }
+    },
+    {
+      "name": "isotonic interpolates between breakpoints",
+      "gate": {
+        "question": "spam",
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000000",
+        "p": 0.42
+      },
+      "expected": {
+        "action": "ACCEPT",
+        "label": null,
+        "source": "policy",
+        "reason": null,
+        "policy_version": 41,
+        "audit": false,
+        "scalar": 0.2333333333333333
+      }
+    },
+    {
+      "name": "1% of decision ids are audited, by their hash",
+      "gate": {
+        "question": "refund_fraud",
+        "p": 0.1,
+        "model_served": "jev-1.14.0",
+        "decision_id": "019a6f4e-0000-7000-8000-000000000079"
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "audit",
+        "reason": null,
+        "policy_version": 7,
+        "audit": true,
+        "scalar": null
+      }
+    },
+    {
+      "name": "an unknown question",
+      "gate": {
+        "question": "nope",
+        "p": 0.5,
+        "model_served": "jev-1.14.0"
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "default",
+        "reason": "no_policy",
+        "policy_version": null,
+        "audit": false,
+        "scalar": null
+      }
+    },
+    {
+      "name": "no model, and no default_model",
+      "gate": {
+        "question": "refund_fraud",
+        "p": 0.5
+      },
+      "expected": {
+        "action": "ACCEPT",
+        "label": null,
+        "source": "default",
+        "reason": "model_unknown",
+        "policy_version": null,
+        "audit": false,
+        "scalar": null
+      }
+    },
+    {
+      "name": "a policy, but for another model",
+      "gate": {
+        "question": "refund_fraud",
+        "p": 0.5,
+        "model_served": "jev-1.15.0"
+      },
+      "expected": {
+        "action": "ACCEPT",
+        "label": null,
+        "source": "default",
+        "reason": "model_mismatch",
+        "policy_version": null,
+        "audit": false,
+        "scalar": null
+      }
+    },
+    {
+      "name": "a probability outside [0, 1]",
+      "gate": {
+        "question": "refund_fraud",
+        "p": 1.5,
+        "model_served": "jev-1.14.0"
+      },
+      "expected": {
+        "action": "ACCEPT",
+        "label": null,
+        "source": "default",
+        "reason": "invalid_probabilities",
+        "policy_version": null,
+        "audit": false,
+        "scalar": null
+      }
+    },
+    {
+      "name": "probabilities that don't sum to 1",
+      "gate": {
+        "question": "team",
+        "probabilities": [
+          0.5,
+          0.6,
+          0.1
+        ],
+        "model_served": "jev-1.14.0"
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "default",
+        "reason": "invalid_probabilities",
+        "policy_version": null,
+        "audit": false,
+        "scalar": null
+      }
+    },
+    {
+      "name": "a refusal",
+      "gate": {
+        "question": "refund_fraud",
+        "answer": {
+          "type": "refusal"
+        },
+        "model_served": "jev-1.14.0"
+      },
+      "expected": {
+        "action": "ACCEPT",
+        "label": null,
+        "source": "default",
+        "reason": "refusal",
+        "policy_version": null,
+        "audit": false,
+        "scalar": null
+      }
+    },
+    {
+      "name": "the question was reworded",
+      "gate": {
+        "question": "refund_fraud",
+        "p": 0.5,
+        "model_served": "jev-1.14.0",
+        "question_def": {
+          "schema": "question/1",
+          "type": "noul",
+          "instructions": "Is this refund fraud?",
+          "noul": {
+            "true": null,
+            "false": null
+          }
+        }
+      },
+      "expected": {
+        "action": "ACCEPT",
+        "label": null,
+        "source": "default",
+        "reason": "question_changed",
+        "policy_version": null,
+        "audit": false,
+        "scalar": null
+      }
+    },
+    {
+      "name": "the only policy failed its fingerprint",
+      "gate": {
+        "question": "spam",
+        "p": 0.5,
+        "model_served": "jev-1.15.0"
+      },
+      "expected": {
+        "action": "ESCALATE",
+        "label": null,
+        "source": "default",
+        "reason": "fingerprint_mismatch",
+        "policy_version": null,
+        "audit": false,
+        "scalar": null
+      }
+    }
+  ]
+}

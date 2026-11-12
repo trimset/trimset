@@ -5,6 +5,10 @@ calibrations, rules and answers rounded to 4 decimals, as vendors send them, eve
 decision and every scalar must agree.
 """
 
+import subprocess
+import sys
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -89,3 +93,13 @@ def test_score_tails(cal: Calibrator) -> None:
     ]
     actions = Actions(accept_below_level=2, block_from_level=3)
     _check("score", cal, probs, rules, actions, {"type": "score"})
+
+
+def test_the_reference_gate_examples_are_current() -> None:
+    """docs/03-api/vectors/gates.json, which every SDK must reproduce, is what trimset-stats
+    and sdk.md §3 say today (the SDK's own test checks the SDK against it)."""
+    script = Path(__file__).parents[2] / "docs" / "03-api" / "vectors" / "gates.py"
+    out = subprocess.run(  # noqa: S603 - our own script, by absolute path
+        [sys.executable, str(script), "--check"], capture_output=True, text=True, check=False
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
