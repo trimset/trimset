@@ -2,7 +2,9 @@
 
 The Python SDK ships in v0.1 (`pip install trimset`). The TypeScript SDK follows in
 v0.2, with the same behaviour (§8). Both must reproduce [hashing.md](hashing.md)'s test
-vectors and the gate examples below.
+vectors and the gate examples in [vectors/gates.json](vectors/gates.json): a bundle, a
+client configuration, 24 `gate()` calls and the result of each, computed with the numpy
+code the compiler certifies with (`vectors/gates.py` writes and checks it).
 
 ## 1. Client
 
@@ -202,4 +204,4 @@ The same names in camelCase, and the same results:
   a browser.
 - **Hashing:** `node:crypto` for SHA-256 and HMAC, because `gate()` must stay
   synchronous; `canonicalize` 5.1.0 for RFC 8785.
-- **Acceptance:** the same vectors and the same gate examples must pass.
+- **Acceptance:** the same vectors and `vectors/gates.json` must pass.

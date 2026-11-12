@@ -195,7 +195,7 @@ class Client:
         self._stop.set()
         self._sender.close(timeout)
         if self._thread is not None and self._pid == os.getpid():
-            self._thread.join(timeout=2.0)
+            self._thread.join(timeout=0.5)  # a daemon: one stuck on a dead server can't hold us
 
     def _ensure_thread(self) -> None:
         """Starts the poller, and starts it again in a forked child (gunicorn preload)."""
@@ -284,7 +284,7 @@ class Client:
         default: str | None = None,
     ) -> GateResult:
         """The action for one answer, from the live policy (sdk.md §3). Never raises."""
-        did = decision_id or uuid7()
+        did = decision_id if isinstance(decision_id, str) and decision_id else uuid7()
         try:
             self._ensure_thread()
             result = self._gate(
@@ -293,7 +293,7 @@ class Client:
         except Exception:
             log.exception("trimset: gate() failed; returning the default")
             result = self._default(question, default, "no_policy", did)
-        if decision_id is not None:  # logged elsewhere (the proxy): tell the server what we did
+        if did is decision_id:  # logged elsewhere (the proxy): tell the server what we did
             with contextlib.suppress(Exception):
                 self._sender.add("actions", [_action_report(result)])
         return result
@@ -398,19 +398,25 @@ class Client:
 
         return wrapper  # type: ignore[return-value]
 
-    def _default(self, question: str, given: str | None, reason: str, did: str) -> GateResult:
-        action = given or self.defaults.get(question)
+    def _default(self, question: Any, given: Any, reason: str, did: str) -> GateResult:
+        """The action when no policy applies. Total: whatever the caller passed, it returns
+        one of ACCEPT, BLOCK or ESCALATE."""
+        name = question if isinstance(question, str) else ""
+        if given is not None and given not in ACTIONS and "bad-default" not in self._warned:
+            self._warned.add("bad-default")
+            log.warning("trimset: ignoring default=%r; it must be one of %s", given, ACTIONS)
+        action = given if given in ACTIONS else self.defaults.get(name)
         if action is None:
-            q = self._snapshot.questions.get(question)
+            q = self._snapshot.questions.get(name)
             names = [
                 n for n, v in self._snapshot.questions.items() if v is q and n in self.defaults
             ]
             action = self.defaults[names[0]] if names else None
         if action is None:
             action = LIBRARY_DEFAULT
-            if question not in self._warned:
-                self._warned.add(question)
-                log.warning("trimset: no default for %s; using %s", question, LIBRARY_DEFAULT)
+            if name not in self._warned:
+                self._warned.add(name)
+                log.warning("trimset: no default for %s; using %s", name, LIBRARY_DEFAULT)
         return GateResult(action=action, source="default", reason=reason, decision_id=did)
 
     def _gate(

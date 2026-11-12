@@ -134,6 +134,12 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     hashes the state on the calling thread with the bundle's key and never sends it;
     `gate()` with a decision id queues an action report; `outcome()` checks shape only;
     `instrument()` wraps an in-process model. Flushes for 2 s at exit.
+  - T3.6, SDK tests: `docs/03-api/vectors/gates.json` (24 reference `gate()` calls, made
+    by `gates.py` with trimset-stats; `test_gate_examples.py` and the TypeScript SDK reproduce
+    them); `test_chaos.py` (Hypothesis on gate(), a hanging server, garbage bundles, fork);
+    `test_gate_benchmark.py` (NFR-04: 1,000 policies, p99 9 us against 1 ms, no socket);
+    `server/tests/test_sdk_integration.py` (a real server on a port: an activation and a
+    rollback reach the SDK within a poll; the server stopped and restarted).
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

@@ -106,7 +106,7 @@ class Sender:
         self._stop.set()
         self._wake.set()
         if self._thread is not None and self._pid == os.getpid():
-            self._thread.join(timeout=1.0)
+            self._thread.join(timeout=0.5)  # a daemon: one stuck on a dead server can't hold us
 
     def ensure_thread(self) -> None:
         """Starts the thread, and starts it again in a forked child."""
