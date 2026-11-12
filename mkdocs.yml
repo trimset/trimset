@@ -46,6 +46,8 @@ exclude_docs: |
   design/
   kickoff.md
   00-discovery.md
+  __pycache__/
+  .DS_Store
 
 nav:
   - Home: index.md

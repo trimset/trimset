@@ -94,6 +94,7 @@ trimset policy compile refund_fraud --model jev-1.14.0 --false-pass 0.02 --confi
 
 ## Docs
 
+- **[docs.trimset.dev](https://docs.trimset.dev)**: the documentation site, with the generated API reference
 - [Quickstart](docs/quickstart.md) and [self-hosting](docs/self-hosting.md): TLS, upgrades, backups, every setting
 - [How it fits together](docs/02-architecture.md) and the decision records in [docs/adr](docs/adr)
 - The API contract: [docs/03-api/openapi.yaml](docs/03-api/openapi.yaml) and the [SDK interface](docs/03-api/sdk.md)
