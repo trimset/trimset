@@ -155,6 +155,16 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     `docs/self-hosting.md` (what runs, TLS, every setting, backups, upgrades, what is not
     enforced yet). Commands are copied from the demos CI runs; when the first image is
     published, switch the quickstart to `docker compose pull`.
+  - The docs site (ADR 0016, started early by the re-plan): `mkdocs.yml` + `docs/`, built by
+    `tools/build_docs.py` with Zensical 0.1.0 pinned in its own `uv run --no-project` environment
+    (not in the lockfile; the project's cutoff predates it). The API reference is Redoc 2.5.1
+    (3.x is Node-only) in its own page, `docs/api-reference/viewer.html`, framed by
+    `docs/api-reference.md`: the build bundles `openapi.yaml` and `schemas/*.json` into one
+    `openapi.json` and fetches Redoc from npm against a pinned checksum; both are generated,
+    git-ignored. A relative URL in a page is relative to its *source file* (`src="api-reference/…"`,
+    not `"…"`). No `repo_url` in `mkdocs.yml`: the theme would call api.github.com from readers'
+    browsers. The CI job `docs site` builds it when `docs/**`, `mkdocs.yml` or the script change; it is
+    not one of the nine required checks.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
@@ -320,6 +330,8 @@ gh run list --repo trimset/trimset              # the real test results
 gh workflow run load.yml --repo trimset/trimset # load test, ~20 min; results in the log and summary
 cd proxy && cargo clippy -j 2 --all-targets -- -D warnings && cargo test -j 2  # the Rust proxy
 npx wrangler@4.157.0 deploy                     # the site to trimset.dev (once: npx wrangler@4.157.0 login)
+uv run --frozen python tools/build_docs.py      # the docs site, into _docs_build/ (ADR 0016)
+npx wrangler@4.157.0 deploy -c wrangler.docs.jsonc   # docs.trimset.dev (needs its DNS record)
 python3 tools/crate_ages.py 2026-11-04          # crates against the 7-day hold
 TRIMSET_DB_PASSWORD=x docker compose config --quiet   # check compose without starting it
 uv run trimset-mock-upstream --port 9000        # the mock upstream, for trying the proxy

@@ -19,3 +19,7 @@ build/
 tools/load/out/
 proxy/target/
 .wrangler/
+
+# The docs site: built output, and the files tools/build_docs.py generates
+_docs_build/
+docs/api-reference/

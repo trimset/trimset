@@ -118,7 +118,7 @@ docker compose pull && docker compose up -d
 
 The server and the worker migrate the database when they start, under an advisory lock so
 that only one does. Migrations only move forward, so **back up first**, and read the
-release's notes in [CHANGELOG.md](../CHANGELOG.md). There is no downgrade: to go back,
+release's notes in [CHANGELOG.md](https://github.com/trimset/trimset/blob/main/CHANGELOG.md). There is no downgrade: to go back,
 restore the backup you took.
 
 While trimset is 0.x, keep the SDK and the server on the same version.

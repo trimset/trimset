@@ -8,7 +8,7 @@ You need Docker with Compose, `curl`, `openssl` and `python3`. The first build c
 proxy and takes a few minutes; nothing after it does.
 
 Every command below is also in a script that CI runs on each change:
-[examples/m3-ticket-triage](../examples/m3-ticket-triage/run.sh). If something here
+[examples/m3-ticket-triage](https://github.com/trimset/trimset/blob/main/examples/m3-ticket-triage/run.sh). If something here
 doesn't work, that script is the reference.
 
 ## 1. Start trimset
@@ -23,7 +23,7 @@ curl -s http://127.0.0.1:8800/ready                      # {"status":"ready"} wh
 ```
 
 You now have Postgres, the server, the worker and the proxy on port 8800. The stand-in
-model ([`compose.mock.yaml`](../compose.mock.yaml)) is never part of a real install.
+model ([`compose.mock.yaml`](https://github.com/trimset/trimset/blob/main/compose.mock.yaml)) is never part of a real install.
 
 ## 2. A project and its keys
 
@@ -130,7 +130,7 @@ the unclear one is `ESCALATE`: a person decides. Your thresholds will differ a l
 are fitted to the data you generated. Change the policy, or roll it back with `trimset policy rollback team
 --model jev-1.14.0 --reason "..."`, and a running SDK follows within 36 seconds at the very most (it polls every 30, give or take 20%).
 
-[examples/m3-ticket-triage](../examples/m3-ticket-triage) does the whole of steps 4 to 6,
+[examples/m3-ticket-triage](https://github.com/trimset/trimset/tree/main/examples/m3-ticket-triage) does the whole of steps 4 to 6,
 including the second policy and the rollback, in one script.
 
 ## 7. Use your own model

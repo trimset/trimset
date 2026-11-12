@@ -1,6 +1,6 @@
 # Phase 1: Requirements
 
-**Status:** approved 2026-11-10, with the Phase 2 refinements noted on FR-01, FR-07, FR-09 and FR-52 · Inputs: [kickoff.md](kickoff.md), [00-discovery.md](00-discovery.md)
+**Status:** approved 2026-11-10, with the Phase 2 refinements noted on FR-01, FR-07, FR-09 and FR-52 · Inputs: [kickoff.md](https://github.com/trimset/trimset/blob/main/docs/kickoff.md), [00-discovery.md](https://github.com/trimset/trimset/blob/main/docs/00-discovery.md)
 
 ## 1. Vision
 
@@ -35,7 +35,7 @@ Adopting it takes one base-URL change.
 | Runtime | Python SDK with local gate | TypeScript SDK | |
 | Monitoring | Drift, silent upgrades, health signals, alerts | | |
 | Compare and label | Shadow comparison; review queue through API and CLI | Review screen in the dashboard | |
-| Interface | CLI | Web dashboard ([design prompt](design/dashboard-prompt.md)) | |
+| Interface | CLI | Web dashboard ([design prompt](https://github.com/trimset/trimset/blob/main/docs/design/dashboard-prompt.md)) | |
 | Platform | One `docker compose`; projects; API keys | | ClickHouse for very large volumes; SSO |
 
 ## 2. Glossary
@@ -623,7 +623,7 @@ Each requirement lists its release and milestone. M6 (dashboard) moved to v2 in 
 
 ### L. Dashboard (v2)
 
-- **FR-61 Web dashboard** (v2). The screens are those in [design/dashboard-prompt.md](design/dashboard-prompt.md). Every screen's data is already available from the v0.1 API.
+- **FR-61 Web dashboard** (v2). The screens are those in [design/dashboard-prompt.md](https://github.com/trimset/trimset/blob/main/docs/design/dashboard-prompt.md). Every screen's data is already available from the v0.1 API.
 
 ## 9. Non-functional requirements
 

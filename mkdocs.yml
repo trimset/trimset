@@ -1,0 +1,84 @@
+# The docs site (ADR 0016): the Markdown in docs/, built by tools/build_docs.py with Zensical.
+# Material for MkDocs reads this file too, which is the ADR's fallback.
+site_name: trimset
+site_url: https://docs.trimset.dev/
+site_description: Documentation for trimset, decision ops for decision models.
+# No repo_url: the theme would ask api.github.com from every reader's browser, to show
+# stars and the latest release. The link to GitHub is in the footer instead.
+docs_dir: docs
+site_dir: _docs_build
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+extra_css:
+  - assets/trimset.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/trimset/trimset
+      name: trimset on GitHub
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+# The kickoff brief, the discovery notes and the design briefs are the project's own history:
+# in the repository, not in the documentation.
+exclude_docs: |
+  design/
+  kickoff.md
+  00-discovery.md
+
+nav:
+  - Home: index.md
+  - Use trimset:
+      - Quickstart: quickstart.md
+      - Self-hosting: self-hosting.md
+      - SDK interface: 03-api/sdk.md
+      - Wire formats: 03-api/wire-formats.md
+      - API reference: api-reference.md
+      - API overview: 03-api/README.md
+  - Under the hood:
+      - How it fits together: 02-architecture.md
+      - Hashing: 03-api/hashing.md
+      - Research: research.md
+      - Decisions:
+          - adr/0001-server-language.md
+          - adr/0002-monorepo-layout.md
+          - adr/0003-database-and-partitioning.md
+          - adr/0004-process-model-and-jobs.md
+          - adr/0005-stats-library.md
+          - adr/0006-policy-compiler.md
+          - adr/0007-drift-and-health.md
+          - adr/0008-policy-distribution.md
+          - adr/0009-privacy-model.md
+          - adr/0010-question-id.md
+          - adr/0011-proxy-design.md
+          - adr/0012-sdk-fail-open.md
+          - adr/0013-license.md
+          - adr/0014-agents-and-assistant.md
+          - adr/0015-rust-proxy.md
+          - adr/0016-docs-site.md
+  - Contribute:
+      - Requirements: 01-requirements.md
+      - Plan: 04-plan.md
+      - Testing: 05-testing.md
+      - Releasing: releasing.md

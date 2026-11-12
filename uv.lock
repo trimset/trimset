@@ -1954,6 +1954,7 @@ dev = [
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "scikit-learn" },
 ]
@@ -1975,6 +1976,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.3" },
     { name = "pytest", specifier = ">=9.1" },
     { name = "pytest-cov", specifier = ">=7.0" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "ruff", specifier = ">=0.16" },
     { name = "scikit-learn", specifier = ">=1.9.1" },
 ]

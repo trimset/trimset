@@ -56,3 +56,39 @@ user-facing requirement is documented by v0.1.
 - When docs.trimset.dev is live, `site/docs.html` links its cards there instead of into
   the repository.
 - No Node toolchain enters the repository. The OpenAPI viewer is one pinned script.
+
+## Amendment, 2026-11-12: built early, with two changes
+
+The re-plan after M3 ([04-plan.md](../04-plan.md)) moved the API reference and a skeleton of
+the site, with the pages that already exist, ahead of the alpha. Concept pages and
+integration guides stay in T7.1, after M4 and M5. Building it settled two details:
+
+- **Zensical is not in the lockfile.** Its first usable release, 0.1.0 (2026-11-05 15:32
+  UTC), passed the 7-day hold on 2026-11-12, and the project's resolver cutoff
+  (2026-11-03) is still older. Moving the cutoff would re-resolve every development
+  dependency for the sake of a documentation tool. `tools/build_docs.py` instead runs it
+  from an isolated environment (`uv run --no-project --exclude-newer 2026-11-05T15:35:00Z
+  --with zensical==0.1.0`), which holds Zensical's own dependencies at the same date. It
+  ships in no package and no image, as decided. When the project cutoff passes that date,
+  it can move into the dev group.
+- **The OpenAPI viewer is Redoc 2.5.1** (MIT), read-only, so there is no "try it" button
+  to put a key into. Redoc 3.1.0, released a week earlier, ships a standalone bundle that
+  uses `import.meta` for Node and cannot run from a script tag, so the 2.x line, whose
+  browser bundle is what Redoc's own guides describe, is pinned instead. The build fetches it from the npm registry and
+  checks it against the registry's own checksum, pinned in the script, so no third-party
+  script is committed or loaded from a CDN by the reader. The contract is first bundled into
+  one file (`schemas/*.json` inlined), so the viewer never has to fetch files by itself; the
+  bundle and the viewer are generated into `docs/api-reference/`, which is not committed.
+
+- **The reference sits in its own page, framed.** Embedded in a theme page, the theme's
+  heading colours turned Redoc's titles white on white, and the theme's light-on-dark
+  palette fought Redoc's styles at every turn. A generated `viewer.html` that only loads
+  Redoc, framed by `api-reference.md`, keeps the two stylesheets apart.
+- **Who it is for.** The navigation is Use trimset, Under the hood (the architecture,
+  hashing, the decision records) and Contribute (requirements, plan, testing, releasing).
+  The kickoff brief, the discovery notes and the design briefs are the project's history:
+  they stay in the repository and are left out of the site.
+
+Hosting is as decided: docs.trimset.dev, a second assets-only Worker
+(`wrangler.docs.jsonc`), deployed by hand like the site. That needs the DNS record and
+the Cloudflare login of the maintainer.

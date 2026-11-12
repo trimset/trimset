@@ -7,9 +7,11 @@ the coverage gate exist from the first line of product code.
 
 ## 1. Where tests run
 
-- **CI is the source of truth.** [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
+- **CI is the source of truth.** [`.github/workflows/ci.yml`](https://github.com/trimset/trimset/blob/main/.github/workflows/ci.yml)
   runs on every push and pull request.
   - A change is done when its run is green, never before.
+  - A tenth job, `docs site`, builds the documentation (ADR 0016) when `docs/`, `mkdocs.yml` or
+    its build script change; it is not required, but a broken page or API reference shows there.
   - Changes reach `main` through pull requests, which need all nine checks. Its first job
     sorts the changed files, and each check skips when nothing it reads changed: a
     change to the site or to prose runs none, the proxy runs only the Rust job, and the

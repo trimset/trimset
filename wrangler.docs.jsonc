@@ -1,0 +1,12 @@
+// The docs site (docs/ built by tools/build_docs.py) on docs.trimset.dev: static files only.
+// Build first:   uv run --frozen python tools/build_docs.py
+// Deploy:        npx wrangler@4.157.0 deploy -c wrangler.docs.jsonc
+{
+  "name": "trimset-docs",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./_docs_build",
+    "not_found_handling": "404-page"
+  },
+  "routes": [{ "pattern": "docs.trimset.dev", "custom_domain": true }]
+}

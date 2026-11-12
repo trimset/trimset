@@ -30,6 +30,7 @@ jobs:
       code: ${{ steps.sort.outputs.code }}
       rust: ${{ steps.sort.outputs.rust }}
       api: ${{ steps.sort.outputs.api }}
+      docs: ${{ steps.sort.outputs.docs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,25 +40,26 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           set -euo pipefail
-          code=false rust=false api=false
+          code=false rust=false api=false docs=false
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || ! git cat-file -e "${BASE:-none}^{commit}"; then
-            code=true rust=true api=true
+            code=true rust=true api=true docs=true
           else
             git diff --name-only "$BASE" HEAD > changed.txt
             while read -r f; do
               case "$f" in
+                docs/03-api/*) api=true code=true docs=true ;; # the tests read them; so does the site
+                docs/* | mkdocs.yml | wrangler.docs.jsonc) docs=true ;;
+                tools/build_docs.py | tools/tests/test_build_docs.py) code=true docs=true ;;
                 *.md | site/* | wrangler.jsonc | LICENSE | NOTICE | .gitignore) ;;
-                docs/03-api/*) api=true code=true ;; # the server's and SDK's tests read them
-                docs/*) ;;
                 proxy/*) rust=true ;;
-                .github/workflows/ci.yml | Dockerfile | compose*.yaml) code=true rust=true api=true ;;
+                .github/workflows/ci.yml | Dockerfile | compose*.yaml) code=true rust=true api=true docs=true ;;
                 .github/workflows/*) ;; # nightly and load run on their own triggers
                 *) code=true ;;
               esac
             done < changed.txt
             sed 's/^/  /' changed.txt
           fi
-          printf 'code=%s\nrust=%s\napi=%s\n' "$code" "$rust" "$api" | tee -a "$GITHUB_OUTPUT"
+          printf 'code=%s\nrust=%s\napi=%s\ndocs=%s\n' "$code" "$rust" "$api" "$docs" | tee -a "$GITHUB_OUTPUT"
 
   lint:
     name: lint and types
@@ -198,6 +200,25 @@ jobs:
         run: docker compose logs
       - if: always()
         run: docker compose down -v
+
+  docs:
+    name: docs site
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.docs == 'true') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv sync --locked
+      - name: build the site with Zensical, pinned and in its own environment (ADR 0016)
+        run: uv run --frozen python tools/build_docs.py
+      - name: it has its pages and the API reference
+        run: |
+          for f in index.html quickstart/index.html self-hosting/index.html api-reference/index.html \
+                   api-reference/openapi.json api-reference/redoc.standalone.js api-reference/viewer.html 404.html; do
+            test -s "_docs_build/$f" || { echo "::error::_docs_build/$f is missing"; exit 1; }
+          done
+          python3 -c "import json; b = json.load(open('_docs_build/api-reference/openapi.json')); assert len(b['paths']) > 40, len(b['paths'])"
 
   contracts:
     name: API contracts and test vectors
