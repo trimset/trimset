@@ -251,10 +251,14 @@ Built early, on 2026-11-11, from the site v2 design (T7.5's pages, TA.3's deploy
 - Claims match what is built. Anything not built carries a "Coming soon" badge or names
   its milestone, and a use case says "Demo available" only when its `examples/` demo
   exists (today: refund fraud and ticket triage). A PR that builds a feature updates the site with it.
-- `[X]`, `[X]%` and `[N]` stay placeholders until our own demo data fills them. The home
-  table and the refund fraud and ticket triage figures are one CI run of the M2 and M3
-  demos (2026-11-12), labelled generated data and "one run": each fit draws fresh splits,
-  so a rerun differs a little. Retake them when the demos' output changes.
+- **No raw `[X]` or `[N]` in copy a visitor reads.** Until a demo can print the number, say what
+  the compiler does ("lo and hi are proposed from your own labels"). Figures come only from a demo
+  run: the home table and the refund fraud and ticket triage pages are one CI run of the M2 and M3
+  demos (2026-11-12), labelled generated data and "one run" (each fit draws fresh splits, so a rerun
+  differs a little). Retake them when the demos' output changes.
+- **Badges mean three different things:** `Demo available` (an `examples/` demo exists), `No demo yet`
+  (the question type works today, no script), `Coming soon` (something it needs isn't built).
+- Never write a milestone as the future once it is done ("gate() from M3" went stale the day M3 did).
 - Name no company beyond TypeSafe, OpenAI, Ollama, Ollaya, LangGraph and decision-circuits.
 - `404.html` uses root-absolute links: it is served at any path.
 - Check at 390 px: no sideways scroll; code blocks and tables scroll in their own box.
