@@ -1,20 +1,22 @@
 # Phase 4: Plan
 
-**Status:** awaiting approval · 2026-11-10 · Inputs: [01-requirements.md](01-requirements.md), [02-architecture.md](02-architecture.md), [03-api/](03-api/README.md)
+**Status:** approved and under way; re-planned after M3 on 2026-11-12 (section 1) · Inputs: [01-requirements.md](01-requirements.md), [02-architecture.md](02-architecture.md), [03-api/](03-api/README.md)
 
 ## 1. Shape of the plan
 
-- **Budget:** 10 hours a week, starting 2026-11-16.
+- **Budget:** 10 hours a week, starting 2026-11-16. *Superseded for scheduling by the
+  re-plan after M3 below: the hours stay as a measure of each task's size, the dates are gone.*
   - Estimates are your hours, with Claude Code writing most of the code and you
     reviewing, testing and deciding.
   - Every estimate includes tests and docs.
   - A 25% buffer is added to each milestone. Two weeks off at the year end.
 - **Two releases instead of one:**
   - **v0.1.0-alpha**, the closed loop: capture → outcomes → calibrate → compile with a
-    guarantee → gate in the app. Ships after M3, around **2027-07-05**. Getting the core
-    in front of users early is the main answer to the competition risk (R1).
-  - **v0.1.0** adds drift, alerts, shadow models and the review queue. Ships around
-    **2027-10-18**.
+    guarantee → gate in the app. Ships after M3, when its gates are met (the re-plan
+    below; this plan first said 2027-07-05). Getting the core in front of users early is
+    the main answer to the competition risk (R1).
+  - **v0.1.0** adds drift, alerts, shadow models and the review queue. Ships after M7; the
+    date is set after the alpha (this plan first said 2027-10-18).
 - **Re-plan after every milestone.** Actual hours against estimates set the next
   milestone's dates. M1 is the first real measure of speed, so treat the dates after it
   as provisional.
@@ -28,19 +30,51 @@
   assistant ([ADR 0014](adr/0014-agents-and-assistant.md)) add about 35 more; see
   "After v0.1.0" below.
 
-| Milestone | Your hours | With buffer | Weeks | Dates |
-|---|---|---|---|---|
-| M1 Capture | 107 | 134 | 14 + 2 off | 2026-11-16 → 2027-03-07 |
-| M2 Calibrate and compile | 69 | 86 | 9 | 2027-03-08 → 2027-05-09 |
-| M3 Gate | 49 | 61 | 6 | 2027-05-10 → 2027-06-20 |
-| Alpha release | 16 | 20 | 2 | 2027-06-21 → 2027-07-04 |
-| M4 Watch | 38 | 48 | 5 | 2027-07-05 → 2027-08-08 |
-| M5 Compare and review | 34 | 43 | 5 | 2027-08-09 → 2027-09-12 |
-| M7 Launch | 38 | 48 | 5 | 2027-09-13 → 2027-10-17 |
-| **Total** | **351** | **440** | **46 + 2 off** | **v0.1.0 ≈ 2027-10-18** |
+| Milestone | Planned hours | With buffer | Status |
+|---|---|---|---|
+| M1 Capture | 107 | 134 | **Done 2026-11-11.** Open: T1.14 (real calls) and NFR-02 on a rented VM |
+| M2 Calibrate and compile | 69 | 86 | **Done 2026-11-11** |
+| M3 Gate | 49 | 61 | **Done 2026-11-12** |
+| Alpha release | 16 | 20 | **Next.** Ships when its gates are met (below) |
+| M4 Watch | 38 | 48 | Not started |
+| M5 Compare and review | 34 | 43 | Not started |
+| M7 Launch | 38 | 48 | Not started |
+| **Total** | **351** | **440** | v0.1.0 follows M7. No date until the alpha's real pace is known |
 
-At 20 hours a week, the same plan reaches the alpha around 2027-03 and v0.1.0 around
-2027-05.
+### Re-plan after M3 (2026-11-12)
+
+**What happened.** M1 to M3 (225 planned hours, 29 weeks of the original calendar) were
+built between 2026-11-10 and 2026-11-12, with Claude Code writing the code and CI testing
+every change. The plan counted the maintainer's hours at 10 a week; that was not the
+limit, so dates computed from it were the wrong tool. Nothing was cut: all three demos run
+in CI, and the nightly coverage experiment (NFR-09) passes.
+
+**Still open from M1 to M3, and only the maintainer can close it:**
+
+- T1.14: real calls to TypeSafe and OpenAI, which need their keys (a few cents).
+- NFR-02: ingest at 500 records a second on a rented 2 vCPU VM. On GitHub runners it
+  sat at the edge, proxy or not ([ADR 0015](adr/0015-rust-proxy.md)).
+- R6: someone who knows hypothesis testing reads [ADR 0006](adr/0006-policy-compiler.md)
+  and the compiler before the alpha.
+
+**What changes:**
+
+1. **Gates replace dates.** The alpha ships when TA.1 to TA.3 are done *and* the three
+   items above are closed *and* the maintainer has done the one-time setup in
+   [releasing.md](releasing.md) (a PyPI pending publisher, the `pypi` environment, GHCR
+   visibility) *and* has decided how it is announced. Dates for M4, M5 and M7 are set after
+   the alpha, from how long it really took.
+2. **TV.1 (the agent gate and Claude Code hook) moves to right after the alpha, before
+   M4.** It is 12 planned hours, and this plan said it would move if the re-plan found room.
+   The dashboard's drift and alert screens wait one task longer for their endpoints.
+3. **The dashboard (M6) was started early,** in a parallel session, on the public API: a
+   preview runs at demo.trimset.dev on recorded data. The "served by your install" part
+   stays in v0.2. Its remaining screens take endpoints in the order they land: drift
+   reports, alerts and rules, review items, the shadow report.
+4. **T7.1 is split by what is stable.** The API reference (rendered from `openapi.yaml`)
+   and the docs-site skeleton with the pages that exist are done before the alpha
+   ([ADR 0016](adr/0016-docs-site.md)); concept pages and integration guides wait until M4
+   and M5 have settled what there is to explain.
 
 ## 2. Tasks
 
@@ -213,45 +247,26 @@ graph LR
 The critical path runs through the proxy and outcomes (M1), the compiler (M2) and the
 SDK (M3). M4 and M5 depend mostly on M1, so either can move earlier if M2 stalls.
 
-## 4. Timeline
+## 4. Sequence
+
+The original Gantt chart assumed 10 hours a week from 2026-11-16 and is retired with the
+dates (see the re-plan above). The order stands:
 
 ```mermaid
-gantt
-  title trimset v0.1 at 10 hours a week (25% buffer included)
-  dateFormat YYYY-MM-DD
-  axisFormat %b %Y
-  section M1 Capture
-  Scaffold, CI, schema, keys, wire module     :m1a, 2026-11-16, 35d
-  Year-end break                              :crit, brk, after m1a, 14d
-  Log API, proxy, outcomes                    :m1b, after brk, 42d
-  Mock, data generator, tests, load test      :m1c, after m1b, 21d
-  section M2 Calibrate
-  Metrics and calibrators                     :m2a, after m1c, 21d
-  Dataset, compiler, coverage experiment      :m2b, after m2a, 28d
-  Jobs, simulator, CLI, demo                  :m2c, after m2b, 14d
-  section M3 Gate
-  Lifecycle, bundle, scheduled refits         :m3a, after m2c, 14d
-  Python SDK, tests, demo                     :m3b, after m3a, 28d
-  section Alpha
-  Release pipeline, quickstart, homepage      :ta, after m3b, 14d
-  v0.1.0-alpha                                :milestone, alpha, after ta, 0d
-  section M4 Watch
-  Alerts, drift, health, live checks          :m4a, after ta, 21d
-  Silent upgrades, experiments, demo          :m4b, after m4a, 14d
-  section M5 Compare
-  Shadow, review queue                        :m5a, after m4b, 21d
-  Retention, deletion, demo                   :m5b, after m5a, 14d
-  section M7 Launch
-  Docs site, security, operations, community  :m7a, after m5b, 28d
-  Fresh-machine check, launch                 :m7b, after m7a, 7d
-  v0.1.0                                      :milestone, v01, after m7b, 0d
+graph LR
+  M123[M1 to M3: done] --> A[Alpha: TA.1 to TA.3 and the gates]
+  A --> TV1[TV.1 agent gate]
+  TV1 --> M4[M4 Watch]
+  M4 --> M5[M5 Compare and review]
+  M5 --> M7[M7 Launch]
+  M7 --> V01((v0.1.0))
 ```
 
 ## 5. Risks
 
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
-| R1 | **Langfuse or Arize add native decision-model support.** | Medium | High | Ship the alpha in July 2027, not October. Own what they are unlikely to build: finite-sample guarantees, delayed and selective labels, typed questions. Integrate rather than compete: OpenTelemetry export, and an import path from their traces. Publish the research track (`research/`). |
+| R1 | **Langfuse or Arize add native decision-model support.** | Medium | High | Ship the alpha as soon as its gates are met, not at the end of the v0.1 plan. Own what they are unlikely to build: finite-sample guarantees, delayed and selective labels, typed questions. Integrate rather than compete: OpenTelemetry export, and an import path from their traces. Publish the research track (`research/`). |
 | R2 | **The decision-model category fades.** | Low–medium. OpenAI went generally available, and TypeSafe, Ollaya and Ollama all moved within two months. | High | The core (calibration, thresholds, guarantees, drift) works on any probabilities, through the `direct` record format. Wire adapters stay thin and isolated. |
 | R3 | **Solo-maintainer bandwidth.** | High | High | 25% buffer; re-plan after each milestone; every milestone ships something usable; the cut list below; good-first-issues from M3. |
 | R4 | Vendor wire formats change (TypeSafe's spec is at 0.2.0). | Medium | Medium | Recorded fixtures and contract tests per vendor; a monthly changelog check; versioned adapters. |
