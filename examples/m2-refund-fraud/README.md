@@ -26,7 +26,8 @@ It writes a `.env` with a random database password and secret if you don't have 
 6. `trimset calibrate`: fits a calibration map on 40% of the matured refunds, chosen by
    cross-validation, and reports log loss, Brier and ECE, raw against calibrated, on 20%
    it never saw.
-7. `trimset simulate`: what "accept below 0.30, block from 0.85" would have done.
+7. `trimset simulate`: what "accept below t" does at 0.10, 0.18 and 0.30, on the 20% of
+   refunds the fit never saw.
 8. `trimset policy compile`: at most 2% of paid refunds fraudulent with 95% confidence,
    and at most 15% sent to the risk team. Thresholds are tuned on the remaining 40% by
    Learn-then-Test with exact binomial tests.
@@ -35,8 +36,9 @@ It writes a `.env` with a random database password and secret if you don't have 
 
 - Coverage: labels on ACCEPT and ESCALATE, and a warning that BLOCK has almost none.
 - Calibration: Platt scaling, with ECE falling from about 0.07 to about 0.01.
-- Simulate: "accept below 0.30" looks reasonable, but lets about 2% fraud through: the
-  whole budget, with no room for chance.
+- Simulate: the lower the threshold, the fewer refunds are paid out without a look, and
+  the fewer of those are fraud. "Accept below 0.30" looks reasonable, but lets about 2%
+  fraud through: the whole budget, with no room for chance.
 - A draft policy that accepts below about 0.18 instead, with the guarantee in words and
   the number of refunds it rests on. Only about 5% of refunds go to the risk team, well
   under the 15% cap, so the policy needs no BLOCK rule.

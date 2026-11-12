@@ -62,8 +62,12 @@ trimset coverage refund_fraud --model "$MODEL"
 step "trimset calibrate: raw against calibrated, on refunds the fit never saw"
 trimset calibrate refund_fraud --model "$MODEL" --window-days 210
 
-step "trimset simulate: what 'accept below 0.30, block from 0.85' would have done"
-trimset simulate refund_fraud --model "$MODEL" --lo 0.30 --hi 0.85
+step "trimset simulate: what 'accept below t' would do at three thresholds, on the 20% of
+refunds the fit never saw (--split eval: numbers for a threshold picked by looking are optimistic
+on the tune split)"
+for t in 0.10 0.18 0.30; do
+  trimset simulate refund_fraud --model "$MODEL" --lo "$t" --split eval
+done
 
 step "trimset policy compile: at most 2% of paid refunds fraudulent, with 95% confidence,
 and at most 15% sent to the risk team"
