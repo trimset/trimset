@@ -150,6 +150,11 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     then publishes the SDK to PyPI by trusted publishing, then the GitHub release;
     a pull request touching the release machinery runs it as a rehearsal. Needs the
     maintainer once: a PyPI pending publisher, the `pypi` environment, GHCR visibility.
+  - TA.2, `docs/quickstart.md` (a stand-in model, no account: start, keys, a call through
+    the proxy, a generated month of tickets, calibrate, compile, approve, gate) and
+    `docs/self-hosting.md` (what runs, TLS, every setting, backups, upgrades, what is not
+    enforced yet). Commands are copied from the demos CI runs; when the first image is
+    published, switch the quickstart to `docker compose pull`.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after
