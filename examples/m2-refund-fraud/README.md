@@ -39,9 +39,10 @@ It writes a `.env` with a random database password and secret if you don't have 
 - Simulate: the lower the threshold, the fewer refunds are paid out without a look, and
   the fewer of those are fraud. "Accept below 0.30" looks reasonable, but lets about 2%
   fraud through: the whole budget, with no room for chance.
-- A draft policy that accepts below about 0.18 instead, with the guarantee in words and
-  the number of refunds it rests on. Only about 5% of refunds go to the risk team, well
-  under the 15% cap, so the policy needs no BLOCK rule.
+- A draft policy that accepts below roughly 0.2 instead (0.18 and 0.26 in two runs: each
+  fit draws fresh splits), with the guarantee in words and the number of refunds it rests
+  on. Between 3% and 5% of refunds go to the risk team, well under the 15% cap, so the
+  policy needs no BLOCK rule, and a held refund couldn't be measured for one anyway.
 
 The exact numbers vary a little from run to run: each run draws fresh splits.
 

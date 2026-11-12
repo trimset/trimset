@@ -56,14 +56,13 @@
 <div class="card">
 <h2 class="h-22">The policy</h2>
 <ul class="rules">
-<li><span class="when">p &lt; lo</span><span class="act">ACCEPT</span><span class="means">pay out</span></li>
-<li><span class="when">lo ≤ p &lt; hi</span><span class="act">ESCALATE</span><span class="means">the risk team decides</span></li>
-<li><span class="when">p ≥ hi</span><span class="act">BLOCK</span><span class="means">hold the refund</span></li>
+<li><span class="when">p &lt; 0.26</span><span class="act">ACCEPT</span><span class="means">pay out</span></li>
+<li><span class="when">otherwise</span><span class="act">ESCALATE</span><span class="means">the risk team decides</span></li>
 </ul>
 <div class="target">
 <span class="label">target</span>
 <p class="hl text-16">False passes ≤ 2% with 95% confidence, and at most 15% escalated.</p>
-<p class="text">lo = [X], hi = [X]: proposed by the refit on your own labels. 1% of accepted refunds are reviewed anyway, so the refits stay honest.</p>
+<p class="text">0.26 in one run of the demo, on generated data, proposed from 2,131 tuning refunds. On 1,127 refunds it never saw, 96.3% were paid out without a look and 1.66% of those were fraud (95% interval 0.99% to 2.61%). There is no block rule: a held refund almost never gets a chargeback, so its errors can't be measured, and trimset won't certify what it can't measure. 1% of accepted refunds are reviewed anyway, so the refits stay honest.</p>
 </div>
 </div>
 </section>
