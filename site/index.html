@@ -46,8 +46,8 @@ base_url = "https://api.typesafe.ai"
 <span class="c"># after: through trimset, zero code changes</span>
 base_url = "https://trimset.example.com/p/tsp_…"
 
-<span class="c"># later, gate with the live policy (M3)</span>
-d = ts.gate("refund_fraud", p=0.83)
+<span class="c"># then gate with the live policy, locally</span>
+d = ts.gate("refund_fraud", p=0.83, model_served="jev-1.14.0")
 d.action  <span class="c"># ESCALATE  (policy v7)</span></pre>
 </figure>
 </div>
@@ -89,7 +89,7 @@ d.action  <span class="c"># ESCALATE  (policy v7)</span></pre>
 <p class="text">State a target like "at most 2% false passes". trimset recalibrates and proposes thresholds and an escalation band.</p>
 </article>
 <article class="card">
-<p class="eyebrow row-start">04 · Enforce <span class="badge">Coming soon</span></p>
+<p class="eyebrow">04 · Enforce</p>
 <h3>Ship it to your apps</h3>
 <p class="text">You approve, the SDK picks it up and gates locally, with no network call on the request path. Roll back with one command.</p>
 </article>
@@ -196,7 +196,7 @@ cd trimset
 <span class="c"># two secrets in .env first: see Self-hosting</span>
 docker compose up -d
 
-pip install trimset        <span class="c"># the Python SDK, from v0.1</span></pre>
+pip install trimset        <span class="c"># the Python SDK, from the first release</span></pre>
 </div>
 </section>
 </main>
