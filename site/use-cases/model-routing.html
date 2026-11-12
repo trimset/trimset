@@ -29,7 +29,7 @@
 <div class="wrap page">
 <section class="intro">
 <nav class="crumbs" aria-label="Breadcrumb"><a href="./">Use cases</a> / Model routing</nav>
-<div class="row-start"><span class="tag">score</span><span class="badge badge-lg">Coming soon</span></div>
+<div class="row-start"><span class="tag">score</span><span class="badge badge-lg">No demo yet</span></div>
 <h1>Model routing</h1>
 <p class="lead">A chat product answers easy requests with a small, cheap model and hard ones with a large one. A hard request sent small comes back as a bad answer; an easy one sent large costs money on every call.</p>
 <p class="question">“How hard is this request?”</p>
@@ -62,7 +62,7 @@
 <div class="target">
 <span class="label">target</span>
 <p class="hl text-16">The lowest expected cost per 1,000 requests, with a large-model call at $0.012 and a bad small-model answer at $0.20 (illustrative).</p>
-<p class="text">t = [X]. A cost target finds the cheapest point, not a guarantee, and the policy says so.</p>
+<p class="text">The compiler picks t from your own costs. A cost target finds the cheapest point, not a guarantee, and the policy says so.</p>
 </div>
 </div>
 </section>
@@ -78,7 +78,7 @@
 
 <section class="pair" aria-label="Code and dashboard">
 <div class="panel">
-<h2 class="panel-head">In your app · Python SDK, gate() from M3</h2>
+<h2 class="panel-head">In your app · Python SDK</h2>
 <pre>d = ts.gate(&quot;difficulty&quot;, answer=resp[&quot;answers&quot;][&quot;difficulty&quot;],
             model_served=resp[&quot;model&quot;], decision_id=ids[0])
 model = small_model if d.action == &quot;ACCEPT&quot; else large_model
@@ -91,8 +91,8 @@ reply = model.answer(message)</pre>
 </section>
 
 <section class="card cta" aria-label="Try it">
-<p class="text-16">This use case is on the way. The roadmap shows where trimset is.</p>
-<a class="btn btn-primary" href="../roadmap.html">See the roadmap</a>
+<p class="text-16">trimset handles this kind of question today; this use case just has no demo script yet. The quickstart walks the same steps (log, calibrate, compile, approve, gate) with a stand-in model.</p>
+<a class="btn btn-primary" href="https://docs.trimset.dev/quickstart/">Open the quickstart</a>
 </section>
 </div>
 </main>

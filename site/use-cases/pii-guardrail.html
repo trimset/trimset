@@ -29,7 +29,7 @@
 <div class="wrap page">
 <section class="intro">
 <nav class="crumbs" aria-label="Breadcrumb"><a href="./">Use cases</a> / PII guardrail</nav>
-<div class="row-start"><span class="tag">noul</span><span class="badge badge-lg">Coming soon</span></div>
+<div class="row-start"><span class="tag">noul</span><span class="badge badge-lg">No demo yet</span></div>
 <h1>PII guardrail</h1>
 <p class="lead">A company’s internal chat assistant checks every prompt before it reaches an LLM. Personal data that slips through is a leak. The prompts are exactly what must not be stored, so reviewers open them in the company’s own tool.</p>
 <p class="question">“Does this text contain personal data?”</p>
@@ -61,7 +61,7 @@
 <div class="target">
 <span class="label">target</span>
 <p class="hl text-16">False passes ≤ 1% with 95% confidence.</p>
-<p class="text">lo = [X], hi = [X]: proposed by the refit. trimset keeps only a keyed hash of each prompt.</p>
+<p class="text">lo and hi are proposed by the compiler from your own labels. trimset keeps only a keyed hash of each prompt.</p>
 </div>
 </div>
 </section>
@@ -77,7 +77,7 @@
 
 <section class="pair" aria-label="Code and dashboard">
 <div class="panel">
-<h2 class="panel-head">In your app · Python SDK, gate() from M3</h2>
+<h2 class="panel-head">In your app · Python SDK</h2>
 <pre>d = ts.gate(&quot;personal_data&quot;, answer=resp[&quot;answers&quot;][&quot;personal_data&quot;],
             model_served=resp[&quot;model&quot;], decision_id=ids[0])
 if d.action == &quot;BLOCK&quot;:
@@ -92,8 +92,8 @@ elif d.action == &quot;ESCALATE&quot;:
 </section>
 
 <section class="card cta" aria-label="Try it">
-<p class="text-16">This use case is on the way. The roadmap shows where trimset is.</p>
-<a class="btn btn-primary" href="../roadmap.html">See the roadmap</a>
+<p class="text-16">trimset handles this kind of question today; this use case just has no demo script yet. The quickstart walks the same steps (log, calibrate, compile, approve, gate) with a stand-in model.</p>
+<a class="btn btn-primary" href="https://docs.trimset.dev/quickstart/">Open the quickstart</a>
 </section>
 </div>
 </main>
