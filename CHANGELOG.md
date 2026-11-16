@@ -9,7 +9,7 @@ interface. How a release is made: [docs/releasing.md](docs/releasing.md).
 
 The first alpha: capture, outcomes, calibration, a compiled policy with a stated
 guarantee, and `gate()` in your app, end to end. Run it from a checkout with Docker
-Compose; three demos in `examples/` show each stage.
+Compose; the demos in `examples/` show each stage, and one gates an AI agent's tool calls.
 
 ### Added
 
@@ -44,7 +44,7 @@ Compose; three demos in `examples/` show each stage.
   cannot vouch for itself, and every failure is "ask a person", never "allow". `trimset hook` is
   a Claude Code `PreToolUse` hook that enforces the same gate: ask or deny by default, and it only
   lets a call run without a prompt when told to (`--grant`).
-- **Examples.** `examples/m1-capture`, `m2-refund-fraud` and `m3-ticket-triage`, each run
+- **Examples.** `examples/m1-capture`, `m2-refund-fraud`, `m3-ticket-triage` and `agent-gate`, each run
   by CI on every change.
 - **Images** for linux/amd64 and linux/arm64 at `ghcr.io/trimset/trimset`.
 

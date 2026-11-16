@@ -178,7 +178,19 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     `--grant`). Always exit 0 with JSON or nothing: a non-zero exit or bad JSON lets the call proceed. No
     outcomes recorded: Claude Code never says whether an `ask` was approved or denied, so only approvals
     would be visible. SDK tests share `sdk/python/tests/conftest.py` (the fake trimset server).
-    Next: the demo (examples/agent-gate), docs, the site's UC-5 badge.
+    Hardened after a security review: a call with a string over 20,000 characters is never sent to the
+    model (a decision about the cut start says nothing about the rest) and goes to a person, with or
+    without `--grant`; the whole hook is inside one guard, so a failure building the client, reading the
+    settings or closing it is still an `ask`.
+  - TV.1, part 3, the demo (`examples/agent-gate/run.sh`, `show.py`; CI's image job runs it): day one
+    asks, 12,000 labelled calls, the question set to `high_means: accept` with a three-week default
+    rule (the worker must have applied it before calibrating), a policy certified at 0.5% (or 2%),
+    the hook on nine calls, `--grant`, trimset down, the MCP server over its protocol, an incident
+    reported. The stand-in model rates a call by a hash, so the nine calls are ones it rates the way a
+    person would (computed offline with `trimset_tools.mock_upstream.probabilities`, seed 0, version
+    1.14.0); the script says so. Compiled policies here have an accept rule and no block rule: the
+    history has no labels for refused calls. Action reports and outcomes are joined by the worker every
+    60 s; the script restarts it to join them at once. UC-5 is "Demo available" on the site.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

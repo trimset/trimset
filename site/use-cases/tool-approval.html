@@ -29,7 +29,7 @@
 <div class="wrap page">
 <section class="intro">
 <nav class="crumbs" aria-label="Breadcrumb"><a href="./">Use cases</a> / Agent tool approval</nav>
-<div class="row-start"><span class="tag">noul</span><span class="badge badge-lg">Coming soon</span></div>
+<div class="row-start"><span class="tag">noul</span><span class="badge badge-demo badge-lg">Demo available</span></div>
 <h1>Agent tool approval</h1>
 <p class="lead">An operations agent wants to run a database write or send an email. Most calls are safe and should just run; the rare unsafe one needs a person. Bad events are rare, so a low rate takes many labels to prove.</p>
 <p class="question">“Is this tool call safe to run without a human?”</p>
@@ -63,6 +63,7 @@
 <span class="label">target</span>
 <p class="hl text-16">Unsafe passes ≤ 0.5% with 95% confidence. p is the probability that the call is safe.</p>
 <p class="text">Proving 0.5% takes about 600 labeled auto-run calls without an incident. Until then trimset says how many more labels it needs instead of guessing.</p>
+<p class="text">Refusing needs evidence too. In the demo the history has no labels for refused calls, so the policy it compiles accepts above a line and sends everything else to a person.</p>
 </div>
 </div>
 </section>
@@ -95,8 +96,9 @@ else:
 </section>
 
 <section class="card cta" aria-label="Try it">
-<p class="text-16">This use case is on the way. The roadmap shows where trimset is.</p>
-<a class="btn btn-primary" href="../roadmap.html">See the roadmap</a>
+<p class="text-16">Run the demo from a clean checkout: with no policy yet, every call asks. Two months of labeled tool calls end in a compiled policy that a person approves. Then Claude Code's hook and an MCP server apply it: ordinary calls pass quietly, risky ones ask a person, and if trimset cannot be reached the answer is still ask. An incident reported later goes back into the next refit.</p>
+<a class="btn btn-primary" href="https://github.com/trimset/trimset/tree/main/examples/agent-gate">Run the demo</a>
+<a class="btn" href="https://docs.trimset.dev/agents/">Read the guide</a>
 </section>
 </div>
 </main>

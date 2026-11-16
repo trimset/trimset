@@ -21,7 +21,13 @@ it asks instead of guessing, and it never says `ACCEPT` by default.
     A target such as "unsafe runs at most 0.5% of the time, with 95% confidence" needs
     about 600 labelled calls that ran with no incident. Until you have them, the compiler
     says "not enough labels: N more needed" and every call goes to a person. That is the
-    honest answer, and the demo shows it.
+    honest answer, and the demo's first step shows what a project with no policy does.
+
+**Try it.** [examples/agent-gate](https://github.com/trimset/trimset/tree/main/examples/agent-gate) runs the whole story from a clean
+checkout, with the stand-in model that ships in the repository: no policy yet, so every call
+asks; two months of labelled calls; a policy compiled, approved and activated; then the Claude
+Code hook and the MCP server obeying it, `--grant`, trimset unreachable, and an incident
+reported back.
 
 ## The MCP server
 
