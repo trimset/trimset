@@ -89,6 +89,7 @@ for _ in $(seq 90); do # until the worker has finished labelling
 done
 [ "$same" -ge 3 ] || fail "the worker did not apply the three-week rule"
 echo "$rules calls with no incident in three weeks labelled safe"
+SINCE=$(sql "SELECT now()") # decisions the agent makes from here are the ones listed at the end
 
 step "trimset calibrate: is the model's confidence honest?"
 trimset calibrate safe_to_run --model "$MODEL"
@@ -115,15 +116,17 @@ trimset policy activate "$policy" --reason "first policy for safe_to_run"
 
 step "The hook (Claude Code runs it before each tool call) on nine calls, as it ships:
 it can make Claude Code stricter but never more permissive"
+echo "The stand-in model rates a call by a hash of it, not by what it does. These nine are"
+echo "calls it happens to rate the way a person would, so the output reads naturally."
 {
   gate "Bash: pytest -q" Bash command "pytest -q"
   gate "Bash: pwd" Bash command "pwd"
   gate "Bash: git diff --stat" Bash command "git diff --stat"
-  gate "Edit: src/app.py" Edit file_path "src/app.py"
-  gate "Bash: pip install requests" Bash command "pip install requests"
-  gate "Bash: terraform apply -auto-approve" Bash command "terraform apply -auto-approve"
-  gate "Bash: psql -c 'DELETE FROM sessions'" Bash command "psql -c 'DELETE FROM sessions'"
+  gate "Bash: ruff check ." Bash command "ruff check ."
   gate "Bash: git push --force origin main" Bash command "git push --force origin main"
+  gate "Bash: git reset --hard HEAD~10" Bash command "git reset --hard HEAD~10"
+  gate "Bash: docker system prune -af" Bash command "docker system prune -af"
+  gate "Bash: dd if=/dev/zero of=/dev/sda" Bash command "dd if=/dev/zero of=/dev/sda"
   gate "Bash: rm -rf /" Bash command "rm -rf /"
 } | tee "$OUT/calls.txt"
 
@@ -140,12 +143,13 @@ INIT='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
   echo "$INIT"
   echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'
   echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
-  echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"gate","arguments":{"state":{"tool":"Bash","input":{"command":"pip install requests"}}}}}'
+  echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"gate","arguments":{"state":{"tool":"Bash","input":{"command":"ruff check ."}}}}}'
   echo '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"explain","arguments":{"probability":0.97}}}'
 } | agent mcp --model jev-latest > "$OUT/mcp.jsonl"
 python3 "$HERE/show.py" mcp < "$OUT/mcp.jsonl"
 
-step "Later the call turns out to have broken something. The agent reports it, and the next refit learns"
+step "Later that call turns out to have caused an incident. The agent reports it,
+and the next refit learns from it"
 id=$(python3 "$HERE/show.py" decision-id < "$OUT/mcp.jsonl")
 [[ $id =~ ^[0-9a-f-]{36}$ ]] || fail "not a decision id: $id"
 for _ in $(seq 30); do # the proxy logs a decision just after answering
@@ -158,8 +162,22 @@ done
   printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"outcome","arguments":{"decision_id":"%s","safe":false}}}\n' "$id"
 } | agent mcp --model jev-latest | python3 "$HERE/show.py" outcome
 
-step "What trimset recorded"
-trimset decisions tail --question safe_to_run --once
+step "What trimset recorded for the agent: each decision, the action taken, and the incident"
+docker compose restart worker > /dev/null # it joins held action reports and outcomes at start
+pid="(SELECT project_id FROM projects WHERE name = '$project')"
+for _ in $(seq 60); do
+  waiting=$(sql "SELECT count(*) FROM decisions WHERE project_id = $pid
+                 AND received_at >= '$SINCE' AND action_taken IS NULL")
+  [ "$waiting" = 0 ] && break
+  sleep 1
+done
+docker compose exec -T postgres psql -U trimset -d trimset -c "
+  SELECT to_char(d.ts, 'HH24:MI:SS') AS at, round(d.probs[1]::numeric, 3) AS model_says_safe,
+         coalesce(d.action_taken, '-') AS action, d.action_source AS source,
+         coalesce(d.policy_version::text, '-') AS policy,
+         coalesce('safe=' || o.label::text || ' (' || o.source || ')', '') AS later
+  FROM decisions d LEFT JOIN outcomes o USING (project_id, decision_id)
+  WHERE d.project_id = $pid AND d.received_at >= '$SINCE' ORDER BY d.ts"
 
 # What CI checks. The policy is compiled from this run's history, so which of the nine calls
 # gets through varies; these hold whatever the thresholds are.

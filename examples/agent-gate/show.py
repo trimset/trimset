@@ -65,8 +65,7 @@ def text(res: dict[str, Any]) -> str:
 def mcp() -> None:
     by_id = replies()
     server = result(by_id, 1)
-    print(f"  initialize   {server['serverInfo']['name']} {server['serverInfo']['version']},")
-    print(f"               protocol {server['protocolVersion']}")
+    print(f"  initialize   {server['serverInfo']['name']}, protocol {server['protocolVersion']}")
     tools = [t["name"] for t in result(by_id, 2)["tools"]]
     print(f"  tools/list   {', '.join(tools)}")
     if tools != ["gate", "outcome", "explain"]:

@@ -28,14 +28,16 @@ build. It writes a `.env` with a random database password and secret if you don'
    if two months of labels can't certify that, a looser 2%. The compiler says so when it
    can't; it doesn't hand over a policy it can't stand behind.
 5. `submit`, `approve` and `activate`, each with a reason on the record.
-6. Runs the hook on nine calls: tests, `pwd`, a diff and an edit, then a package install,
-   a Terraform apply, a `DELETE`, a force push and `rm -rf /`.
+6. Runs the hook on nine calls: a test run, `pwd`, a diff and a lint run, then a force push,
+   a hard reset, a Docker prune, a `dd` onto a disk and `rm -rf /`.
 7. Shows `--grant`, which lets a call the policy accepts run without a prompt. It is off by
    default.
 8. Points the hook at a trimset that isn't there. The answer is still `ask`.
 9. Drives `trimset mcp` over its protocol: lists its tools, gates a call, has the policy
-   explained, then reports that the call turned out to break something (`outcome`), which
-   the next refit learns from.
+   explained, then reports that the call caused an incident (`outcome`), which the next
+   refit learns from.
+10. Lists what trimset recorded for the agent: each decision, the action taken and the
+    incident.
 
 ## What you should see
 
@@ -43,25 +45,27 @@ build. It writes a `.env` with a random database password and secret if you don'
 - A policy for the question (an accept rule and the guarantee it was certified for), then
   nine hook decisions. The hook only makes Claude Code stricter by default, so each call is
   either `ask` (a person decides) or `silent` (trimset has no objection, and Claude Code
-  decides as it would without it). `deny` appears only when the policy has a block rule, and
-  it has one only when the history contains enough bad calls to certify it. Here that is
-  rare, so most of what the policy won't vouch for is `ask`.
+  decides as it would without it). The four ordinary calls come out `silent` and the five
+  risky ones `ask`. `deny` appears only when the policy has a block rule, and it has one
+  only when the history contains enough bad calls to certify it; here it doesn't, so what
+  the policy won't vouch for goes to a person.
 - With `--grant`, the call the policy accepts becomes `allow`. With trimset down it is `ask`
   even with `--grant`.
 - The MCP session: the server's name, three tools (`gate`, `outcome`, `explain`), a gate
   verdict with a decision id, and the policy in plain words, with what it would do at 97%.
-- The decisions trimset recorded, with the actions taken.
+- A table of the agent's decisions: what the model said, the action taken under policy v1,
+  and `safe=false (downstream)` on the call that was reported as an incident.
 
 ## The stand-in model, and what it means
 
 The decision model here is trimset's mock upstream, which answers from a hash of the call.
-It does not understand commands: a Terraform apply and `pwd` get probabilities that have
-nothing to do with how risky they are. What is real is everything around it: a policy
+It does not understand commands: `chmod -R 777 /` gets a higher "safe" probability than
+`pwd`. The nine calls above are ones it happens to rate the way a person would, which the
+script says as it runs. What is real is everything around it: a policy
 compiled and certified from labelled history, approved by a person, and applied by the hook
 and the server with the failure behaviour above. Point the hook at a real model (any
 `/v1/systemone` upstream, through the proxy) and the same policy gates what it says. The
-policy is compiled from this run's history, so which of the nine calls the stand-in lets
-through changes from run to run; the checks at the end of the script assert only what holds
-whatever the thresholds are.
+policy is compiled from this run's history, so its thresholds move a little from run to
+run; the checks at the end of the script assert only what holds whatever they are.
 
 CI runs this script on every push, in the image job.
