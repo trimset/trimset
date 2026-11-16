@@ -171,7 +171,14 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     with `high_means: accept`. Fail safe: any failure and any default is ESCALATE, never ACCEPT.
     The MCP server is hand-written stdlib JSON-RPC (no `mcp` package). `gate` ignores a probability
     the agent supplies unless `--allow-probability`; `outcome` is always `downstream`; the verdict
-    carries only the proxy's real decision id. Next: the Claude Code PreToolUse hook, then the demo.
+    carries only the proxy's real decision id.
+  - TV.1, part 2, the Claude Code hook (`trimset/hook.py`, `trimset hook`): contract checked against the
+    hooks reference on 2026-11-16 (stdin: tool_name, tool_input; stdout: `hookSpecificOutput` with
+    `permissionDecision` allow|deny|ask). ESCALATE→ask, BLOCK→deny, ACCEPT→silence (→allow only with
+    `--grant`). Always exit 0 with JSON or nothing: a non-zero exit or bad JSON lets the call proceed. No
+    outcomes recorded: Claude Code never says whether an `ask` was approved or denied, so only approvals
+    would be visible. SDK tests share `sdk/python/tests/conftest.py` (the fake trimset server).
+    Next: the demo (examples/agent-gate), docs, the site's UC-5 badge.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

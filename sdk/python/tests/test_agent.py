@@ -3,16 +3,11 @@ MCP server over it. Against a fake trimset server that serves the policy bundle,
 the proxy call and records what the SDK reports."""
 
 import contextlib
-import copy
 import io
 import json
 import os
 import subprocess
 import sys
-import threading
-import uuid
-from collections.abc import Callable, Iterator
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -25,127 +20,16 @@ from trimset.agent import (
     ask_model,
     decide,
     explain,
-    question_definition,
     shorten,
     verdict_of,
 )
-from trimset.hashing import fingerprint, question_id
 from trimset.mcp import AgentConfig, Server
 
-EXAMPLES = Path(__file__).parents[3] / "docs" / "03-api" / "examples"
-EXAMPLE = json.loads((EXAMPLES / "bundle.json").read_text())
 MODEL = "jev-1.14.0"
-DEFINITION = question_definition()
-QID = question_id(DEFINITION)
+pytestmark = pytest.mark.usefixtures("isolated_config")
 
 
-def _bundle(*, policy: bool = True, instructions: str | None = None) -> dict[str, Any]:
-    """A bundle with the agent question, and an approved policy for MODEL: ACCEPT from
-    0.85 up, BLOCK below 0.30, a person in between."""
-    definition = copy.deepcopy(DEFINITION)
-    if instructions is not None:
-        definition["instructions"] = instructions
-    qid = question_id(definition)
-    body = copy.deepcopy(EXAMPLE["policies"][0]["policy"]) | {
-        "question_id": qid,
-        "question_name": agent.QUESTION,
-        "type": "noul",
-        "version": 7,
-        "model_served": MODEL,
-        "calibration": {"method": "identity"},
-        "audit_fraction": 0,
-        "rules": [
-            {"id": "accept", "action": "ACCEPT", "scalar": "p", "op": "ge", "threshold": 0.85},
-            {"id": "block", "action": "BLOCK", "scalar": "p", "op": "lt", "threshold": 0.30},
-        ],
-    }
-    body["fingerprint"] = fingerprint(body)
-    return EXAMPLE | {
-        "questions": {agent.QUESTION: {"question_id": qid, "definition": definition}},
-        "policies": [{"policy": body, "guarantee_status": "certified"}] if policy else [],
-    }
-
-
-class Trimset:
-    """The parts of trimset an agent gate talks to."""
-
-    def __init__(self, bundle: dict[str, Any], p: float | Callable[[Any], float] = 0.97) -> None:
-        self.bundle, self.p, self.served = bundle, p, MODEL
-        self.status = 200
-        self.asked: list[dict[str, Any]] = []
-        self.posts: list[tuple[str, Any]] = []
-        self.redirect = False
-        server = self
-
-        class Handler(BaseHTTPRequestHandler):
-            def _send(self, status: int, body: Any, headers: dict[str, str] | None = None) -> None:
-                data = json.dumps(body).encode()
-                self.send_response(status)
-                for k, v in (headers or {}).items():
-                    self.send_header(k, v)
-                self.send_header("Content-Length", str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
-
-            def do_GET(self) -> None:
-                self._send(200, server.bundle, {"ETag": f'"{server.bundle["etag"]}"'})
-
-            def do_POST(self) -> None:
-                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-                if self.path == "/v1/systemone":
-                    server.asked.append(body | {"_key": self.headers.get("X-Trimset-Key")})
-                    if server.redirect:
-                        self.send_response(302)
-                        self.send_header("Location", "http://127.0.0.1:1/elsewhere")
-                        self.send_header("Content-Length", "0")
-                        self.end_headers()
-                        return
-                    if server.status != 200:
-                        return self._send(server.status, {"title": "no"})
-                    name = next(iter(body["questions"]))
-                    p = server.p(body["state"]) if callable(server.p) else server.p
-                    answer = {"type": "noul", "noul": p}
-                    return self._send(
-                        200,
-                        {"model": server.served, "answers": {name: answer}},
-                        {"X-Trimset-Decision-Id": str(uuid.uuid4())},
-                    )
-                server.posts.append((self.path, body))
-                self._send(200, {"stored": 1, "duplicates": 0, "rejected": 0, "matched": 1})
-
-            def log_message(self, *args: Any) -> None:
-                pass
-
-        self.http = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        threading.Thread(target=self.http.serve_forever, daemon=True).start()
-        self.url = f"http://127.0.0.1:{self.http.server_port}"
-
-    def reports(self) -> list[dict[str, Any]]:
-        return [
-            r for path, b in self.posts if path == "/v1/decisions:actions" for r in b["actions"]
-        ]
-
-    def outcomes(self) -> list[dict[str, Any]]:
-        return [o for path, b in self.posts if path == "/v1/outcomes" for o in b["outcomes"]]
-
-
-@pytest.fixture
-def trimset() -> Iterator[Trimset]:
-    fake = Trimset(_bundle())
-    yield fake
-    fake.http.shutdown()
-
-
-@pytest.fixture(autouse=True)
-def _isolated_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Never read, or write, the developer's own config or cache."""
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
-    for name in ("TRIMSET_URL", "TRIMSET_KEY", "TRIMSET_AGENT_MODEL"):
-        monkeypatch.delenv(name, raising=False)
-
-
-def _client(fake: Trimset, **options: Any) -> Client:
+def _client(fake: Any, **options: Any) -> Client:
     options.setdefault("defaults", {agent.QUESTION: "ESCALATE"})
     client = Client(
         fake.url, "tsi_test", poll_interval=3600, timeout=2, flush_interval=0.05, **options
@@ -168,7 +52,7 @@ def _client(fake: Trimset, **options: Any) -> Client:
     ],
 )
 def test_the_policy_turns_the_models_answer_into_run_ask_or_block(
-    trimset: Trimset, p: float, action: str, hook: str, words: str
+    trimset: Any, p: float, action: str, hook: str, words: str
 ) -> None:
     trimset.p = p
     client = _client(trimset)
@@ -195,7 +79,7 @@ def test_the_policy_turns_the_models_answer_into_run_ask_or_block(
 
 
 @pytest.mark.req("NFR-07")
-def test_anything_that_goes_wrong_asks_a_person_and_never_allows(trimset: Trimset) -> None:
+def test_anything_that_goes_wrong_asks_a_person_and_never_allows(trimset: Any) -> None:
     # The model errors.
     trimset.status = 500
     v = decide(_client(trimset), {"tool": "Bash"}, model="jev-latest")
@@ -215,7 +99,7 @@ def test_anything_that_goes_wrong_asks_a_person_and_never_allows(trimset: Trimse
     assert "version the policy was not compiled for" in v.reason
     # No approved policy yet.
     trimset.served = MODEL
-    trimset.bundle = _bundle(policy=False)
+    trimset.bundle = trimset.bundle_of(policy=False)
     v = decide(_client(trimset), {}, model="jev-latest")
     assert (v.action, v.why_default) == ("ESCALATE", "no_policy")
     assert "no approved policy" in v.reason
@@ -241,7 +125,7 @@ def test_a_default_of_accept_is_never_honoured() -> None:
     assert (v.action, v.source) == ("ESCALATE", "audit") and "audit" in v.reason
 
 
-def test_a_reworded_question_is_a_different_question(trimset: Trimset) -> None:
+def test_a_reworded_question_is_a_different_question(trimset: Any) -> None:
     trimset.p = 0.99
     v = decide(
         _client(trimset), {}, model="jev-latest", instructions="Is it fine to proceed?"
@@ -258,7 +142,7 @@ def test_long_strings_are_cut_before_they_go_to_the_model() -> None:
     assert shorten("short") == "short" and shorten(None) is None
 
 
-def test_asking_the_model_checks_what_it_is_given(trimset: Trimset) -> None:
+def test_asking_the_model_checks_what_it_is_given(trimset: Any) -> None:
     with pytest.raises(AgentError, match="http"):
         ask_model("file:///etc/passwd", "k", "m", {})
     trimset.redirect = True  # a redirect would carry the key elsewhere
@@ -271,7 +155,7 @@ def test_asking_the_model_checks_what_it_is_given(trimset: Trimset) -> None:
 # ------------------------------------------------------------------ explaining
 
 
-def test_explain_says_what_the_policy_is_and_what_it_would_do(trimset: Trimset) -> None:
+def test_explain_says_what_the_policy_is_and_what_it_would_do(trimset: Any) -> None:
     client = _client(trimset)
     text = explain(client, probability=0.5)
     assert "Is this tool call safe to run without a human?" in text
@@ -284,12 +168,12 @@ def test_explain_says_what_the_policy_is_and_what_it_would_do(trimset: Trimset) 
     assert "No policy" not in text and "audit" not in text  # audit_fraction is 0 here
 
 
-def test_explain_when_there_is_nothing_to_explain(trimset: Trimset) -> None:
+def test_explain_when_there_is_nothing_to_explain(trimset: Any) -> None:
     assert "no question called 'nope'" in explain(_client(trimset), name="nope")
-    trimset.bundle = _bundle(policy=False)
+    trimset.bundle = trimset.bundle_of(policy=False)
     text = explain(_client(trimset))
     assert "no approved policy" in text and "every call is sent to a person" in text
-    trimset.bundle = _bundle()
+    trimset.bundle = trimset.bundle_of()
     assert "approved policies for safe_to_run on: jev-1.14.0. Name one." in explain(
         _client(trimset), model="other"
     )
@@ -298,7 +182,7 @@ def test_explain_when_there_is_nothing_to_explain(trimset: Trimset) -> None:
 # ------------------------------------------------------------------ the MCP server
 
 
-def _server(trimset: Trimset, **options: Any) -> Server:
+def _server(trimset: Any, **options: Any) -> Server:
     config = AgentConfig(trimset.url, "tsi_test", "jev-latest", timeout=2.0)
     return Server(_client(trimset), config, **options)
 
@@ -316,7 +200,7 @@ def _call(server: Server, name: str, arguments: dict[str, Any], mid: int = 1) ->
     return reply["result"]  # type: ignore[no-any-return]
 
 
-def test_the_handshake_negotiates_a_version_and_lists_three_tools(trimset: Trimset) -> None:
+def test_the_handshake_negotiates_a_version_and_lists_three_tools(trimset: Any) -> None:
     s = _server(trimset)
     init = s.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize",
                      "params": {"protocolVersion": "2025-03-26", "capabilities": {}}})  # fmt: skip
@@ -338,7 +222,7 @@ def test_the_handshake_negotiates_a_version_and_lists_three_tools(trimset: Trims
     assert "probability" not in by_name["gate"]["inputSchema"]["properties"]  # an agent can't vouch
 
 
-def test_protocol_errors_are_answered_and_never_end_the_session(trimset: Trimset) -> None:
+def test_protocol_errors_are_answered_and_never_end_the_session(trimset: Any) -> None:
     s = _server(trimset)
     assert s.handle({"jsonrpc": "2.0", "id": 1, "method": "nope"})["error"]["code"] == -32601
     assert s.handle({"id": 2, "method": "ping"})["error"]["code"] == -32600  # no "jsonrpc"
@@ -354,7 +238,7 @@ def test_protocol_errors_are_answered_and_never_end_the_session(trimset: Trimset
 
 
 @pytest.mark.req("FR-35")
-def test_gate_asks_the_model_itself_and_returns_the_policys_verdict(trimset: Trimset) -> None:
+def test_gate_asks_the_model_itself_and_returns_the_policys_verdict(trimset: Any) -> None:
     trimset.p = 0.2
     s = _server(trimset)
     result = _call(s, "gate", {"state": {"tool": "Bash", "input": {"command": "rm -rf /"}}})
@@ -368,7 +252,7 @@ def test_gate_asks_the_model_itself_and_returns_the_policys_verdict(trimset: Tri
 
 
 @pytest.mark.req("FR-35")
-def test_an_agent_cannot_vouch_for_itself(trimset: Trimset) -> None:
+def test_an_agent_cannot_vouch_for_itself(trimset: Any) -> None:
     trimset.p = 0.05  # the model thinks it is dangerous
     s = _server(trimset)
     result = _call(s, "gate", {"state": {"tool": "Bash"}, "probability": 0.99})  # a forged answer
@@ -386,7 +270,7 @@ def test_an_agent_cannot_vouch_for_itself(trimset: Trimset) -> None:
     assert "probability" in {t["name"]: t for t in tools}["gate"]["inputSchema"]["properties"]
 
 
-def test_gate_needs_something_to_decide_about_and_fails_safe(trimset: Trimset) -> None:
+def test_gate_needs_something_to_decide_about_and_fails_safe(trimset: Any) -> None:
     s = _server(trimset)
     missing = _call(s, "gate", {})
     assert missing["isError"] is True and "state is required" in missing["content"][0]["text"]
@@ -395,7 +279,7 @@ def test_gate_needs_something_to_decide_about_and_fails_safe(trimset: Trimset) -
     assert broken["structuredContent"]["action"] == "ESCALATE" and broken["isError"] is False
 
 
-def test_outcomes_are_recorded_as_downstream_and_checked(trimset: Trimset) -> None:
+def test_outcomes_are_recorded_as_downstream_and_checked(trimset: Any) -> None:
     s = _server(trimset)
     result = _call(
         s, "outcome", {"decision_id": "0193f0a2-7c4e-7b1a-9d2e-5f6a7b8c9d0e", "safe": False}
@@ -414,7 +298,7 @@ def test_outcomes_are_recorded_as_downstream_and_checked(trimset: Trimset) -> No
     assert len(trimset.outcomes()) == 1
 
 
-def test_explain_is_a_tool_too(trimset: Trimset) -> None:
+def test_explain_is_a_tool_too(trimset: Any) -> None:
     s = _server(trimset)
     text = _call(s, "explain", {"probability": 0.9})["content"][0]["text"]
     assert "ACCEPT when p >= 0.8500" in text and "says ACCEPT" in text
@@ -422,7 +306,7 @@ def test_explain_is_a_tool_too(trimset: Trimset) -> None:
     assert not trimset.posts  # read-only: nothing was logged or reported
 
 
-def test_serve_reads_lines_and_writes_only_protocol_messages(trimset: Trimset) -> None:
+def test_serve_reads_lines_and_writes_only_protocol_messages(trimset: Any) -> None:
     s = _server(trimset)
     out = io.StringIO()
     lines = [
@@ -458,7 +342,7 @@ def _run(args: list[str], env: dict[str, str], stdin: str = "") -> subprocess.Co
 
 
 def test_the_command_speaks_mcp_on_real_pipes_and_prints_nothing_else(
-    trimset: Trimset, tmp_path: Path
+    trimset: Any, tmp_path: Path
 ) -> None:
     trimset.p = 0.97
     env = os.environ | {

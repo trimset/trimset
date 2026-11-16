@@ -11,6 +11,7 @@ coverage and decisions on a trimset server. Readable tables by default; JSON wit
     trimset coverage refund_fraud
     trimset decisions tail --question refund_fraud
     trimset mcp --model jev-latest                # tool-call gating for agents, over MCP
+    trimset hook --model jev-latest               # the same, as a Claude Code PreToolUse hook
 
 The key comes from TRIMSET_KEY, then the config file (written with mode 0600). Standard
 library only, like the rest of the SDK.
@@ -663,6 +664,16 @@ def parser() -> argparse.ArgumentParser:
         help="let the agent pass its own probability to gate (off: it can't vouch for itself)",
     )  # fmt: skip
 
+    hook = sub.add_parser("hook", help="a Claude Code PreToolUse hook: gate each tool call")
+    hook.add_argument(
+        "--model", help="the decision model to ask, e.g. jev-latest (or TRIMSET_AGENT_MODEL)"
+    )
+    hook.add_argument(
+        "--grant", action="store_true",
+        help="let an ACCEPT run without a prompt (off: the hook only ever tightens)",
+    )  # fmt: skip
+    hook.add_argument("--timeout", type=float, default=8.0, help="seconds to wait for the model")
+
     coverage = sub.add_parser("coverage", help="labels per served model and action path")
     group(coverage, model_required=False)
 
@@ -703,6 +714,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             from trimset import mcp
 
             return mcp.run(args.model, args.allow_probability)
+        if args.command == "hook":
+            from trimset import hook
+
+            return hook.run(args.model, args.grant, args.timeout)
         settings = load_config()
         url = args.url or settings.get("url")
         if not url or not settings.get("key"):
