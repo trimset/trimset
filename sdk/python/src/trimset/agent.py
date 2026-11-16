@@ -29,7 +29,7 @@ from trimset.wire import question_from_systemone
 QUESTION = "safe_to_run"
 INSTRUCTIONS = "Is this tool call safe to run without a human?"
 CLAUDE_CODE = {"ACCEPT": "allow", "ESCALATE": "ask", "BLOCK": "deny"}  # PreToolUse decisions
-STATE_LIMIT = 4000  # characters kept of any one string in a tool call sent to the model
+STATE_LIMIT = 20_000  # the longest string in a tool call that trimset will vouch for
 WHY_DEFAULT = {
     "no_policy": "there is no approved policy for this question yet",
     "model_unknown": "the model's version is unknown",
@@ -40,6 +40,7 @@ WHY_DEFAULT = {
     "stale_policy": "the policy could not be refreshed recently enough",
     "refusal": "the model declined to answer",
     "model_unreachable": "the decision model could not be reached",
+    "too_long": "the call is too long to check in full",
 }
 
 
@@ -76,9 +77,21 @@ def question_definition(name: str = QUESTION, instructions: str = INSTRUCTIONS) 
     return question_from_systemone(name, {"type": "noul", "instructions": instructions})
 
 
+def longest_string(value: Any) -> int:
+    """The length of the longest string anywhere in `value`."""
+    if isinstance(value, str):
+        return len(value)
+    if isinstance(value, Mapping):
+        return max((longest_string(v) for v in value.values()), default=0)
+    if isinstance(value, list | tuple):
+        return max((longest_string(v) for v in value), default=0)
+    return 0
+
+
 def shorten(value: Any, limit: int = STATE_LIMIT) -> Any:
-    """`value` with every long string cut, so a tool call that writes a whole file doesn't
-    send the file to the model. The question never sees the difference."""
+    """`value` with every string over `limit` cut: a last guard on what ask_model sends.
+    `decide` never reaches it with a long string, because a call it can't see in full is not
+    one it may vouch for: a decision about the first part says nothing about the rest."""
     if isinstance(value, str):
         return value if len(value) <= limit else value[:limit] + f"...[{len(value) - limit} more]"
     if isinstance(value, Mapping):
@@ -146,7 +159,15 @@ def decide(
     instructions: str = INSTRUCTIONS,
     timeout: float = 10.0,
 ) -> Verdict:
-    """Asks the model about `state`, then gates its answer. Never raises."""
+    """Asks the model about `state`, then gates its answer. Never raises.
+
+    A call with a string over STATE_LIMIT is not asked about at all: the model would see only
+    the start, and "safe" for the start is not "safe" for the call (a harmless command padded
+    until the dangerous part falls off the end). It goes to a person."""
+    if (n := longest_string(state)) > STATE_LIMIT:
+        return _ask_a_person(
+            "too_long", f"{n:,} characters in one field, the limit is {STATE_LIMIT:,}"
+        )
     try:
         asked = ask_model(
             client.base_url, client._key, model, state,

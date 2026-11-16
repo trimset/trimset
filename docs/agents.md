@@ -137,7 +137,7 @@ not while you are trying things out with a stand-in model. Even then, Claude Cod
 **It doesn't let a call through when something fails.** Claude Code proceeds when a hook
 exits with an error or prints something that isn't JSON, so this one never does either:
 whatever goes wrong (trimset unreachable, no policy, a model version the policy wasn't
-compiled for, a bug), it answers `ask`. Two cases are Claude Code's own, not the hook's: if the
+compiled for, a call too long to check in full, a bug), it answers `ask`. Two cases are Claude Code's own, not the hook's: if the
 hook times out, Claude Code carries on through its normal permission flow, so keep the
 timeout short; and a newer Claude Code can be told to block instead when a hook fails or times
 out (`"onFailure": "block"` on the hook, per its hooks reference).
@@ -150,5 +150,6 @@ escalated calls, and from incident reports through the `outcome` tool or the CLI
 ### Privacy
 
 The tool call is sent to the decision model you configured, because that is what answers
-the question. trimset keeps only a keyed hash of it. Long strings (a whole file being
-written) are cut to 4,000 characters before they are sent.
+the question. trimset keeps only a keyed hash of it. A call with a string over 20,000
+characters (a very large file being written) is not sent at all: a decision about the start
+of it would say nothing about the rest, so it goes to a person instead.

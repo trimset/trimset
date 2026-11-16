@@ -26,6 +26,7 @@ policy that nothing is dangerous. Outcomes come from people (the review queue, `
 or the MCP server's `outcome` tool for incidents).
 """
 
+import contextlib
 import json
 import logging
 import sys
@@ -72,7 +73,16 @@ def _ask(reason: str) -> dict[str, Any]:
 def hook_output(
     raw: str, *, model: str | None, grant: bool = False, timeout: float = 8.0
 ) -> dict[str, Any] | None:
-    """What to print for one hook invocation. Never raises."""
+    """What to print for one hook invocation. Never raises: whatever goes wrong, even in
+    code this module doesn't control, is an ask."""
+    try:
+        return _decide(raw, model=model, grant=grant, timeout=timeout)
+    except Exception as e:
+        log.exception("hook failed")
+        return _ask(f"the check failed ({type(e).__name__})")
+
+
+def _decide(raw: str, *, model: str | None, grant: bool, timeout: float) -> dict[str, Any] | None:
     try:
         event = json.loads(raw)
     except ValueError:
@@ -83,7 +93,7 @@ def hook_output(
         return None  # not ours to decide
     try:
         config = AgentConfig.from_env(model=model)
-    except ValueError as e:
+    except Exception as e:  # a missing setting, or a config file that isn't what it should be
         log.warning("%s", e)
         return _ask(f"trimset is not configured ({e})")
     state = {"tool": event.get("tool_name"), "input": event.get("tool_input")}
@@ -98,11 +108,9 @@ def hook_output(
             instructions=config.instructions, timeout=timeout,
         )  # fmt: skip
         client.flush(2.0)  # the action report, before this process exits
-    except Exception as e:  # nothing here may let a call through
-        log.exception("hook failed")
-        return _ask(f"the check failed ({type(e).__name__})")
     finally:
-        client.close(0.5)
+        with contextlib.suppress(Exception):
+            client.close(0.5)
     if verdict.action == "ACCEPT" and not grant:
         log.info("allowed by policy, not granting a prompt-free run (use --grant)")
     return permission_output(verdict, grant)
@@ -122,5 +130,6 @@ def run(
         raw = ""
     out = hook_output(raw, model=model, grant=grant, timeout=timeout)
     if out is not None:
-        (stdout or sys.stdout).write(json.dumps(out) + "\n")
+        with contextlib.suppress(OSError):  # a closed pipe: nothing more can be said
+            (stdout or sys.stdout).write(json.dumps(out) + "\n")
     return 0

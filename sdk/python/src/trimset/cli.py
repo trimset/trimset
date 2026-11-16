@@ -59,9 +59,11 @@ def load_config() -> dict[str, str]:
         saved = json.loads(path.read_text())
     except (OSError, ValueError):
         saved = {}
+    if not isinstance(saved, dict):
+        saved = {}
     url = os.environ.get("TRIMSET_URL") or saved.get("url")
     key = os.environ.get("TRIMSET_KEY") or saved.get("key")
-    return {k: v for k, v in (("url", url), ("key", key)) if v}
+    return {k: v for k, v in (("url", url), ("key", key)) if isinstance(v, str) and v}
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

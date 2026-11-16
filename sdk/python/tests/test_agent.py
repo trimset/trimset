@@ -15,11 +15,13 @@ import pytest
 
 from trimset import Client, GateResult, agent
 from trimset.agent import (
+    STATE_LIMIT,
     AgentError,
     Asked,
     ask_model,
     decide,
     explain,
+    longest_string,
     shorten,
     verdict_of,
 )
@@ -133,13 +135,33 @@ def test_a_reworded_question_is_a_different_question(trimset: Any) -> None:
     assert (v.action, v.why_default) == ("ESCALATE", "question_changed")
 
 
-def test_long_strings_are_cut_before_they_go_to_the_model() -> None:
+def test_shorten_is_only_a_last_guard_on_what_ask_model_sends() -> None:
     big = "x" * 10_000
-    out = shorten({"tool": "Write", "input": {"content": big, "path": "a.txt", "n": 3}, "l": [big]})
+    out = shorten(
+        {"tool": "Write", "input": {"content": big, "path": "a.txt", "n": 3}, "l": [big]}, 4000
+    )
     assert out["input"]["path"] == "a.txt" and out["input"]["n"] == 3
     assert len(out["input"]["content"]) < 4100 and out["input"]["content"].endswith("[6000 more]")
     assert out["l"][0].endswith("[6000 more]")
     assert shorten("short") == "short" and shorten(None) is None
+
+
+def test_the_longest_string_is_found_anywhere_in_the_call() -> None:
+    assert longest_string({"a": ["ab", {"b": "abcd"}], "n": 7, "t": ("abcde",)}) == 5
+    assert longest_string({}) == 0 and longest_string(None) == 0 and longest_string(12345) == 0
+
+
+@pytest.mark.req("NFR-07")
+def test_a_call_too_long_to_check_in_full_is_never_asked_about(trimset: Any) -> None:
+    """A decision about the start of a call says nothing about the rest of it."""
+    trimset.p = 0.99
+    padded = {"tool": "Bash", "input": {"command": "ls " + " " * STATE_LIMIT + "; rm -rf ~"}}
+    v = decide(_client(trimset), padded, model="jev-latest")
+    assert (v.action, v.source, v.why_default) == ("ESCALATE", "default", "too_long")
+    assert "too long to check in full" in v.reason and "20,0" in v.reason
+    assert not trimset.asked and not trimset.reports()  # not asked, and nothing to report
+    edge = {"tool": "Bash", "input": {"command": "x" * STATE_LIMIT}}
+    assert decide(_client(trimset), edge, model="jev-latest").action == "ACCEPT"
 
 
 def test_asking_the_model_checks_what_it_is_given(trimset: Any) -> None:
