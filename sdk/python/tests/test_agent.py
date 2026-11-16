@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -31,11 +32,25 @@ MODEL = "jev-1.14.0"
 pytestmark = pytest.mark.usefixtures("isolated_config")
 
 
+_made: list[Client] = []
+
+
+@pytest.fixture(autouse=True)
+def _close_clients() -> Iterator[None]:
+    """A client keeps a sender thread that retries a dead server: stop each one with its test,
+    or it can reach the network during a later test that forbids it (the gate benchmark)."""
+    yield
+    while _made:
+        with contextlib.suppress(Exception):
+            _made.pop().close(0)
+
+
 def _client(fake: Any, **options: Any) -> Client:
     options.setdefault("defaults", {agent.QUESTION: "ESCALATE"})
     client = Client(
         fake.url, "tsi_test", poll_interval=3600, timeout=2, flush_interval=0.05, **options
     )
+    _made.append(client)
     with contextlib.suppress(Exception):  # some tests are of an unreachable trimset
         client.refresh()
     return client
@@ -109,6 +124,7 @@ def test_anything_that_goes_wrong_asks_a_person_and_never_allows(trimset: Any) -
     trimset.http.shutdown()
     trimset.http.server_close()
     gone = Client(trimset.url, "tsi_test", poll_interval=3600, timeout=0.5)
+    _made.append(gone)
     v = decide(gone, {}, model="jev-latest", timeout=0.5)
     assert (v.action, v.source) == ("ESCALATE", "default")
 

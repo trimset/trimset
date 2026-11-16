@@ -163,7 +163,13 @@ def test_a_failure_anywhere_in_the_hook_is_an_ask_never_a_crash(
 
     monkeypatch.setenv("TRIMSET_URL", configured.url)
     monkeypatch.setenv("TRIMSET_KEY", "tsi_test")
-    monkeypatch.setattr(Client, "close", boom)  # shutting down: the decision still stands
+    real_close = Client.close
+
+    def close_then_fail(self: Client, timeout: float = 2.0) -> None:
+        real_close(self, timeout)  # really stop it: a leaked client outlives this test
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(Client, "close", close_then_fail)  # shutting down: the decision stands
     assert _decision(_out(CALL, grant=True))[0] == "allow"
 
 
