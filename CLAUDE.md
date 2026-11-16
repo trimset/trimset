@@ -165,6 +165,13 @@ on drift. The full brief is [docs/kickoff.md](docs/kickoff.md); it calls the pro
     not `"…"`). No `repo_url` in `mkdocs.yml`: the theme would call api.github.com from readers'
     browsers. The CI job `docs site` builds it when `docs/**`, `mkdocs.yml` or the script change; it is
     not one of the nine required checks.
+  - TV.1, part 1, agents over MCP (`trimset/agent.py`, `trimset/mcp.py`, `trimset mcp`, docs/agents.md):
+    `agent.decide()` asks the decision model through the proxy (the key is an ingest key: it can
+    proxy) and gates the answer; the question is `safe_to_run`, P(safe), so its policy is compiled
+    with `high_means: accept`. Fail safe: any failure and any default is ESCALATE, never ACCEPT.
+    The MCP server is hand-written stdlib JSON-RPC (no `mcp` package). `gate` ignores a probability
+    the agent supplies unless `--allow-probability`; `outcome` is always `downstream`; the verdict
+    carries only the proxy's real decision id. Next: the Claude Code PreToolUse hook, then the demo.
 - Pace (2026-11-11): go from one task to the next without asking, each green in CI
   first. Stop for what needs the user: API keys (T1.14), money, the re-plan after M1.
 - Plan: v0.1.0-alpha around 2027-07-05 (M1–M3), v0.1.0 around 2027-10-18. Re-plan after

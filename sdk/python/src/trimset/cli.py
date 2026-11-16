@@ -10,6 +10,7 @@ coverage and decisions on a trimset server. Readable tables by default; JSON wit
     trimset policy rollback refund_fraud --model jev-1.14.0 --reason "v8 escalates too much"
     trimset coverage refund_fraud
     trimset decisions tail --question refund_fraud
+    trimset mcp --model jev-latest                # tool-call gating for agents, over MCP
 
 The key comes from TRIMSET_KEY, then the config file (written with mode 0600). Standard
 library only, like the rest of the SDK.
@@ -27,6 +28,8 @@ import urllib.request
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
+
+from trimset.policy import describe_rule
 
 JOB_TIMEOUT_S = 600.0
 TRANSITIONS = {  # the policy lifecycle (FR-27); the server checks the order
@@ -166,17 +169,6 @@ def table(header: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
         "  ".join(c.ljust(w) for c, w in zip(row, widths, strict=True)).rstrip() for row in cells
     ]
     return "\n".join([lines[0], "  ".join("-" * w for w in widths), *lines[1:]])
-
-
-def scalar_name(scalar: Any) -> str:
-    if isinstance(scalar, dict):
-        return f"P(level >= {scalar['tail_ge']})"
-    return {"p": "p", "top": "top option"}.get(scalar, str(scalar))
-
-
-def describe_rule(rule: dict[str, Any]) -> str:
-    op = "<" if rule["op"] == "lt" else ">="
-    return f"{rule['action']} when {scalar_name(rule['scalar'])} {op} {rule['threshold']:.4f}"
 
 
 def metrics_rows(name: str, m: dict[str, Any]) -> list[list[Any]]:
@@ -660,6 +652,17 @@ def parser() -> argparse.ArgumentParser:
     group(rollback)
     rollback.add_argument("--reason", required=True, help="kept with the change")
 
+    agent = sub.add_parser(
+        "mcp", help="run an MCP server for agents, over stdio (tool-call gating)"
+    )
+    agent.add_argument(
+        "--model", help="the decision model to ask, e.g. jev-latest (or TRIMSET_AGENT_MODEL)"
+    )
+    agent.add_argument(
+        "--allow-probability", action="store_true",
+        help="let the agent pass its own probability to gate (off: it can't vouch for itself)",
+    )  # fmt: skip
+
     coverage = sub.add_parser("coverage", help="labels per served model and action path")
     group(coverage, model_required=False)
 
@@ -696,6 +699,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise CliError("trimset config set needs --url")
             cmd_config(args)
             return 0
+        if args.command == "mcp":
+            from trimset import mcp
+
+            return mcp.run(args.model, args.allow_probability)
         settings = load_config()
         url = args.url or settings.get("url")
         if not url or not settings.get("key"):

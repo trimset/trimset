@@ -38,6 +38,10 @@ Compose; three demos in `examples/` show each stage.
 - **Server.** Four key scopes (ingest, proxy, review, admin), bootstrap from the command
   line, JSON logs with key redaction, Postgres migrations that run on start in the
   compose setup.
+- **Agents (MCP).** `trimset mcp` is a Model Context Protocol server over stdio with three tools: `gate`
+  asks a decision model whether a tool call is safe to run without a human and returns the approved
+  policy's run, ask or block; `outcome` reports what happened; `explain` says what the policy is. An agent
+  cannot vouch for itself, and every failure is "ask a person", never "allow".
 - **Examples.** `examples/m1-capture`, `m2-refund-fraud` and `m3-ticket-triage`, each run
   by CI on every change.
 - **Images** for linux/amd64 and linux/arm64 at `ghcr.io/trimset/trimset`.
