@@ -187,6 +187,8 @@ jobs:
         run: examples/m2-refund-fraud/run.sh
       - name: the M3 demo runs end to end (T3.7, examples/m3-ticket-triage)
         run: examples/m3-ticket-triage/run.sh
+      - name: the agent-gate demo runs end to end (TV.1, examples/agent-gate)
+        run: examples/agent-gate/run.sh
       - name: every log line is JSON (NFR-13)
         run: |
           docker compose logs --no-log-prefix server worker proxy > stack.log
