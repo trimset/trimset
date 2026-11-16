@@ -29,6 +29,19 @@ def audited(decision_id: str, audit_fraction: float) -> bool:
     return u < audit_fraction
 
 
+def scalar_name(scalar: Any) -> str:
+    """What a rule reads, in words."""
+    if isinstance(scalar, dict):
+        return f"P(level >= {scalar['tail_ge']})"
+    return {"p": "p", "top": "top option"}.get(scalar, str(scalar))
+
+
+def describe_rule(rule: Mapping[str, Any]) -> str:
+    """A rule as a line: `ACCEPT when p >= 0.8500`."""
+    op = "<" if rule["op"] == "lt" else ">="
+    return f"{rule['action']} when {scalar_name(rule['scalar'])} {op} {rule['threshold']:.4f}"
+
+
 def _clamp(p: float) -> float:
     return min(max(p, CLAMP), 1 - CLAMP)  # np.clip
 

@@ -54,6 +54,7 @@ nav:
   - Use trimset:
       - Quickstart: quickstart.md
       - Self-hosting: self-hosting.md
+      - Gate an agent's tool calls: agents.md
       - SDK interface: 03-api/sdk.md
       - Wire formats: 03-api/wire-formats.md
       - API reference: api-reference.md
