@@ -30,6 +30,7 @@ recorded data: [demo.trimset.dev](https://demo.trimset.dev)
 | Thresholds | A simulator for any thresholds, and a compiler that certifies a target with Learn-then-Test and exact binomial tests, or says why it can't. |
 | Policies | Versions with diffs, propose → approve → activate, rollback, an audit log, and scheduled refits that only propose. |
 | SDK | `trimset.Client` in Python 3.11+: `gate()` applies the policy from a verified cache and never blocks or raises; `log_exchange`, `log` and `outcome` send records and outcomes in the background, and the state itself is never sent; `instrument()` captures a model run in your own process, such as a Hugging Face pipeline. |
+| Agents | `trimset hook` gates Claude Code's tool calls and `trimset mcp` serves any MCP agent: a decision model rates each call, and the approved policy lets it run, asks a person or blocks it. Anything that fails is an ask, never an allow. [Demo](examples/agent-gate). |
 | CLI | `trimset calibrate`, `simulate`, `policy compile/show/diff/approve/…`, `coverage`, `decisions tail`. |
 
 **Not yet:** drift and silent-upgrade alerts (M4); shadow models and the review queue
