@@ -41,8 +41,15 @@ no new endpoint on the server: its key is an ingest key, like any app's.
 }
 ```
 
-Keep the key in your environment, not in a file you commit (Claude Code expands `${VAR}` in
-this file; a client that doesn't needs the value in `env` directly). `--model` is the name your
+Keep the key in your environment, not in a file you commit: Claude Code expands `${VAR}` in
+this file. With Claude Code you can add the server from the command line:
+
+```bash
+claude mcp add --env TRIMSET_URL=https://trimset.example.com --env TRIMSET_KEY="$TRIMSET_KEY" \
+  --transport stdio trimset -- trimset mcp --model jev-latest
+```
+
+`--model` is the name your
 decision model server knows (the same `model` your app sends through the proxy), and that
 server must be an upstream of your trimset ([self-hosting](self-hosting.md)).
 
@@ -79,15 +86,70 @@ a policy as for any other question ([quickstart](quickstart.md)).
 - **Be allowed by default.** A missing policy, a changed question, an unreachable model, a
   version the policy wasn't compiled for: each is `ESCALATE`.
 
-### Advisory, not enforcing
+### Advisory, not enforcing (see the hook below)
 
 An MCP tool is a thing an agent *may* call. If the agent doesn't, nothing stops the tool
 call. Use `gate` where the agent is cooperative and you want its reasoning to include a
 guarantee. Where a call must not run without the check, enforce it outside the agent's
-control (a hook or a permission rule that runs before the tool does).
+control: that is what the hook is for.
+
+## The Claude Code hook
+
+A `PreToolUse` hook runs before Claude Code runs a tool, and the agent can't skip it.
+`trimset hook` reads the tool call Claude Code sends, asks the decision model, and lets the
+approved policy decide:
+
+| The policy says | Claude Code is told | What happens |
+|---|---|---|
+| `ESCALATE` | `ask` | The user is prompted, and sees why. |
+| `BLOCK` | `deny` | The call doesn't run; Claude is told why, and not to retry it as it stands. |
+| `ACCEPT` | nothing | Claude Code carries on as it would without trimset. |
+| `ACCEPT`, with `--grant` | `allow` | The call runs without a prompt. |
+
+Register it in `.claude/settings.json` (or your user settings). The hook runs in Claude
+Code's environment, so `TRIMSET_URL` and `TRIMSET_KEY` (an ingest key) must be set there:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "trimset hook --model jev-latest", "timeout": 30 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The matcher picks the tools to gate. MCP tools are named `mcp__<server>__<tool>`, so
+`mcp__myserver__.*` matches all of one server's. Gate the tools that matter: every gated call
+waits for the decision model.
+
+**It only tightens, unless you say otherwise.** By default the hook can make Claude Code
+stricter (`ask`, `deny`) and never more permissive. `--grant` lets an `ACCEPT` run without a
+prompt. Turn it on once there is an approved policy with a guarantee you trust behind it,
+not while you are trying things out with a stand-in model. Even then, Claude Code's own
+`deny` and `ask` rules still apply.
+
+**It doesn't let a call through when something fails.** Claude Code proceeds when a hook
+exits with an error or prints something that isn't JSON, so this one never does either:
+whatever goes wrong (trimset unreachable, no policy, a model version the policy wasn't
+compiled for, a call too long to check in full, a bug), it answers `ask`. Two cases are Claude Code's own, not the hook's: if the
+hook times out, Claude Code carries on through its normal permission flow, so keep the
+timeout short; and a newer Claude Code can be told to block instead when a hook fails or times
+out (`"onFailure": "block"` on the hook, per its hooks reference).
+
+**It records no outcomes.** Claude Code doesn't tell a hook whether the user approved or
+denied an `ask`. A hook could only ever see the approvals, and labels that are all "safe"
+would teach the policy that nothing is dangerous. Outcomes come from people reviewing
+escalated calls, and from incident reports through the `outcome` tool or the CLI.
 
 ### Privacy
 
 The tool call is sent to the decision model you configured, because that is what answers
-the question. trimset keeps only a keyed hash of it. Long strings (a whole file being
-written) are cut to 4,000 characters before they are sent.
+the question. trimset keeps only a keyed hash of it. A call with a string over 20,000
+characters (a very large file being written) is not sent at all: a decision about the start
+of it would say nothing about the rest, so it goes to a person instead.
